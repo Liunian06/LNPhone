@@ -16,7 +16,6 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          flutter-version: '3.10.4' # 与 pubspec.yaml 中的环境匹配
           cache: true
 
       - name: Install dependencies
