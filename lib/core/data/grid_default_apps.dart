@@ -1,0 +1,91 @@
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import '../models/app_model.dart';
+
+/// 网格默认应用数据
+class GridDefaultApps {
+  /// 所有应用注册表
+  static Map<String, AppModel> get appRegistry => {
+    // 聊天应用 - 左上角第一位
+    'ai_chat': const AppModel(
+      id: 'ai_chat',
+      name: '聊天',
+      type: AppType.system,
+      iconType: IconType.gradient,
+      icon: CupertinoIcons.chat_bubble_2_fill,
+      gradientColors: [Color(0xFF00C7BE), Color(0xFF30D158)],
+      isRemovable: false,
+    ),
+
+    // 新增应用
+    'memories': const AppModel(
+      id: 'memories',
+      name: '记忆',
+      type: AppType.system,
+      iconType: IconType.gradient,
+      icon: CupertinoIcons.lightbulb,
+      gradientColors: [Color(0xFFFF9A9E), Color(0xFFFECFEF)],
+    ),
+    'stickers': const AppModel(
+      id: 'stickers',
+      name: '表情库',
+      type: AppType.system,
+      iconType: IconType.gradient,
+      icon: CupertinoIcons.smiley_fill,
+      gradientColors: [Color(0xFFF6D365), Color(0xFFFDA085)],
+    ),
+    'check_phone': const AppModel(
+      id: 'check_phone',
+      name: '查手机',
+      type: AppType.system,
+      iconType: IconType.gradient,
+      icon: CupertinoIcons.device_phone_portrait,
+      gradientColors: [Color(0xFF4FACFE), Color(0xFF00F2FE)],
+    ),
+    // 系统应用 (保留需要的)
+    'wallet': const AppModel(
+      id: 'wallet',
+      name: '钱包',
+      type: AppType.system,
+      iconType: IconType.gradient,
+      icon: CupertinoIcons.creditcard_fill,
+      gradientColors: [Color(0xFF1C1C1E), Color(0xFF3A3A3C)],
+    ),
+    'settings': const AppModel(
+      id: 'settings',
+      name: '设置',
+      type: AppType.system,
+      iconType: IconType.gradient,
+      icon: CupertinoIcons.gear_solid,
+      gradientColors: [Color(0xFF8E8E93), Color(0xFFAEAEB2)],
+      isRemovable: false,
+    ),
+  };
+
+  /// 默认第一页网格布局 (4x7=28个位置)
+  /// null表示空位
+  static List<String?> get defaultPage1Grid => [
+    // 第1行
+    'memories', 'stickers', 'check_phone', null,
+    // 第2-6行都是空的
+    null, null, null, null,
+    null, null, null, null,
+    null, null, null, null,
+    null, null, null, null,
+    null, null, null, null,
+    // 第7行 - 原dock应用
+    'ai_chat', null, 'wallet', 'settings',
+  ];
+
+  /// 默认第二页网格布局
+  static List<String?> get defaultPage2Grid => [
+    // 全空
+    null, null, null, null,
+    null, null, null, null,
+    null, null, null, null,
+    null, null, null, null,
+    null, null, null, null,
+    null, null, null, null,
+    null, null, null, null,
+  ];
+}

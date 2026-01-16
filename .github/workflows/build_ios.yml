@@ -1,0 +1,44 @@
+name: Build Unsigned iOS IPA
+
+on:
+  workflow_dispatch: # 允许手动触发构建
+
+jobs:
+  build-ios-unsigned:
+    name: Build Unsigned iOS IPA
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.10.4' # 与 pubspec.yaml 中的环境匹配
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS Release (No Codesign)
+        run: |
+          # 构建 iOS release 版本，但不进行签名
+          flutter build ios --release --no-codesign
+
+      - name: Create Payload Directory
+        run: |
+          mkdir -p Payload
+          mv build/ios/iphoneos/Runner.app Payload/
+
+      - name: Zip Payload to IPA
+        run: |
+          # 将 Payload 目录压缩为 .ipa 文件
+          zip -r -y release-unsigned.ipa Payload/
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-unsigned-ipa
+          path: release-unsigned.ipa
