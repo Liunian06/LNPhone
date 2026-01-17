@@ -226,6 +226,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                     .add(chat.messages[messageIndex].id);
                               }
                             });
+                          } else {
+                            // 非多选模式下，点击空白处收起键盘和菜单
+                            _removeOverlay();
+                            FocusScope.of(context).unfocus();
                           }
                         },
                         onLongPress: (details) {
@@ -581,8 +585,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _removeOverlay();
 
     final overlay = Overlay.of(context);
-    final renderBox = context.findRenderObject() as RenderBox;
-    final size = renderBox.size;
+    final size = MediaQuery.of(context).size;
 
     // 计算菜单位置
     double left = position.dx;
@@ -954,8 +957,8 @@ class MessageItem extends StatelessWidget {
     final maxBubbleWidth = screenWidth - 120;
 
     return GestureDetector(
-      onLongPressStart: onLongPress,
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Container(
         color: isSelected ? Colors.black.withOpacity(0.1) : Colors.transparent,
         padding: const EdgeInsets.only(bottom: 4, top: 4),
@@ -981,7 +984,10 @@ class MessageItem extends StatelessWidget {
                     _buildAvatar(role.avatarPath, false),
                     const SizedBox(width: 8),
                   ],
-                  _buildMessageBubble(message, maxBubbleWidth),
+                  GestureDetector(
+                    onLongPressStart: onLongPress,
+                    child: _buildMessageBubble(message, maxBubbleWidth),
+                  ),
                   if (message.isMe) ...[
                     const SizedBox(width: 8),
                     _buildAvatar(me.avatarPath, true),
