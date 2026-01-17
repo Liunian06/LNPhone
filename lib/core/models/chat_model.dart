@@ -29,7 +29,7 @@ enum MessageType {
 class ChatMessage {
   final String id;
   final bool
-  isMe; // true if sent by the user persona, false if by the role persona
+      isMe; // true if sent by the user persona, false if by the role persona
   final MessageType type;
   final String content;
   final int timestamp;
@@ -116,6 +116,8 @@ class ChatSession {
   final List<ChatMessage> messages;
   final int lastUpdated;
   final bool enableExtendedChat; // 是否启用扩展聊天（解析action和thought）
+  final String? currentState; // 当前状态
+  final bool isPinned; // 是否置顶
 
   ChatSession({
     required this.id,
@@ -124,6 +126,8 @@ class ChatSession {
     required this.messages,
     required this.lastUpdated,
     this.enableExtendedChat = true, // 默认开启
+    this.currentState,
+    this.isPinned = false, // 默认不置顶
   });
 
   Map<String, dynamic> toJson() {
@@ -134,6 +138,8 @@ class ChatSession {
       'messages': messages.map((m) => m.toJson()).toList(),
       'lastUpdated': lastUpdated,
       'enableExtendedChat': enableExtendedChat,
+      'currentState': currentState,
+      'isPinned': isPinned,
     };
   }
 
@@ -147,6 +153,8 @@ class ChatSession {
           .toList(),
       lastUpdated: json['lastUpdated'],
       enableExtendedChat: json['enableExtendedChat'] ?? true, // 默认开启
+      currentState: json['currentState'],
+      isPinned: json['isPinned'] ?? false, // 默认不置顶
     );
   }
 

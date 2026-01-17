@@ -56,9 +56,8 @@ class ChatProvider extends ChangeNotifier {
         try {
           debugPrint('Starting migration from SharedPreferences to SQLite...');
           final List<dynamic> decoded = jsonDecode(chatsJson);
-          final oldSessions = decoded
-              .map((item) => ChatSession.fromJson(item))
-              .toList();
+          final oldSessions =
+              decoded.map((item) => ChatSession.fromJson(item)).toList();
 
           for (final session in oldSessions) {
             // 插入 Session
@@ -105,6 +104,12 @@ class ChatProvider extends ChangeNotifier {
   /// 重新从数据库加载数据到内存
   Future<void> _refreshChats() async {
     _chats = await _database.getAllSessions();
+    // 恢复状态
+    for (final chat in _chats) {
+      if (chat.currentState != null) {
+        _currentStates[chat.id] = chat.currentState!;
+      }
+    }
     notifyListeners();
   }
 
@@ -211,6 +216,15 @@ class ChatProvider extends ChangeNotifier {
     await _refreshChats();
   }
 
+  /// 置顶/取消置顶聊天
+  Future<void> togglePinChat(String chatId) async {
+    final chat = getChat(chatId);
+    if (chat != null) {
+      await _database.updateSessionPinned(chatId, !chat.isPinned);
+      await _refreshChats();
+    }
+  }
+
   Future<void> deleteChat(String chatId) async {
     await _database.deleteSession(chatId);
     await _refreshChats();
@@ -265,6 +279,7 @@ class ChatProvider extends ChangeNotifier {
     required ContactRole role,
     required ContactMe me,
     required Function(String content, MomentsUser user) onAddMoment,
+    Function(String error)? onError,
     bool enableExtendedChat = true,
     int delayedReplySeconds = 0,
   }) async {
@@ -305,6 +320,8 @@ class ChatProvider extends ChangeNotifier {
               (msg) => msg.type == MessageType.state,
             );
             _currentStates[chatId] = stateMessage.content;
+            // 持久化状态
+            await _database.updateSessionState(chatId, stateMessage.content);
             // notifyListeners(); // 下面的 addMessage 会触发 notify
           } catch (e) {
             // 没有找到state消息，不更新状态
@@ -378,6 +395,9 @@ class ChatProvider extends ChangeNotifier {
         debugPrint('生成回复失败: $e');
         _typingStates[chatId] = false;
         notifyListeners();
+        if (e is LlmRetryException) {
+          onError?.call(e.toString());
+        }
       }
     }
 

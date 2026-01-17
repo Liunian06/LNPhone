@@ -259,9 +259,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (!_isInitialized && provider.isLoaded) {
       _isInitialized = true;
       if (provider.gridPages.isNotEmpty) {
-        _gridPages = provider.gridPages
-            .map((page) => List<String?>.from(page))
-            .toList();
+        _gridPages =
+            provider.gridPages.map((page) => List<String?>.from(page)).toList();
       } else {
         // 保存默认布局到 Provider
         // 使用 addPostFrameCallback 避免在 build 期间触发 notifyListeners
@@ -279,8 +278,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: Scaffold(
         backgroundColor: Colors.black,
         body: IOSWallpaper(
-          style: WallpaperStyle.values[provider.currentWallpaperIndex],
-          customImagePath: provider.customWallpaperPath,
+          style: WallpaperStyle.values[provider.currentWallpaperIndex
+              .clamp(0, WallpaperStyle.values.length - 1)],
+          customImagePath: provider.currentDailyWallpaperPath ??
+              provider.customWallpaperPath,
           child: Stack(
             children: [
               SafeArea(

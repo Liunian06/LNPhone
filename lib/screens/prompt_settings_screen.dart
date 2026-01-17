@@ -48,16 +48,17 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                         ),
                         const SizedBox(height: 16),
                         _buildRealityPromptSection(provider),
-
                         const SizedBox(height: 30),
                         _buildSectionTitle('用户提示词 (User Prompt)'),
                         const SizedBox(height: 10),
-                        _buildContextLengthSection(provider),
+                        _ContextLengthSection(
+                          value: provider.contextLength,
+                          onChanged: provider.updateContextLength,
+                        ),
                         const SizedBox(height: 16),
                         _buildDelayedReplySection(provider),
                         const SizedBox(height: 16),
                         _buildBackgroundActiveReplySection(provider),
-
                         const SizedBox(height: 40),
                       ],
                     );
@@ -172,64 +173,6 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
               showHeader: false,
             ),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildContextLengthSection(PromptSettingsProvider provider) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                '上下文长度 (Context Length)',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                '${provider.contextLength} 条',
-                style: const TextStyle(
-                  color: Color(0xFF007AFF),
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '包含用户与 AI 的最近聊天记录数量',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.6),
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: CupertinoSlider(
-              value: provider.contextLength.toDouble(),
-              min: 0,
-              max: 50,
-              divisions: 50,
-              activeColor: const Color(0xFF007AFF),
-              onChanged: (value) {
-                provider.updateContextLength(value.round());
-              },
-            ),
-          ),
         ],
       ),
     );
@@ -399,6 +342,125 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ContextLengthSection extends StatefulWidget {
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  const _ContextLengthSection({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  State<_ContextLengthSection> createState() => _ContextLengthSectionState();
+}
+
+class _ContextLengthSectionState extends State<_ContextLengthSection> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value.toString());
+  }
+
+  @override
+  void didUpdateWidget(_ContextLengthSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != oldWidget.value) {
+      final textValue = int.tryParse(_controller.text) ?? 0;
+      if (widget.value != textValue) {
+        _controller.text = widget.value.toString();
+        _controller.selection = TextSelection.fromPosition(
+          TextPosition(offset: _controller.text.length),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                '上下文长度 (Context Length)',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(
+                width: 80,
+                child: CupertinoTextField(
+                  controller: _controller,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(
+                    color: Color(0xFF007AFF),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  textAlign: TextAlign.center,
+                  onChanged: (value) {
+                    final newValue = int.tryParse(value);
+                    if (newValue != null) {
+                      widget.onChanged(newValue.clamp(0, 10000));
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '包含用户与 AI 的最近聊天记录数量',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.6),
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: CupertinoSlider(
+              value: ((widget.value / 100).round() * 100)
+                  .clamp(0, 10000)
+                  .toDouble(),
+              min: 0,
+              max: 10000,
+              divisions: 100,
+              activeColor: const Color(0xFF007AFF),
+              onChanged: (value) {
+                widget.onChanged(value.round());
+              },
+            ),
+          ),
         ],
       ),
     );

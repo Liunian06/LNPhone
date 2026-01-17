@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database/database.dart';
 import '../models/api_preset.dart';
@@ -28,6 +29,9 @@ class BackgroundService {
   static const String _lastBackgroundCheckKey = 'last_background_check_time';
 
   static Future<void> initializeService() async {
+    // 请求忽略电池优化权限
+    await _requestIgnoreBatteryOptimizations();
+
     final service = FlutterBackgroundService();
 
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
@@ -42,8 +46,7 @@ class BackgroundService {
 
     await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
 
     await service.configure(
@@ -271,21 +274,20 @@ class BackgroundService {
       debugPrint('[BG] Base URL: ${apiPreset.baseUrl}');
 
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final aiMessages =
-          await LlmService.generateResponse(
-            apiPreset: apiPreset,
-            promptSettings: promptSettings,
-            history: messages,
-            role: role,
-            me: me,
-            messageIdPrefix: 'ai-bg-$timestamp',
-          ).timeout(
-            const Duration(seconds: 60),
-            onTimeout: () {
-              debugPrint('[BG] ❌ API 调用超时（60秒）');
-              throw TimeoutException('LLM API 调用超时');
-            },
-          );
+      final aiMessages = await LlmService.generateResponse(
+        apiPreset: apiPreset,
+        promptSettings: promptSettings,
+        history: messages,
+        role: role,
+        me: me,
+        messageIdPrefix: 'ai-bg-$timestamp',
+      ).timeout(
+        const Duration(seconds: 60),
+        onTimeout: () {
+          debugPrint('[BG] ❌ API 调用超时（60秒）');
+          throw TimeoutException('LLM API 调用超时');
+        },
+      );
 
       debugPrint('[BG] ✓ API 调用完成，返回 ${aiMessages.length} 条消息');
 
@@ -389,5 +391,20 @@ class BackgroundService {
       _lastActiveTimeKey,
       DateTime.now().millisecondsSinceEpoch,
     );
+  }
+
+  static Future<void> _requestIgnoreBatteryOptimizations() async {
+    try {
+      final status = await Permission.ignoreBatteryOptimizations.status;
+      if (!status.isGranted) {
+        debugPrint('[BG] 请求忽略电池优化权限...');
+        final result = await Permission.ignoreBatteryOptimizations.request();
+        debugPrint('[BG] 忽略电池优化权限请求结果: $result');
+      } else {
+        debugPrint('[BG] 已获得忽略电池优化权限');
+      }
+    } catch (e) {
+      debugPrint('[BG] 请求忽略电池优化权限失败: $e');
+    }
   }
 }

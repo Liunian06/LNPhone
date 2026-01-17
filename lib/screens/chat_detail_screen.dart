@@ -56,7 +56,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
+        0,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
@@ -120,6 +120,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             FocusScope.of(context).unfocus();
           },
           child: Scaffold(
+            resizeToAvoidBottomInset: true,
             backgroundColor: const Color(0xFFEDEDED),
             appBar: AppBar(
               backgroundColor: const Color(0xFFEDEDED),
@@ -195,14 +196,56 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               children: [
                 Expanded(
                   child: ListView.builder(
+                    reverse: true,
                     controller: _scrollController,
+                    cacheExtent: 500,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 10,
                     ),
                     itemCount: chat.messages.length,
                     itemBuilder: (context, index) {
-                      return _buildMessageItem(chat.messages[index], role, me);
+                      final messageIndex = chat.messages.length - 1 - index;
+                      return MessageItem(
+                        key: ValueKey(chat.messages[messageIndex].id),
+                        message: chat.messages[messageIndex],
+                        role: role,
+                        me: me,
+                        isMultiSelectMode: _isMultiSelectMode,
+                        isSelected: _selectedMessageIds
+                            .contains(chat.messages[messageIndex].id),
+                        onTap: () {
+                          if (_isMultiSelectMode) {
+                            setState(() {
+                              if (_selectedMessageIds
+                                  .contains(chat.messages[messageIndex].id)) {
+                                _selectedMessageIds
+                                    .remove(chat.messages[messageIndex].id);
+                              } else {
+                                _selectedMessageIds
+                                    .add(chat.messages[messageIndex].id);
+                              }
+                            });
+                          }
+                        },
+                        onLongPress: (details) {
+                          if (!_isMultiSelectMode) {
+                            _showContextMenu(context, details.globalPosition,
+                                chat.messages[messageIndex]);
+                          }
+                        },
+                        onSelectionChanged: (value) {
+                          setState(() {
+                            if (value == true) {
+                              _selectedMessageIds
+                                  .add(chat.messages[messageIndex].id);
+                            } else {
+                              _selectedMessageIds
+                                  .remove(chat.messages[messageIndex].id);
+                            }
+                          });
+                        },
+                      );
                     },
                   ),
                 ),
@@ -218,190 +261,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  Widget _buildMessageItem(
-    ChatMessage message,
-    ContactRole role,
-    ContactMe me,
-  ) {
-    // 跳过不显示的消息类型
-    if (message.type == MessageType.memory ||
-        message.type == MessageType.diary ||
-        message.type == MessageType.moment ||
-        message.type == MessageType.state) {
-      return const SizedBox.shrink();
-    }
-
-    // 跳过内容为空的文本消息
-    if ((message.type == MessageType.words ||
-            message.type == MessageType.thought ||
-            message.type == MessageType.action) &&
-        message.content.trim().isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final screenWidth = MediaQuery.of(context).size.width;
-    // 最大宽度 = 屏幕宽度 - 左右padding(24) - 两侧头像位置(40+8+40+8)
-    final maxBubbleWidth = screenWidth - 120;
-
-    return GestureDetector(
-      onLongPressStart: (details) {
-        if (!_isMultiSelectMode) {
-          _showContextMenu(context, details.globalPosition, message);
-        }
-      },
-      onTap: () {
-        if (_isMultiSelectMode) {
-          setState(() {
-            if (_selectedMessageIds.contains(message.id)) {
-              _selectedMessageIds.remove(message.id);
-            } else {
-              _selectedMessageIds.add(message.id);
-            }
-          });
-        }
-      },
-      child: Container(
-        color: _selectedMessageIds.contains(message.id)
-            ? Colors.black.withOpacity(0.1)
-            : Colors.transparent,
-        padding: const EdgeInsets.only(bottom: 16, top: 4),
-        child: Row(
-          children: [
-            if (_isMultiSelectMode)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Checkbox(
-                  value: _selectedMessageIds.contains(message.id),
-                  onChanged: (value) {
-                    setState(() {
-                      if (value == true) {
-                        _selectedMessageIds.add(message.id);
-                      } else {
-                        _selectedMessageIds.remove(message.id);
-                      }
-                    });
-                  },
-                  shape: const CircleBorder(),
-                ),
-              ),
-            Expanded(
-              child: Row(
-                mainAxisAlignment: message.isMe
-                    ? MainAxisAlignment.end
-                    : MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (!message.isMe) ...[
-                    _buildAvatar(role.avatarPath, false),
-                    const SizedBox(width: 8),
-                  ],
-                  _buildMessageBubble(message, maxBubbleWidth),
-                  if (message.isMe) ...[
-                    const SizedBox(width: 8),
-                    _buildAvatar(me.avatarPath, true),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 根据消息类型构建对应的气泡
-  Widget _buildMessageBubble(ChatMessage message, double maxBubbleWidth) {
-    switch (message.type) {
-      // 基础文本类型
-      case MessageType.words:
-      case MessageType.action:
-      case MessageType.thought:
-        return _ChatBubble(
-          content: message.content,
-          isMe: message.isMe,
-          maxWidth: maxBubbleWidth,
-          messageType: message.type,
-        );
-
-      // 多媒体类型
-      case MessageType.emoji:
-        return EmojiBubble(message: message, maxWidth: maxBubbleWidth);
-
-      case MessageType.image:
-        return Container(
-          constraints: BoxConstraints(maxWidth: maxBubbleWidth),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: Colors.grey.withOpacity(0.2)),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: Container(
-              color: Colors.grey[300],
-              height: 150,
-              width: 100,
-              child: const Icon(Icons.image, color: Colors.grey),
-            ),
-          ),
-        );
-
-      case MessageType.location:
-        return LocationBubble(message: message, maxWidth: maxBubbleWidth);
-
-      // 资金往来类型
-      case MessageType.redpacket:
-        return RedpacketBubble(message: message, maxWidth: maxBubbleWidth);
-
-      case MessageType.transfer:
-        return TransferBubble(message: message, maxWidth: maxBubbleWidth);
-
-      // 分享类型
-      case MessageType.product:
-        return ProductBubble(message: message, maxWidth: maxBubbleWidth);
-
-      case MessageType.link:
-        return LinkBubble(message: message, maxWidth: maxBubbleWidth);
-
-      case MessageType.note:
-        return NoteBubble(message: message, maxWidth: maxBubbleWidth);
-
-      case MessageType.anniversary:
-        return AnniversaryBubble(message: message, maxWidth: maxBubbleWidth);
-
-      // 不应该显示的类型（已在外部过滤）
-      case MessageType.memory:
-      case MessageType.diary:
-      case MessageType.moment:
-      case MessageType.state:
-        return const SizedBox.shrink();
-    }
-  }
-
-  Widget _buildAvatar(String? path, bool isMe) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: isMe ? Colors.orange[100] : Colors.grey[300],
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: path != null
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: Image.file(
-                File(path),
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Icon(
-                    Icons.person,
-                    color: isMe ? Colors.orange : Colors.grey,
-                  );
-                },
-              ),
-            )
-          : Icon(Icons.person, color: isMe ? Colors.orange : Colors.grey),
-    );
-  }
+  // _buildMessageItem, _buildMessageBubble, _buildAvatar methods removed and refactored into MessageItem class
 
   Widget _buildInputArea(ChatProvider chatProvider) {
     return Container(
@@ -689,6 +549,25 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       onAddMoment: (content, user) {
         momentsProvider.addMomentFromChat(content, user);
       },
+      onError: (error) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('生成回复失败'),
+              content: SingleChildScrollView(
+                child: Text(error),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('确定'),
+                ),
+              ],
+            ),
+          );
+        }
+      },
       enableExtendedChat: chat.enableExtendedChat,
       delayedReplySeconds: promptProvider.delayedReplySeconds,
     );
@@ -791,9 +670,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           TextButton(
             onPressed: () {
               context.read<ChatProvider>().updateMessage(
-                message.id,
-                controller.text,
-              );
+                    message.id,
+                    controller.text,
+                  );
               Navigator.pop(context);
             },
             child: const Text('保存'),
@@ -914,6 +793,25 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       onAddMoment: (content, user) {
         momentsProvider.addMomentFromChat(content, user);
       },
+      onError: (error) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('生成回复失败'),
+              content: SingleChildScrollView(
+                child: Text(error),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('确定'),
+                ),
+              ],
+            ),
+          );
+        }
+      },
       enableExtendedChat: chat.enableExtendedChat,
       delayedReplySeconds: 0, // 回溯后通常立即回复
     );
@@ -1008,6 +906,187 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ),
       ),
     );
+  }
+}
+
+class MessageItem extends StatelessWidget {
+  final ChatMessage message;
+  final ContactRole role;
+  final ContactMe me;
+  final bool isMultiSelectMode;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final Function(LongPressStartDetails) onLongPress;
+  final Function(bool?) onSelectionChanged;
+
+  const MessageItem({
+    super.key,
+    required this.message,
+    required this.role,
+    required this.me,
+    required this.isMultiSelectMode,
+    required this.isSelected,
+    required this.onTap,
+    required this.onLongPress,
+    required this.onSelectionChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // 跳过不显示的消息类型
+    if (message.type == MessageType.memory ||
+        message.type == MessageType.diary ||
+        message.type == MessageType.moment ||
+        message.type == MessageType.state) {
+      return const SizedBox.shrink();
+    }
+
+    // 跳过内容为空的文本消息
+    if ((message.type == MessageType.words ||
+            message.type == MessageType.thought ||
+            message.type == MessageType.action) &&
+        message.content.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    // 最大宽度 = 屏幕宽度 - 左右padding(24) - 两侧头像位置(40+8+40+8)
+    final maxBubbleWidth = screenWidth - 120;
+
+    return GestureDetector(
+      onLongPressStart: onLongPress,
+      onTap: onTap,
+      child: Container(
+        color: isSelected ? Colors.black.withOpacity(0.1) : Colors.transparent,
+        padding: const EdgeInsets.only(bottom: 4, top: 4),
+        child: Row(
+          children: [
+            if (isMultiSelectMode)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Checkbox(
+                  value: isSelected,
+                  onChanged: onSelectionChanged,
+                  shape: const CircleBorder(),
+                ),
+              ),
+            Expanded(
+              child: Row(
+                mainAxisAlignment: message.isMe
+                    ? MainAxisAlignment.end
+                    : MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!message.isMe) ...[
+                    _buildAvatar(role.avatarPath, false),
+                    const SizedBox(width: 8),
+                  ],
+                  _buildMessageBubble(message, maxBubbleWidth),
+                  if (message.isMe) ...[
+                    const SizedBox(width: 8),
+                    _buildAvatar(me.avatarPath, true),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatar(String? path, bool isMe) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: isMe ? Colors.orange[100] : Colors.grey[300],
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: path != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.file(
+                File(path),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(
+                    Icons.person,
+                    color: isMe ? Colors.orange : Colors.grey,
+                  );
+                },
+              ),
+            )
+          : Icon(Icons.person, color: isMe ? Colors.orange : Colors.grey),
+    );
+  }
+
+  /// 根据消息类型构建对应的气泡
+  Widget _buildMessageBubble(ChatMessage message, double maxBubbleWidth) {
+    switch (message.type) {
+      // 基础文本类型
+      case MessageType.words:
+      case MessageType.action:
+      case MessageType.thought:
+        return _ChatBubble(
+          content: message.content,
+          isMe: message.isMe,
+          maxWidth: maxBubbleWidth,
+          messageType: message.type,
+        );
+
+      // 多媒体类型
+      case MessageType.emoji:
+        return EmojiBubble(message: message, maxWidth: maxBubbleWidth);
+
+      case MessageType.image:
+        return Container(
+          constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: Colors.grey.withOpacity(0.2)),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Container(
+              color: Colors.grey[300],
+              height: 150,
+              width: 100,
+              child: const Icon(Icons.image, color: Colors.grey),
+            ),
+          ),
+        );
+
+      case MessageType.location:
+        return LocationBubble(message: message, maxWidth: maxBubbleWidth);
+
+      // 资金往来类型
+      case MessageType.redpacket:
+        return RedpacketBubble(message: message, maxWidth: maxBubbleWidth);
+
+      case MessageType.transfer:
+        return TransferBubble(message: message, maxWidth: maxBubbleWidth);
+
+      // 分享类型
+      case MessageType.product:
+        return ProductBubble(message: message, maxWidth: maxBubbleWidth);
+
+      case MessageType.link:
+        return LinkBubble(message: message, maxWidth: maxBubbleWidth);
+
+      case MessageType.note:
+        return NoteBubble(message: message, maxWidth: maxBubbleWidth);
+
+      case MessageType.anniversary:
+        return AnniversaryBubble(message: message, maxWidth: maxBubbleWidth);
+
+      // 不应该显示的类型（已在外部过滤）
+      case MessageType.memory:
+      case MessageType.diary:
+      case MessageType.moment:
+      case MessageType.state:
+        return const SizedBox.shrink();
+    }
   }
 }
 

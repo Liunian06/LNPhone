@@ -18,7 +18,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 5;
 
   // Migration Strategy
   @override
@@ -38,17 +38,24 @@ class AppDatabase extends _$AppDatabase {
             chatMessages,
           )).write(const ChatMessagesCompanion(isRead: Value(true)));
         }
+        if (from < 4) {
+          await m.addColumn(chatSessions, chatSessions.currentState);
+        }
+        if (from < 5) {
+          await m.addColumn(chatSessions, chatSessions.isPinned);
+        }
       },
     );
   }
 
   // --- ChatSession Queries ---
 
-  /// 获取所有会话，按最后更新时间倒序
+  /// 获取所有会话，置顶的排在前面，然后按最后更新时间倒序
   /// 返回的是 Model 列表，不是 DB Entity
   Future<List<ChatSession>> getAllSessions() async {
     final query = select(chatSessions)
       ..orderBy([
+        (t) => OrderingTerm(expression: t.isPinned, mode: OrderingMode.desc),
         (t) => OrderingTerm(expression: t.lastUpdated, mode: OrderingMode.desc),
       ]);
 
@@ -56,16 +63,15 @@ class AppDatabase extends _$AppDatabase {
 
     List<ChatSession> result = [];
     for (final s in sessions) {
-      final messages =
-          await (select(chatMessages)
-                ..where((t) => t.sessionId.equals(s.id))
-                ..orderBy([
-                  (t) => OrderingTerm(
+      final messages = await (select(chatMessages)
+            ..where((t) => t.sessionId.equals(s.id))
+            ..orderBy([
+              (t) => OrderingTerm(
                     expression: t.timestamp,
                     mode: OrderingMode.asc,
                   ),
-                ]))
-              .get();
+            ]))
+          .get();
 
       result.add(
         ChatSession(
@@ -87,6 +93,8 @@ class AppDatabase extends _$AppDatabase {
               .toList(),
           lastUpdated: s.lastUpdated,
           enableExtendedChat: s.enableExtendedChat,
+          currentState: s.currentState,
+          isPinned: s.isPinned,
         ),
       );
     }
@@ -97,19 +105,19 @@ class AppDatabase extends _$AppDatabase {
   Future<ChatSession?> getChatSession(String id) async {
     final s = await (select(
       chatSessions,
-    )..where((t) => t.id.equals(id))).getSingleOrNull();
+    )..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
     if (s == null) return null;
 
-    final messages =
-        await (select(chatMessages)
-              ..where((t) => t.sessionId.equals(s.id))
-              ..orderBy([
-                (t) => OrderingTerm(
+    final messages = await (select(chatMessages)
+          ..where((t) => t.sessionId.equals(s.id))
+          ..orderBy([
+            (t) => OrderingTerm(
                   expression: t.timestamp,
                   mode: OrderingMode.asc,
                 ),
-              ]))
-            .get();
+          ]))
+        .get();
 
     return ChatSession(
       id: s.id,
@@ -130,6 +138,8 @@ class AppDatabase extends _$AppDatabase {
           .toList(),
       lastUpdated: s.lastUpdated,
       enableExtendedChat: s.enableExtendedChat,
+      currentState: s.currentState,
+      isPinned: s.isPinned,
     );
   }
 
@@ -147,7 +157,8 @@ class AppDatabase extends _$AppDatabase {
     // 更新会话的最后更新时间
     await (update(
       chatSessions,
-    )..where((t) => t.id.equals(message.sessionId.value))).write(
+    )..where((t) => t.id.equals(message.sessionId.value)))
+        .write(
       ChatSessionsCompanion(lastUpdated: Value(message.timestamp.value)),
     );
   }
@@ -215,6 +226,20 @@ class AppDatabase extends _$AppDatabase {
   Future<void> updateSessionSettings(String id, bool enableExtendedChat) {
     return (update(chatSessions)..where((t) => t.id.equals(id))).write(
       ChatSessionsCompanion(enableExtendedChat: Value(enableExtendedChat)),
+    );
+  }
+
+  /// 更新会话状态
+  Future<void> updateSessionState(String id, String? state) {
+    return (update(chatSessions)..where((t) => t.id.equals(id))).write(
+      ChatSessionsCompanion(currentState: Value(state)),
+    );
+  }
+
+  /// 置顶/取消置顶会话
+  Future<void> updateSessionPinned(String id, bool isPinned) {
+    return (update(chatSessions)..where((t) => t.id.equals(id))).write(
+      ChatSessionsCompanion(isPinned: Value(isPinned)),
     );
   }
   // --- Moments Queries ---
@@ -294,9 +319,8 @@ class AppDatabase extends _$AppDatabase {
       final rolesJson = prefs.getString('contact_roles');
       if (rolesJson != null) {
         final List<dynamic> decoded = jsonDecode(rolesJson);
-        final roles = decoded
-            .map((item) => ContactRole.fromJson(item))
-            .toList();
+        final roles =
+            decoded.map((item) => ContactRole.fromJson(item)).toList();
         return roles.firstWhere((r) => r.id == id);
       }
     } catch (e) {
@@ -347,16 +371,15 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<List<ChatMessage>> getMessages(String sessionId) async {
-    final messages =
-        await (select(chatMessages)
-              ..where((t) => t.sessionId.equals(sessionId))
-              ..orderBy([
-                (t) => OrderingTerm(
+    final messages = await (select(chatMessages)
+          ..where((t) => t.sessionId.equals(sessionId))
+          ..orderBy([
+            (t) => OrderingTerm(
                   expression: t.timestamp,
                   mode: OrderingMode.asc,
                 ),
-              ]))
-            .get();
+          ]))
+        .get();
 
     return messages
         .map(

@@ -29,39 +29,6 @@ class ZipBackupService {
       await settingsFile.writeAsString(settingsJson);
       encoder.addFile(settingsFile);
 
-      // 2. 添加图片文件
-      if (files.isNotEmpty) {
-        // 创建临时图片目录用于打包
-        final tempImagesDir = Directory(
-          path.join(tempDir.path, _imagesDirName),
-        );
-        if (!await tempImagesDir.exists()) {
-          await tempImagesDir.create();
-        }
-
-        for (final entry in files.entries) {
-          final fileName = entry.key;
-          final sourcePath = entry.value;
-          final sourceFile = File(sourcePath);
-
-          if (await sourceFile.exists()) {
-            // 直接添加到zip中，保持目录结构
-            // archive包的addFile可以直接指定在zip中的路径
-            // 但ZipFileEncoder的addFile方法比较简单，我们手动读取并添加
-            // 或者使用 archiveFile
-
-            // 简单方式：先复制到临时目录再添加
-            // 这样可以确保在zip中的路径是 images/filename
-            // 但ZipFileEncoder默认只添加文件名。
-            // 我们使用 archive 库的更底层API或者手动构建
-
-            // 修正：ZipFileEncoder.addFile 接受 filename 参数作为在zip中的名称
-            // 但它似乎只接受文件名。
-            // 让我们使用 Archive 类手动构建
-          }
-        }
-      }
-
       // 重新实现使用 Archive 类，更灵活
       final archive = Archive();
 
@@ -71,7 +38,7 @@ class ZipBackupService {
         ArchiveFile(_settingsFileName, settingsBytes.length, settingsBytes),
       );
 
-      // 添加图片
+      // 添加文件 (图片和数据库)
       for (final entry in files.entries) {
         final fileName = entry.key;
         final sourcePath = entry.value;
@@ -79,7 +46,13 @@ class ZipBackupService {
 
         if (await sourceFile.exists()) {
           final bytes = await sourceFile.readAsBytes();
-          final zipFileName = '$_imagesDirName/$fileName';
+          // 如果是数据库文件，直接放在根目录，否则放在 images 目录
+          String zipFileName;
+          if (fileName.startsWith('db.sqlite')) {
+            zipFileName = fileName;
+          } else {
+            zipFileName = '$_imagesDirName/$fileName';
+          }
           archive.addFile(ArchiveFile(zipFileName, bytes.length, bytes));
         }
       }
@@ -126,6 +99,10 @@ class ZipBackupService {
         if (file.name == _settingsFileName) {
           final content = utf8.decode(file.content as List<int>);
           settings = jsonDecode(content) as Map<String, dynamic>;
+        } else if (file.name.startsWith('db.sqlite')) {
+          // 恢复数据库文件 (包括 wal 和 shm)
+          final outFile = File(path.join(appDocDir.path, file.name));
+          await outFile.writeAsBytes(file.content as List<int>);
         } else if (file.name.startsWith('$_imagesDirName/')) {
           final fileName = path.basename(file.name);
           // 避免文件名冲突，添加时间戳

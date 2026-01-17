@@ -113,6 +113,8 @@ class ChatSessions extends Table {
   IntColumn get lastUpdated => integer()();
   BoolColumn get enableExtendedChat =>
       boolean().withDefault(const Constant(true))();
+  TextColumn get currentState => text().nullable()();
+  BoolColumn get isPinned => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};

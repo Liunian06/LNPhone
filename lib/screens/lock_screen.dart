@@ -95,8 +95,8 @@ class _LockScreenState extends State<LockScreen>
             },
             transitionsBuilder:
                 (context, animation, secondaryAnimation, child) {
-                  return FadeTransition(opacity: animation, child: child);
-                },
+              return FadeTransition(opacity: animation, child: child);
+            },
             transitionDuration: const Duration(milliseconds: 300),
           ),
         );
@@ -110,7 +110,7 @@ class _LockScreenState extends State<LockScreen>
     final progress = (_dragDistance / -screenHeight).clamp(0.0, 1.0);
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.black,
       body: SlideTransition(
         position: _slideAnimation,
         child: GestureDetector(
@@ -122,36 +122,33 @@ class _LockScreenState extends State<LockScreen>
               Positioned.fill(
                 child: Consumer<SystemStateProvider>(
                   builder: (context, provider, _) {
-                    final customPath = provider.customLockScreenWallpaperPath;
-                    final styles = [
-                      WallpaperStyle.gradient1,
-                      WallpaperStyle.gradient2,
-                      WallpaperStyle.gradient3,
-                      WallpaperStyle.dark,
-                      WallpaperStyle.aurora,
-                      WallpaperStyle.mesh,
-                    ];
+                    // 优先使用每日壁纸
+                    final dailyWallpaper = provider.currentDailyWallpaperPath;
+                    if (dailyWallpaper != null) {
+                      return Image.file(
+                        File(dailyWallpaper),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          // 加载失败时回退到自定义壁纸或预设壁纸
+                          return _buildFallbackWallpaper(provider);
+                        },
+                      );
+                    }
 
-                    // 如果有自定义壁纸
+                    // 其次使用自定义壁纸
+                    final customPath = provider.customLockScreenWallpaperPath;
                     if (customPath != null) {
                       return Image.file(
                         File(customPath),
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
-                          return IOSWallpaper(
-                            style: styles[provider.lockScreenWallpaperIndex],
-                            enableParallax: false,
-                            child: const SizedBox.expand(),
-                          );
+                          return _buildFallbackWallpaper(provider);
                         },
                       );
                     }
 
-                    return IOSWallpaper(
-                      style: styles[provider.lockScreenWallpaperIndex],
-                      enableParallax: false,
-                      child: const SizedBox.expand(),
-                    );
+                    // 最后使用预设壁纸
+                    return _buildFallbackWallpaper(provider);
                   },
                 ),
               ),
@@ -160,7 +157,7 @@ class _LockScreenState extends State<LockScreen>
                 bottom: false,
                 child: Column(
                   children: [
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 80),
 
                     // 时间组件
                     const IOSTimeWidget(showDate: true, showSeconds: false),
@@ -338,6 +335,17 @@ class _LockScreenState extends State<LockScreen>
           ),
         ],
       ),
+    );
+  }
+
+  /// 构建备用壁纸（当每日壁纸和自定义壁纸都加载失败时使用）
+  Widget _buildFallbackWallpaper(SystemStateProvider provider) {
+    final index = provider.lockScreenWallpaperIndex
+        .clamp(0, WallpaperStyle.values.length - 1);
+    return IOSWallpaper(
+      style: WallpaperStyle.values[index],
+      enableParallax: false,
+      child: const SizedBox.expand(),
     );
   }
 }

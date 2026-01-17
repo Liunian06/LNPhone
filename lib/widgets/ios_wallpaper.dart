@@ -49,6 +49,8 @@ class _IOSWallpaperState extends State<IOSWallpaper>
         return Stack(
           fit: StackFit.expand,
           children: [
+            // 默认黑色背景，防止透明问题
+            Container(color: Colors.black),
             // 壁纸背景 - 固定，不可拖动
             _buildWallpaper(),
             // 内容
@@ -79,7 +81,36 @@ class _IOSWallpaperState extends State<IOSWallpaper>
         return _buildAuroraWallpaper();
       case WallpaperStyle.mesh:
         return _buildMeshGradient();
+      case WallpaperStyle.randomLandscape:
+        return _buildRandomLandscape();
     }
+  }
+
+  // 随机风景壁纸
+  Widget _buildRandomLandscape() {
+    // 使用 picsum.photos 获取随机风景图
+    // 使用固定的种子以确保每次构建时图片一致，除非用户主动刷新（这里简化为每次进入应用可能不同，或者依赖缓存）
+    // 为了更好的体验，我们可以使用 CachedNetworkImage，但这里尽量不引入新依赖
+    // 使用 Image.network 并配合 cacheWidth/Height
+    return Image.network(
+      'https://picsum.photos/1080/1920?random=${DateTime.now().day}', // 每天变一次，或者完全随机
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Center(
+          child: CircularProgressIndicator(
+            value: loadingProgress.expectedTotalBytes != null
+                ? loadingProgress.cumulativeBytesLoaded /
+                    loadingProgress.expectedTotalBytes!
+                : null,
+            color: Colors.white.withOpacity(0.5),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        return _buildGradient1(); // 加载失败回退到默认
+      },
+    );
   }
 
   // 自定义图片壁纸
@@ -293,8 +324,7 @@ class _AuroraPainter extends CustomPainter {
       path.moveTo(0, size.height * 0.5);
 
       for (double x = 0; x <= size.width; x += 10) {
-        final y =
-            size.height * 0.4 +
+        final y = size.height * 0.4 +
             math.sin(x * 0.01 + time + i * 2) * 100 +
             math.sin(x * 0.02 - time * 0.5) * 50;
         path.lineTo(x, y);
@@ -321,4 +351,5 @@ enum WallpaperStyle {
   dark, // 深色
   aurora, // 极光
   mesh, // 网格渐变
+  randomLandscape, // 随机风景
 }

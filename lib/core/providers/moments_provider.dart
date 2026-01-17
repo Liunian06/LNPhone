@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/moments_model.dart';
 import '../database/database.dart';
 
@@ -28,12 +30,40 @@ class MomentsProvider extends ChangeNotifier {
   MomentsProvider() {
     _database = AppDatabase();
     _loadPosts();
+    _loadCurrentUser();
   }
 
   /// 从数据库加载动态
   Future<void> _loadPosts() async {
     _posts = await _database.getAllMoments();
     notifyListeners();
+  }
+
+  /// 加载当前用户信息
+  Future<void> _loadCurrentUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userJson = prefs.getString('moments_current_user');
+      if (userJson != null) {
+        _currentUser = MomentsUser.fromJson(jsonDecode(userJson));
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('加载朋友圈用户信息失败: $e');
+    }
+  }
+
+  /// 保存当前用户信息
+  Future<void> _saveCurrentUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        'moments_current_user',
+        jsonEncode(_currentUser.toJson()),
+      );
+    } catch (e) {
+      debugPrint('保存朋友圈用户信息失败: $e');
+    }
   }
 
   /// 设置当前激活的动态ID
@@ -152,6 +182,7 @@ class MomentsProvider extends ChangeNotifier {
   /// 更新用户信息
   void updateCurrentUser(MomentsUser user) {
     _currentUser = user;
+    _saveCurrentUser();
     notifyListeners();
   }
 
@@ -163,6 +194,7 @@ class MomentsProvider extends ChangeNotifier {
       avatarUrl: _currentUser.avatarUrl,
       coverImageUrl: coverUrl,
     );
+    _saveCurrentUser();
     notifyListeners();
   }
 
@@ -174,6 +206,7 @@ class MomentsProvider extends ChangeNotifier {
       avatarUrl: avatarUrl,
       coverImageUrl: _currentUser.coverImageUrl,
     );
+    _saveCurrentUser();
     notifyListeners();
   }
 

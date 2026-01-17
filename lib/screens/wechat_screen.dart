@@ -1,13 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../core/providers/chat_provider.dart';
 import '../core/providers/contact_provider.dart';
 import '../core/models/chat_model.dart';
 import '../core/models/contact_model.dart';
 import 'chat_detail_screen.dart';
-import 'moments_screen.dart';
 
 class WeChatScreen extends StatefulWidget {
   const WeChatScreen({super.key});
@@ -87,7 +85,7 @@ class _WeChatScreenState extends State<WeChatScreen> {
 
     return Container(
       color: Colors.white, // Chat item background
-      child: InkWell(
+      child: GestureDetector(
         onTap: () {
           Navigator.push(
             context,
@@ -95,6 +93,9 @@ class _WeChatScreenState extends State<WeChatScreen> {
               builder: (context) => ChatDetailScreen(chatId: chat.id),
             ),
           );
+        },
+        onLongPressStart: (LongPressStartDetails details) {
+          _showChatOptionsMenu(context, chat, role, details.globalPosition);
         },
         child: Row(
           children: [
@@ -198,6 +199,121 @@ class _WeChatScreenState extends State<WeChatScreen> {
     }
   }
 
+  void _showChatOptionsMenu(
+    BuildContext context,
+    ChatSession chat,
+    ContactRole role,
+    Offset position,
+  ) {
+    showMenu<void>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx - 100, // 以长按位置为中心，向左偏移
+        position.dy, // 长按位置的Y坐标
+        position.dx + 100, // 向右偏移
+        0,
+      ),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      elevation: 8,
+      items: <PopupMenuEntry<void>>[
+        PopupMenuItem<void>(
+          enabled: false,
+          child: Text(
+            role.name,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem<void>(
+          child: Row(
+            children: [
+              Icon(
+                chat.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                size: 20,
+                color: Colors.black,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                chat.isPinned ? '取消置顶' : '置顶该聊天',
+                style: const TextStyle(color: Colors.black),
+              ),
+            ],
+          ),
+          onTap: () async {
+            // 延迟执行，避免菜单关闭后立即执行导致context问题
+            Future.delayed(Duration.zero, () async {
+              final chatProvider = Provider.of<ChatProvider>(
+                context,
+                listen: false,
+              );
+              await chatProvider.togglePinChat(chat.id);
+            });
+          },
+        ),
+        PopupMenuItem<void>(
+          child: const Row(
+            children: [
+              Icon(Icons.delete_outline, size: 20, color: Colors.red),
+              SizedBox(width: 12),
+              Text('删除该聊天', style: TextStyle(color: Colors.red)),
+            ],
+          ),
+          onTap: () {
+            Future.delayed(Duration.zero, () {
+              _showDeleteConfirmDialog(context, chat, role);
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  void _showDeleteConfirmDialog(
+    BuildContext context,
+    ChatSession chat,
+    ContactRole role,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除聊天'),
+        content: Text('确定要删除与"${role.name}"的聊天记录吗？\n删除后将无法恢复。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final chatProvider = Provider.of<ChatProvider>(
+                context,
+                listen: false,
+              );
+              await chatProvider.deleteChat(chat.id);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('聊天已删除')),
+                );
+              }
+            },
+            child: const Text(
+              '删除',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showCreateChatDialog() {
     showModalBottomSheet(
       context: context,
@@ -276,7 +392,11 @@ class _CreateChatSheetState extends State<CreateChatSheet> {
             child: role.avatarPath == null ? Text(role.name[0]) : null,
           ),
           title: Text(role.name),
-          subtitle: Text(role.description),
+          subtitle: Text(
+            role.description,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
           onTap: () {
             setState(() {
               _selectedRole = role;
@@ -310,13 +430,16 @@ class _CreateChatSheetState extends State<CreateChatSheet> {
         final me = provider.meList[index];
         return ListTile(
           leading: CircleAvatar(
-            backgroundImage: me.avatarPath != null
-                ? FileImage(File(me.avatarPath!))
-                : null,
+            backgroundImage:
+                me.avatarPath != null ? FileImage(File(me.avatarPath!)) : null,
             child: me.avatarPath == null ? Text(me.name[0]) : null,
           ),
           title: Text(me.name),
-          subtitle: Text(me.info),
+          subtitle: Text(
+            me.info,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
           enabled: !_isCreating,
           onTap: () async {
             setState(() {
