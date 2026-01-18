@@ -8,14 +8,19 @@ import '../models/chat_model.dart';
 import '../models/api_preset.dart';
 import '../models/contact_model.dart';
 import '../models/moments_model.dart';
+import '../models/world_info_model.dart';
+import '../models/text_preset_model.dart';
 import '../providers/prompt_settings_provider.dart';
 import '../services/llm_service.dart';
+import '../models/prompt_config.dart';
 import '../services/notification_service.dart';
 import '../services/background_service.dart';
 import '../database/database.dart' as db;
 
 class ChatProvider extends ChangeNotifier {
   List<ChatSession> _chats = [];
+  List<WorldInfo> _worldInfos = [];
+  List<TextPreset> _textPresets = [];
   bool _isLoaded = false;
   late db.AppDatabase _database;
 
@@ -25,6 +30,8 @@ class ChatProvider extends ChangeNotifier {
   final Map<String, Timer> _debounceTimers = {};
 
   List<ChatSession> get chats => _chats;
+  List<WorldInfo> get worldInfos => _worldInfos;
+  List<TextPreset> get textPresets => _textPresets;
   bool get isLoaded => _isLoaded;
 
   bool isTyping(String chatId) => _typingStates[chatId] ?? false;
@@ -41,6 +48,8 @@ class ChatProvider extends ChangeNotifier {
 
     // 2. 从数据库加载数据
     await _refreshChats();
+    await refreshWorldInfos();
+    await refreshTextPresets();
 
     _isLoaded = true;
     notifyListeners();
@@ -113,7 +122,42 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<String> createChat(String roleId, String meId) async {
+  Future<void> refreshWorldInfos() async {
+    _worldInfos = await _database.getAllWorldInfos();
+    notifyListeners();
+  }
+
+  Future<void> refreshTextPresets() async {
+    _textPresets = await _database.getAllTextPresets();
+    notifyListeners();
+  }
+
+  Future<void> addWorldInfo(WorldInfo info) async {
+    await _database.insertWorldInfo(info);
+    await refreshWorldInfos();
+  }
+
+  Future<void> deleteWorldInfo(String id) async {
+    await _database.deleteWorldInfo(id);
+    await refreshWorldInfos();
+  }
+
+  Future<void> addTextPreset(TextPreset preset) async {
+    await _database.insertTextPreset(preset);
+    await refreshTextPresets();
+  }
+
+  Future<void> deleteTextPreset(String id) async {
+    await _database.deleteTextPreset(id);
+    await refreshTextPresets();
+  }
+
+  Future<String> createChat(
+    String roleId,
+    String meId, {
+    List<String>? worldInfoIds,
+    List<String>? textPresetIds,
+  }) async {
     // Check if chat already exists
     // 我们可以直接在内存列表中查，避免 DB 查询，提高响应速度
     final existingIndex = _chats.indexWhere(
@@ -126,15 +170,13 @@ class ChatProvider extends ChangeNotifier {
       // 使用最新的时间戳
       final newTime = DateTime.now().millisecondsSinceEpoch;
 
-      // 更新 DB (只更新 lastUpdated)
-      await _database.insertChatSession(
-        db.ChatSessionsCompanion(
-          id: drift.Value(chat.id),
-          roleId: drift.Value(chat.roleId),
-          meId: drift.Value(chat.meId),
-          lastUpdated: drift.Value(newTime),
-          enableExtendedChat: drift.Value(chat.enableExtendedChat),
-        ),
+      // 使用 update 而不是 insertOrReplace，避免触发级联删除！
+      // insertOrReplace 会先删除再插入，导致外键级联删除所有关联的 messages
+      await _database.updateSessionLastUpdated(
+        chat.id,
+        newTime,
+        worldInfoIds: worldInfoIds,
+        textPresetIds: textPresetIds,
       );
 
       // 刷新列表
@@ -151,6 +193,12 @@ class ChatProvider extends ChangeNotifier {
         roleId: drift.Value(roleId),
         meId: drift.Value(meId),
         lastUpdated: drift.Value(timestamp),
+        worldInfoIds: worldInfoIds != null
+            ? drift.Value(worldInfoIds)
+            : const drift.Value.absent(),
+        textPresetIds: textPresetIds != null
+            ? drift.Value(textPresetIds)
+            : const drift.Value.absent(),
       ),
     );
 
@@ -271,11 +319,34 @@ class ChatProvider extends ChangeNotifier {
     await _refreshChats();
   }
 
+  /// 更新聊天的配置（世界书、预设、API预设）
+  Future<void> updateChatConfig(
+    String chatId, {
+    List<String>? worldInfoIds,
+    List<String>? textPresetIds,
+    String? apiPresetId,
+  }) async {
+    await _database.updateSessionConfig(
+      chatId,
+      worldInfoIds: worldInfoIds,
+      textPresetIds: textPresetIds,
+      apiPresetId: apiPresetId,
+    );
+    await _refreshChats();
+  }
+
+  /// 更新聊天的背景图
+  Future<void> updateChatBackgroundImage(
+      String chatId, String? imagePath) async {
+    await _database.updateSessionBackgroundImage(chatId, imagePath);
+    await _refreshChats();
+  }
+
   /// 生成 AI 回复
   Future<void> generateAiResponse({
     required String chatId,
     required ApiPreset apiPreset,
-    required PromptSettingsProvider promptSettings,
+    required PromptConfig promptConfig,
     required ContactRole role,
     required ContactMe me,
     required Function(String content, MomentsUser user) onAddMoment,
@@ -300,14 +371,49 @@ class ChatProvider extends ChangeNotifier {
           return;
         }
 
+        // 获取世界书和预设内容
+        final worldInfos = <String>[];
+        if (chat.worldInfoIds.isNotEmpty) {
+          // 使用 _database 实例直接查询，避免 Provider 问题
+          final allWorldInfos = await _database.getAllWorldInfos();
+          for (final id in chat.worldInfoIds) {
+            try {
+              final info = allWorldInfos.firstWhere((e) => e.id == id);
+              if (info.content.isNotEmpty) {
+                worldInfos.add(info.content);
+              }
+            } catch (e) {
+              // 忽略找不到的世界书
+            }
+          }
+        }
+
+        final textPresets = <String>[];
+        if (chat.textPresetIds.isNotEmpty) {
+          // 使用 _database 实例直接查询，避免 Provider 问题
+          final allTextPresets = await _database.getAllTextPresets();
+          for (final id in chat.textPresetIds) {
+            try {
+              final preset = allTextPresets.firstWhere((e) => e.id == id);
+              if (preset.content.isNotEmpty) {
+                textPresets.add(preset.content);
+              }
+            } catch (e) {
+              // 忽略找不到的预设
+            }
+          }
+        }
+
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final aiMessages = await LlmService.generateResponse(
           apiPreset: apiPreset,
-          promptSettings: promptSettings,
+          promptConfig: promptConfig,
           history: chat.messages,
           role: role,
           me: me,
           messageIdPrefix: 'ai-$timestamp',
+          worldInfos: worldInfos,
+          textPresets: textPresets,
         );
 
         _typingStates[chatId] = false;

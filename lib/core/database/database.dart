@@ -9,16 +9,27 @@ import '../models/chat_model.dart';
 import '../models/moments_model.dart';
 import '../models/contact_model.dart';
 import '../models/api_preset.dart';
+import '../models/world_info_model.dart';
+import '../models/text_preset_model.dart';
 import 'tables.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(tables: [ChatSessions, ChatMessages, MomentsPosts])
+@DriftDatabase(
+    tables: [ChatSessions, ChatMessages, MomentsPosts, WorldInfos, TextPresets])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_openConnection());
+  // Singleton instance
+  static AppDatabase? _instance;
+
+  factory AppDatabase() {
+    _instance ??= AppDatabase._internal();
+    return _instance!;
+  }
+
+  AppDatabase._internal() : super(_openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   // Migration Strategy
   @override
@@ -43,6 +54,16 @@ class AppDatabase extends _$AppDatabase {
         }
         if (from < 5) {
           await m.addColumn(chatSessions, chatSessions.isPinned);
+        }
+        if (from < 6) {
+          await m.createTable(worldInfos);
+          await m.createTable(textPresets);
+          await m.addColumn(chatSessions, chatSessions.worldInfoIds);
+          await m.addColumn(chatSessions, chatSessions.textPresetIds);
+          await m.addColumn(chatSessions, chatSessions.apiPresetId);
+        }
+        if (from < 7) {
+          await m.addColumn(chatSessions, chatSessions.backgroundImage);
         }
       },
     );
@@ -95,6 +116,10 @@ class AppDatabase extends _$AppDatabase {
           enableExtendedChat: s.enableExtendedChat,
           currentState: s.currentState,
           isPinned: s.isPinned,
+          worldInfoIds: s.worldInfoIds,
+          textPresetIds: s.textPresetIds,
+          apiPresetId: s.apiPresetId,
+          backgroundImage: s.backgroundImage,
         ),
       );
     }
@@ -140,6 +165,10 @@ class AppDatabase extends _$AppDatabase {
       enableExtendedChat: s.enableExtendedChat,
       currentState: s.currentState,
       isPinned: s.isPinned,
+      worldInfoIds: s.worldInfoIds,
+      textPresetIds: s.textPresetIds,
+      apiPresetId: s.apiPresetId,
+      backgroundImage: s.backgroundImage,
     );
   }
 
@@ -242,6 +271,53 @@ class AppDatabase extends _$AppDatabase {
       ChatSessionsCompanion(isPinned: Value(isPinned)),
     );
   }
+
+  /// 更新会话的最后更新时间（安全方式，使用 update 而非 insertOrReplace）
+  /// 这是为了避免 insertOrReplace 触发外键级联删除导致消息丢失
+  Future<void> updateSessionLastUpdated(
+    String id,
+    int lastUpdated, {
+    List<String>? worldInfoIds,
+    List<String>? textPresetIds,
+  }) {
+    return (update(chatSessions)..where((t) => t.id.equals(id))).write(
+      ChatSessionsCompanion(
+        lastUpdated: Value(lastUpdated),
+        worldInfoIds:
+            worldInfoIds != null ? Value(worldInfoIds) : const Value.absent(),
+        textPresetIds:
+            textPresetIds != null ? Value(textPresetIds) : const Value.absent(),
+      ),
+    );
+  }
+
+  /// 更新会话的世界书、预设和 API 预设
+  Future<void> updateSessionConfig(
+    String id, {
+    List<String>? worldInfoIds,
+    List<String>? textPresetIds,
+    String? apiPresetId,
+  }) {
+    return (update(chatSessions)..where((t) => t.id.equals(id))).write(
+      ChatSessionsCompanion(
+        worldInfoIds:
+            worldInfoIds != null ? Value(worldInfoIds) : const Value.absent(),
+        textPresetIds:
+            textPresetIds != null ? Value(textPresetIds) : const Value.absent(),
+        apiPresetId:
+            apiPresetId != null ? Value(apiPresetId) : const Value.absent(),
+      ),
+    );
+  }
+
+  /// 更新会话的背景图
+  Future<void> updateSessionBackgroundImage(
+      String id, String? backgroundImage) {
+    return (update(chatSessions)..where((t) => t.id.equals(id))).write(
+      ChatSessionsCompanion(backgroundImage: Value(backgroundImage)),
+    );
+  }
+
   // --- Moments Queries ---
 
   /// 获取所有朋友圈动态，按时间倒序
@@ -287,6 +363,108 @@ class AppDatabase extends _$AppDatabase {
   /// 删除动态
   Future<void> deleteMoment(String id) {
     return (delete(momentsPosts)..where((t) => t.id.equals(id))).go();
+  }
+
+  // --- World Info Queries ---
+
+  Future<List<WorldInfo>> getAllWorldInfos() async {
+    final query = select(worldInfos)
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
+      ]);
+    final entities = await query.get();
+    return entities
+        .map(
+          (e) => WorldInfo(
+            id: e.id,
+            name: e.name,
+            content: e.content,
+            createdAt: e.createdAt,
+            updatedAt: e.updatedAt,
+          ),
+        )
+        .toList();
+  }
+
+  Future<void> insertWorldInfo(WorldInfo info) {
+    return into(worldInfos).insert(
+      WorldInfosCompanion(
+        id: Value(info.id),
+        name: Value(info.name),
+        content: Value(info.content),
+        createdAt: Value(info.createdAt),
+        updatedAt: Value(info.updatedAt),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  Future<void> deleteWorldInfo(String id) {
+    return (delete(worldInfos)..where((t) => t.id.equals(id))).go();
+  }
+
+  Future<WorldInfo?> getWorldInfo(String id) async {
+    final e = await (select(worldInfos)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (e == null) return null;
+    return WorldInfo(
+      id: e.id,
+      name: e.name,
+      content: e.content,
+      createdAt: e.createdAt,
+      updatedAt: e.updatedAt,
+    );
+  }
+
+  // --- Text Preset Queries ---
+
+  Future<List<TextPreset>> getAllTextPresets() async {
+    final query = select(textPresets)
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
+      ]);
+    final entities = await query.get();
+    return entities
+        .map(
+          (e) => TextPreset(
+            id: e.id,
+            name: e.name,
+            content: e.content,
+            createdAt: e.createdAt,
+            updatedAt: e.updatedAt,
+          ),
+        )
+        .toList();
+  }
+
+  Future<void> insertTextPreset(TextPreset preset) {
+    return into(textPresets).insert(
+      TextPresetsCompanion(
+        id: Value(preset.id),
+        name: Value(preset.name),
+        content: Value(preset.content),
+        createdAt: Value(preset.createdAt),
+        updatedAt: Value(preset.updatedAt),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  Future<void> deleteTextPreset(String id) {
+    return (delete(textPresets)..where((t) => t.id.equals(id))).go();
+  }
+
+  Future<TextPreset?> getTextPreset(String id) async {
+    final e = await (select(textPresets)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (e == null) return null;
+    return TextPreset(
+      id: e.id,
+      name: e.name,
+      content: e.content,
+      createdAt: e.createdAt,
+      updatedAt: e.updatedAt,
+    );
   }
 
   // --- Helper Methods for Background Service ---
@@ -399,8 +577,29 @@ class AppDatabase extends _$AppDatabase {
 
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
-    final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'db.sqlite'));
-    return NativeDatabase.createInBackground(file);
+    try {
+      final dbFolder = await getApplicationDocumentsDirectory();
+      final file = File(p.join(dbFolder.path, 'db.sqlite'));
+      print('[Database] Opening database at ${file.path}');
+      // 使用 createInBackground 并开启 WAL 模式以支持多 Isolate 并发访问
+      // 注意：不要启用 PRAGMA foreign_keys = ON，因为 insertOrReplace 会触发级联删除！
+      return NativeDatabase.createInBackground(
+        file,
+        setup: (db) {
+          try {
+            db.execute('PRAGMA journal_mode = WAL;');
+            // 不启用外键约束，避免 insertOrReplace 触发级联删除导致消息丢失
+            // db.execute('PRAGMA foreign_keys = ON;');
+            print(
+                '[Database] WAL mode enabled (Foreign Keys disabled for safety)');
+          } catch (e) {
+            print('[Database] Error setting up database pragmas: $e');
+          }
+        },
+      );
+    } catch (e) {
+      print('[Database] Error opening database: $e');
+      rethrow;
+    }
   });
 }

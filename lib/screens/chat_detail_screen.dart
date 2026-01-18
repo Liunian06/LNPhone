@@ -114,6 +114,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ContactMe(id: 'unknown', name: '我', info: '', avatarPath: null),
         );
 
+        // 获取背景图
+        final backgroundImage = chat.backgroundImage;
+
         return GestureDetector(
           onTap: () {
             _removeOverlay();
@@ -123,7 +126,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             resizeToAvoidBottomInset: true,
             backgroundColor: const Color(0xFFEDEDED),
             appBar: AppBar(
-              backgroundColor: const Color(0xFFEDEDED),
+              backgroundColor: backgroundImage != null
+                  ? Colors.transparent
+                  : const Color(0xFFEDEDED),
               elevation: 0,
               leading: _isMultiSelectMode
                   ? TextButton(
@@ -192,72 +197,82 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 ),
               ],
             ),
-            body: Column(
-              children: [
-                Expanded(
-                  child: ListView.builder(
-                    reverse: true,
-                    controller: _scrollController,
-                    cacheExtent: 500,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    itemCount: chat.messages.length,
-                    itemBuilder: (context, index) {
-                      final messageIndex = chat.messages.length - 1 - index;
-                      return MessageItem(
-                        key: ValueKey(chat.messages[messageIndex].id),
-                        message: chat.messages[messageIndex],
-                        role: role,
-                        me: me,
-                        isMultiSelectMode: _isMultiSelectMode,
-                        isSelected: _selectedMessageIds
-                            .contains(chat.messages[messageIndex].id),
-                        onTap: () {
-                          if (_isMultiSelectMode) {
+            body: Container(
+              decoration: backgroundImage != null
+                  ? BoxDecoration(
+                      image: DecorationImage(
+                        image: FileImage(File(backgroundImage)),
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : null,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: ListView.builder(
+                      reverse: true,
+                      controller: _scrollController,
+                      cacheExtent: 500,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      itemCount: chat.messages.length,
+                      itemBuilder: (context, index) {
+                        final messageIndex = chat.messages.length - 1 - index;
+                        return MessageItem(
+                          key: ValueKey(chat.messages[messageIndex].id),
+                          message: chat.messages[messageIndex],
+                          role: role,
+                          me: me,
+                          isMultiSelectMode: _isMultiSelectMode,
+                          isSelected: _selectedMessageIds
+                              .contains(chat.messages[messageIndex].id),
+                          onTap: () {
+                            if (_isMultiSelectMode) {
+                              setState(() {
+                                if (_selectedMessageIds
+                                    .contains(chat.messages[messageIndex].id)) {
+                                  _selectedMessageIds
+                                      .remove(chat.messages[messageIndex].id);
+                                } else {
+                                  _selectedMessageIds
+                                      .add(chat.messages[messageIndex].id);
+                                }
+                              });
+                            } else {
+                              // 非多选模式下，点击空白处收起键盘和菜单
+                              _removeOverlay();
+                              FocusScope.of(context).unfocus();
+                            }
+                          },
+                          onLongPress: (details) {
+                            if (!_isMultiSelectMode) {
+                              _showContextMenu(context, details.globalPosition,
+                                  chat.messages[messageIndex]);
+                            }
+                          },
+                          onSelectionChanged: (value) {
                             setState(() {
-                              if (_selectedMessageIds
-                                  .contains(chat.messages[messageIndex].id)) {
-                                _selectedMessageIds
-                                    .remove(chat.messages[messageIndex].id);
-                              } else {
+                              if (value == true) {
                                 _selectedMessageIds
                                     .add(chat.messages[messageIndex].id);
+                              } else {
+                                _selectedMessageIds
+                                    .remove(chat.messages[messageIndex].id);
                               }
                             });
-                          } else {
-                            // 非多选模式下，点击空白处收起键盘和菜单
-                            _removeOverlay();
-                            FocusScope.of(context).unfocus();
-                          }
-                        },
-                        onLongPress: (details) {
-                          if (!_isMultiSelectMode) {
-                            _showContextMenu(context, details.globalPosition,
-                                chat.messages[messageIndex]);
-                          }
-                        },
-                        onSelectionChanged: (value) {
-                          setState(() {
-                            if (value == true) {
-                              _selectedMessageIds
-                                  .add(chat.messages[messageIndex].id);
-                            } else {
-                              _selectedMessageIds
-                                  .remove(chat.messages[messageIndex].id);
-                            }
-                          });
-                        },
-                      );
-                    },
+                          },
+                        );
+                      },
+                    ),
                   ),
-                ),
-                if (_isMultiSelectMode)
-                  _buildMultiSelectBottomBar(chatProvider)
-                else
-                  _buildInputArea(chatProvider),
-              ],
+                  if (_isMultiSelectMode)
+                    _buildMultiSelectBottomBar(chatProvider)
+                  else
+                    _buildInputArea(chatProvider),
+                ],
+              ),
             ),
           ),
         );
@@ -547,7 +562,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     chatProvider.generateAiResponse(
       chatId: chatId,
       apiPreset: activePreset,
-      promptSettings: promptProvider,
+      promptConfig: promptProvider.config,
       role: role,
       me: me,
       onAddMoment: (content, user) {
@@ -790,7 +805,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     chatProvider.generateAiResponse(
       chatId: chatId,
       apiPreset: activePreset,
-      promptSettings: promptProvider,
+      promptConfig: promptProvider.config,
       role: role,
       me: me,
       onAddMoment: (content, user) {

@@ -56,8 +56,13 @@ class SystemStateProvider extends ChangeNotifier {
 
   SystemStateProvider() {
     _loadDefaultData();
-    _loadSettings();
-    _initializeWallpaperSystem();
+    _init();
+  }
+
+  Future<void> _init() async {
+    // 严格按顺序初始化，确保设置先加载
+    await _loadSettings();
+    await _initializeWallpaperSystem();
   }
 
   void _loadDefaultData() {
@@ -94,13 +99,26 @@ class SystemStateProvider extends ChangeNotifier {
   String? get lastWallpaperUpdateDate => _lastWallpaperUpdateDate;
   bool get isDownloadingWallpapers => _isDownloadingWallpapers;
 
-  // 获取当前壁纸路径 (优先使用壁纸池)
-  String? get currentDailyWallpaperPath {
-    if (_wallpaperPool.isNotEmpty &&
-        _currentWallpaperPoolIndex < _wallpaperPool.length) {
-      return _wallpaperPool[_currentWallpaperPoolIndex];
+  // 获取当前桌面壁纸路径 (仅在选中随机风景时使用壁纸池)
+  String? get effectiveWallpaperPath {
+    if (_currentWallpaperIndex == 6) {
+      if (_wallpaperPool.isNotEmpty &&
+          _currentWallpaperPoolIndex < _wallpaperPool.length) {
+        return _wallpaperPool[_currentWallpaperPoolIndex];
+      }
     }
-    return null;
+    return _customWallpaperPath;
+  }
+
+  // 获取当前锁屏壁纸路径 (仅在选中随机风景时使用壁纸池)
+  String? get effectiveLockScreenWallpaperPath {
+    if (_lockScreenWallpaperIndex == 6) {
+      if (_wallpaperPool.isNotEmpty &&
+          _currentWallpaperPoolIndex < _wallpaperPool.length) {
+        return _wallpaperPool[_currentWallpaperPoolIndex];
+      }
+    }
+    return _customLockScreenWallpaperPath;
   }
 
   // 系统控制方法
@@ -152,7 +170,8 @@ class SystemStateProvider extends ChangeNotifier {
   // 桌面壁纸切换
   void setWallpaper(int index) {
     _currentWallpaperIndex = index;
-    _customWallpaperPath = null; // 切换到预设壁纸时清除自定义壁纸
+    // 切换到预设壁纸时，不一定要清除自定义壁纸路径，但为了逻辑清晰，我们保持清除
+    _customWallpaperPath = null;
     _saveSettings();
     notifyListeners();
   }
@@ -175,6 +194,7 @@ class SystemStateProvider extends ChangeNotifier {
   // 设置自定义桌面壁纸
   void setCustomWallpaper(String path) {
     _customWallpaperPath = path;
+    _currentWallpaperIndex = 0; // 设置自定义壁纸时，将索引重置为 0，避免处于随机风景模式
     _saveSettings();
     notifyListeners();
   }
@@ -198,6 +218,7 @@ class SystemStateProvider extends ChangeNotifier {
   // 设置自定义锁屏壁纸
   void setCustomLockScreenWallpaper(String path) {
     _customLockScreenWallpaperPath = path;
+    _lockScreenWallpaperIndex = 0; // 设置自定义壁纸时，将索引重置为 0
     _saveSettings();
     notifyListeners();
   }
@@ -404,21 +425,13 @@ class SystemStateProvider extends ChangeNotifier {
 
       // 加载桌面壁纸
       _currentWallpaperIndex = prefs.getInt('wallpaper_index') ?? 0;
-      // 修正历史数据中的 -1 为 6（对应 randomLandscape）
-      if (_currentWallpaperIndex == -1) {
-        _currentWallpaperIndex = 6;
-      }
-      // 确保索引在有效范围内（0-6）
+      // 确保索引在有效范围内（0-6），移除任何强制修正逻辑
       _currentWallpaperIndex = _currentWallpaperIndex.clamp(0, 6);
       _customWallpaperPath = prefs.getString('custom_wallpaper_path');
 
       // 加载锁屏壁纸
       _lockScreenWallpaperIndex =
           prefs.getInt('lockscreen_wallpaper_index') ?? 0;
-      // 修正历史数据中的 -1 为 6（对应 randomLandscape）
-      if (_lockScreenWallpaperIndex == -1) {
-        _lockScreenWallpaperIndex = 6;
-      }
       // 确保索引在有效范围内（0-6）
       _lockScreenWallpaperIndex = _lockScreenWallpaperIndex.clamp(0, 6);
       _customLockScreenWallpaperPath = prefs.getString(
@@ -552,6 +565,19 @@ class SystemStateProvider extends ChangeNotifier {
       final ext = path.extension(_customLockScreenWallpaperPath!);
       final zipFileName = 'wallpaper_lock$ext';
       files[zipFileName] = _customLockScreenWallpaperPath!;
+    }
+
+    // 2.5 收集聊天背景图文件
+    // 聊天背景图路径存储在数据库中，我们需要扫描 Documents 目录下的 chat_bg_* 文件
+    final docDir = await getApplicationDocumentsDirectory();
+    final docDirList = await docDir.list().toList();
+    for (final entity in docDirList) {
+      if (entity is File) {
+        final fileName = path.basename(entity.path);
+        if (fileName.startsWith('chat_bg_')) {
+          files[fileName] = entity.path;
+        }
+      }
     }
 
     // 3. 构建设置数据 (不包含Base64)

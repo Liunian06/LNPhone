@@ -122,32 +122,21 @@ class _LockScreenState extends State<LockScreen>
               Positioned.fill(
                 child: Consumer<SystemStateProvider>(
                   builder: (context, provider, _) {
-                    // 优先使用每日壁纸
-                    final dailyWallpaper = provider.currentDailyWallpaperPath;
-                    if (dailyWallpaper != null) {
+                    // 使用有效壁纸路径 (包含随机风景逻辑)
+                    final wallpaperPath =
+                        provider.effectiveLockScreenWallpaperPath;
+                    if (wallpaperPath != null) {
                       return Image.file(
-                        File(dailyWallpaper),
+                        File(wallpaperPath),
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
-                          // 加载失败时回退到自定义壁纸或预设壁纸
+                          // 加载失败时回退到预设壁纸
                           return _buildFallbackWallpaper(provider);
                         },
                       );
                     }
 
-                    // 其次使用自定义壁纸
-                    final customPath = provider.customLockScreenWallpaperPath;
-                    if (customPath != null) {
-                      return Image.file(
-                        File(customPath),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return _buildFallbackWallpaper(provider);
-                        },
-                      );
-                    }
-
-                    // 最后使用预设壁纸
+                    // 如果没有有效路径，使用预设壁纸
                     return _buildFallbackWallpaper(provider);
                   },
                 ),

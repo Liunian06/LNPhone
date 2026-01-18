@@ -5,7 +5,7 @@ import '../models/api_preset.dart';
 import '../models/chat_model.dart';
 import '../models/contact_model.dart';
 import '../models/api_log.dart';
-import '../providers/prompt_settings_provider.dart';
+import '../models/prompt_config.dart';
 import '../utils/image_utils.dart';
 import 'xml_parser.dart';
 import 'api_log_service.dart';
@@ -22,11 +22,13 @@ class LlmService {
   /// 生成回复，返回解析后的消息列表
   static Future<List<ChatMessage>> generateResponse({
     required ApiPreset apiPreset,
-    required PromptSettingsProvider promptSettings,
+    required PromptConfig promptConfig,
     required List<ChatMessage> history,
     required ContactRole role,
     required ContactMe me,
     required String messageIdPrefix,
+    List<String> worldInfos = const [],
+    List<String> textPresets = const [],
   }) async {
     print('[LLM] ========== 开始生成回复 ==========');
     print('[LLM] API Provider: ${apiPreset.provider.name}');
@@ -35,14 +37,21 @@ class LlmService {
     print('[LLM] 历史消息数量: ${history.length}');
 
     print('[LLM] 构建系统提示词...');
-    final systemPrompt = _buildSystemPrompt(promptSettings, role, me);
+    final systemPrompt = _buildSystemPrompt(
+      promptConfig,
+      role,
+      me,
+      worldInfos,
+      textPresets,
+      history,
+    );
     print('[LLM] 系统提示词长度: ${systemPrompt.length} 字符');
 
-    print('[LLM] 构建消息列表（上下文长度: ${promptSettings.contextLength}）...');
+    print('[LLM] 构建消息列表（上下文长度: ${promptConfig.contextLength}）...');
     final messages = await _buildMessages(
       history,
       systemPrompt,
-      promptSettings.contextLength,
+      promptConfig.contextLength,
     );
     print('[LLM] 消息列表构建完成，共 ${messages.length} 条');
 
@@ -136,28 +145,42 @@ class LlmService {
   }
 
   static String _buildSystemPrompt(
-    PromptSettingsProvider settings,
+    PromptConfig config,
     ContactRole role,
     ContactMe me,
+    List<String> worldInfos,
+    List<String> textPresets,
+    List<ChatMessage> history,
   ) {
     final buffer = StringBuffer();
 
-    // Roleplay Prompt
-    if (settings.roleplayPrompt.isNotEmpty) {
-      buffer.writeln(settings.roleplayPrompt);
+    // 1. Roleplay Prompt
+    if (config.roleplayPrompt.isNotEmpty) {
+      buffer.writeln(config.roleplayPrompt);
     }
 
-    // Presetting Prompt
-    if (settings.presettingPrompt.isNotEmpty) {
-      buffer.writeln(settings.presettingPrompt);
+    // 2. World Info (世界书)
+    if (worldInfos.isNotEmpty) {
+      buffer.writeln('\n[World Info]');
+      for (final info in worldInfos) {
+        buffer.writeln(info);
+      }
+    }
+
+    // 3. Presets (预设)
+    if (textPresets.isNotEmpty) {
+      buffer.writeln('\n[Style Presets]');
+      for (final preset in textPresets) {
+        buffer.writeln(preset);
+      }
     }
 
     // Reality Prompt
-    if (settings.enableRealityPrompt && settings.realityPrompt.isNotEmpty) {
+    if (config.enableRealityPrompt && config.realityPrompt.isNotEmpty) {
       final now = DateTime.now();
       final timeStr = DateFormat('HH:mm').format(now);
       final dateStr = DateFormat('yyyy-MM-dd').format(now);
-      final reality = settings.realityPrompt
+      final reality = config.realityPrompt
           .replaceAll('{time}', timeStr)
           .replaceAll('{date}', dateStr);
       buffer.writeln(reality);

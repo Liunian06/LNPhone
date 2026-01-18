@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'dart:isolate';
 import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -7,12 +8,10 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database/database.dart';
 import '../models/api_preset.dart';
-import '../models/contact_model.dart';
 import '../models/moments_model.dart';
 import '../models/chat_model.dart';
-import '../providers/prompt_settings_provider.dart';
+import '../models/prompt_config.dart';
 import '../services/llm_service.dart';
-import '../services/notification_service.dart';
 import 'package:drift/drift.dart' as drift;
 
 // 超时异常类
@@ -24,6 +23,7 @@ class TimeoutException implements Exception {
   String toString() => message;
 }
 
+@pragma('vm:entry-point')
 class BackgroundService {
   static const String _lastActiveTimeKey = 'last_active_time';
   static const String _lastBackgroundCheckKey = 'last_background_check_time';
@@ -37,8 +37,8 @@ class BackgroundService {
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'background_service', // id
       '汪汪机后台保活服务', // title
-      description: 'This channel is used for background service notifications.',
-      importance: Importance.min, // 优先级改为最低
+      description: '此频道用于维持应用后台运行，请勿关闭。',
+      importance: Importance.low, // 提升到 low，确保在 Android 15 上更稳定
     );
 
     final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -72,9 +72,23 @@ class BackgroundService {
     return true;
   }
 
+  // 保存 ServiceInstance 的静态引用，用于从静态方法中发送 IPC 消息
+  static ServiceInstance? _serviceInstance;
+
+  // 后台 Isolate 中的通知插件实例
+  static FlutterLocalNotificationsPlugin? _bgNotificationsPlugin;
+
   @pragma('vm:entry-point')
   static void onStart(ServiceInstance service) async {
+    // 保存 service 实例以便在静态方法中使用
+    _serviceInstance = service;
+
+    // 在后台 Isolate 中初始化 Flutter 绑定
+    WidgetsFlutterBinding.ensureInitialized();
     DartPluginRegistrant.ensureInitialized();
+
+    // 在后台 Isolate 中初始化通知插件
+    await _initBackgroundNotifications();
 
     if (service is AndroidServiceInstance) {
       service.on('setAsForeground').listen((event) {
@@ -88,6 +102,16 @@ class BackgroundService {
 
     service.on('stopService').listen((event) {
       service.stopSelf();
+    });
+
+    service.on('force_check').listen((event) async {
+      // 确保在后台 Isolate 中也能收到日志
+      print('[BG] 收到强制检查指令 (Isolate: ${Isolate.current.debugName})');
+      try {
+        await _checkAndTriggerActiveReply(force: true);
+      } catch (e, stack) {
+        print('[BG] 强制检查执行失败: $e\n$stack');
+      }
     });
 
     // 定时检查任务
@@ -110,9 +134,9 @@ class BackgroundService {
     });
   }
 
-  static Future<void> _checkAndTriggerActiveReply() async {
+  static Future<void> _checkAndTriggerActiveReply({bool force = false}) async {
     try {
-      debugPrint('[BG] ========== 后台检查开始 ==========');
+      debugPrint('[BG] ========== 后台检查开始 (Force: $force) ==========');
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload(); // 强制刷新数据，确保获取到最新的配置和活跃时间
       debugPrint('[BG] SharedPreferences 已重新加载');
@@ -123,7 +147,7 @@ class BackgroundService {
       final enableActiveReply =
           prefs.getBool('enable_background_active_reply') ?? true;
       debugPrint('[BG] 后台主动回复开关: $enableActiveReply');
-      if (!enableActiveReply) {
+      if (!enableActiveReply && !force) {
         debugPrint('[BG] 后台主动回复已关闭，跳过检查');
         return;
       }
@@ -143,8 +167,18 @@ class BackgroundService {
       debugPrint('[BG] 不活跃时长: ${inactiveTime ~/ 1000} 秒');
 
       // 4. 检查是否满足触发条件：当前时间 - 上次活跃时间 > 间隔时间
-      if (currentTime - lastActiveTime > intervalMillis) {
-        debugPrint('[BG] 满足触发条件，开始检查会话');
+      // 如果是强制检查，则忽略全局活跃时间限制，但仍然检查会话的最后消息时间（或者也忽略？）
+      // 这里我们策略是：强制检查时，忽略全局活跃时间，但对会话仍然要求有一定的间隔（防止刷屏），
+      // 或者我们可以让强制检查也忽略会话间隔？
+      // 为了测试方便，强制检查时我们把 interval 视为 0 (即立即触发)
+      final effectiveInterval = force ? 0 : intervalMillis;
+
+      // 增加日志：输出详细的时间比较信息
+      debugPrint(
+          '[BG] 检查条件: currentTime($currentTime) - lastActiveTime($lastActiveTime) = $inactiveTime > effectiveInterval($effectiveInterval)');
+
+      if (currentTime - lastActiveTime > effectiveInterval) {
+        debugPrint('[BG] 满足全局触发条件，开始检查会话');
         // 获取所有会话
         final sessions = await db.getAllSessions();
         debugPrint('[BG] 总会话数: ${sessions.length}');
@@ -158,10 +192,15 @@ class BackgroundService {
             final sessionInactiveTime = currentTime - lastMessageTime;
             debugPrint('[BG] 会话 ${session.id} 最后消息时间: $lastMessageTime');
             debugPrint(
-              '[BG] 会话 ${session.id} 不活跃时长: ${sessionInactiveTime ~/ 1000} 秒',
+              '[BG] 会话 ${session.id} 不活跃时长: ${sessionInactiveTime ~/ 1000} 秒 (阈值: ${effectiveInterval ~/ 1000} 秒)',
             );
 
-            if (currentTime - lastMessageTime > intervalMillis) {
+            // 优化：无论最后一条消息是谁发送的，只要超过了设定的间隔时间，就允许 AI 主动发言。
+            if (!lastMessage.isMe) {
+              debugPrint('[BG] 会话 ${session.id} 用户未回应 AI，准备追问');
+            }
+
+            if (currentTime - lastMessageTime > effectiveInterval) {
               debugPrint('[BG] 会话 ${session.id} 满足条件，触发 AI 回复');
               // 触发 AI 回复
               await _triggerAiReply(db, session, prefs);
@@ -209,9 +248,7 @@ class BackgroundService {
 
       // 加载 Prompt 设置
       debugPrint('[BG] 加载 Prompt 设置...');
-      final promptSettings = PromptSettingsProvider();
       final roleplayPrompt = prefs.getString('roleplay_prompt') ?? '';
-      final presettingPrompt = prefs.getString('presetting_prompt') ?? '';
       final realityPrompt = prefs.getString('reality_prompt') ?? '';
       final enableRealityPrompt =
           prefs.getBool('enable_reality_prompt') ?? true;
@@ -221,11 +258,12 @@ class BackgroundService {
         '[BG] Prompt 配置: contextLength=$contextLength, enableRealityPrompt=$enableRealityPrompt',
       );
 
-      await promptSettings.updateRoleplayPrompt(roleplayPrompt);
-      await promptSettings.updatePresettingPrompt(presettingPrompt);
-      await promptSettings.updateRealityPrompt(realityPrompt);
-      await promptSettings.toggleRealityPrompt(enableRealityPrompt);
-      await promptSettings.updateContextLength(contextLength);
+      final promptConfig = PromptConfig(
+        roleplayPrompt: roleplayPrompt,
+        realityPrompt: realityPrompt,
+        enableRealityPrompt: enableRealityPrompt,
+        contextLength: contextLength,
+      );
       debugPrint('[BG] ✓ Prompt 设置加载完成');
 
       // 加载 API Preset
@@ -273,10 +311,36 @@ class BackgroundService {
       );
       debugPrint('[BG] Base URL: ${apiPreset.baseUrl}');
 
+      // 构造主动回复的 Prompt
+      // 我们需要告诉 AI，这是它主动发起的对话，而不是回复用户的消息。
+      // 可以在 history 中添加一个特殊的系统消息，或者修改 promptConfig。
+      // 这里我们简单地在 history 末尾添加一个提示（不保存到数据库），引导 AI 主动发言。
+      // 或者，LlmService 内部处理？
+      // 目前 LlmService.generateResponse 主要是基于 history 生成回复。
+      // 如果 history 最后一条是用户发的，那就是回复用户。
+      // 如果 history 最后一条是 AI 发的（虽然我们前面过滤了这种情况），或者隔了很久，
+      // 我们希望 AI 开启新话题或继续之前的话题。
+
+      // 我们可以临时添加一条系统消息到 history 列表（不存库）
+      // 注意：这里直接修改 messages 列表，不会影响数据库
+      // messages.add(activeReplyContext);
+      // 实际上 LlmService 可能会把 isMe=true 当作用户发言。
+      // 更好的做法是在 promptConfig 中添加 activeReply 指令，或者 LlmService 支持 activeReply 模式。
+      // 鉴于不修改 LlmService 接口，我们尝试在 promptConfig.roleplayPrompt 中追加指令。
+
+      final activePromptConfig = PromptConfig(
+        roleplayPrompt: '''${promptConfig.roleplayPrompt}
+
+[System Instruction: The user has been silent for a long time. You should actively initiate a conversation now. Do not wait for the user to speak. Start a new topic or follow up on the previous one naturally.]''',
+        realityPrompt: promptConfig.realityPrompt,
+        enableRealityPrompt: promptConfig.enableRealityPrompt,
+        contextLength: promptConfig.contextLength,
+      );
+
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final aiMessages = await LlmService.generateResponse(
         apiPreset: apiPreset,
-        promptSettings: promptSettings,
+        promptConfig: activePromptConfig, // 使用带有主动回复指令的配置
         history: messages,
         role: role,
         me: me,
@@ -332,10 +396,10 @@ class BackgroundService {
           savedCount++;
           debugPrint('[BG] ✓ 消息已保存');
 
-          // 发送通知
+          // 直接在后台 Isolate 中发送通知（不依赖 IPC，更可靠）
           if (msg.type == MessageType.words) {
-            debugPrint('[BG] 发送通知: ${role.name}');
-            await NotificationService().showAiReplyNotification(
+            debugPrint('[BG] 直接发送通知: ${role.name}');
+            await _showNotificationDirectly(
               title: role.name,
               message: msg.content,
               id: DateTime.now().millisecondsSinceEpoch % 100000,
@@ -364,17 +428,9 @@ class BackgroundService {
         }
 
         debugPrint('[BG] ✓ 已保存 $savedCount 条消息');
-
-        // 更新会话最后更新时间
-        debugPrint('[BG] 更新会话时间戳');
-        await db.insertChatSession(
-          ChatSessionsCompanion(
-            id: drift.Value(session.id),
-            roleId: drift.Value(session.roleId),
-            meId: drift.Value(session.meId),
-            lastUpdated: drift.Value(DateTime.now().millisecondsSinceEpoch),
-          ),
-        );
+        // 注意：不再手动调用 insertChatSession 更新会话时间戳
+        // 因为 insertMessage 内部已经会自动更新 lastUpdated
+        // 使用 insertChatSession(InsertMode.insertOrReplace) 会导致级联删除消息！
         debugPrint('[BG] <<< AI 回复处理完成');
       } else {
         debugPrint('[BG] ⚠️ API 返回了空消息列表');
@@ -405,6 +461,95 @@ class BackgroundService {
       }
     } catch (e) {
       debugPrint('[BG] 请求忽略电池优化权限失败: $e');
+    }
+  }
+
+  /// 在后台 Isolate 中初始化通知插件
+  static Future<void> _initBackgroundNotifications() async {
+    try {
+      debugPrint('[BG] 初始化后台通知插件...');
+
+      _bgNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+      const AndroidInitializationSettings androidSettings =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
+
+      const InitializationSettings initSettings = InitializationSettings(
+        android: androidSettings,
+      );
+
+      await _bgNotificationsPlugin!.initialize(initSettings);
+
+      // 创建通知频道（Android 8.0+ 必需）
+      final androidImpl = _bgNotificationsPlugin!
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+
+      if (androidImpl != null) {
+        const AndroidNotificationChannel channel = AndroidNotificationChannel(
+          'ai_reply_channel',
+          'AI回复通知',
+          description: 'AI角色回复消息的通知',
+          importance: Importance.high,
+          playSound: true,
+          enableVibration: true,
+        );
+
+        await androidImpl.createNotificationChannel(channel);
+        debugPrint('[BG] ✓ 后台通知频道已创建');
+      }
+
+      debugPrint('[BG] ✓ 后台通知插件初始化完成');
+    } catch (e) {
+      debugPrint('[BG] ❌ 后台通知插件初始化失败: $e');
+    }
+  }
+
+  /// 直接在后台 Isolate 中发送通知（不依赖 IPC）
+  static Future<void> _showNotificationDirectly({
+    required String title,
+    required String message,
+    required int id,
+  }) async {
+    try {
+      if (_bgNotificationsPlugin == null) {
+        debugPrint('[BG] 通知插件未初始化，尝试初始化...');
+        await _initBackgroundNotifications();
+      }
+
+      if (_bgNotificationsPlugin == null) {
+        debugPrint('[BG] ❌ 通知插件初始化失败，无法发送通知');
+        return;
+      }
+
+      final AndroidNotificationDetails androidDetails =
+          AndroidNotificationDetails(
+        'ai_reply_channel',
+        'AI回复通知',
+        channelDescription: 'AI角色回复消息的通知',
+        importance: Importance.max,
+        priority: Priority.max,
+        showWhen: true,
+        enableVibration: true,
+        playSound: true,
+        styleInformation: BigTextStyleInformation(
+          message,
+          contentTitle: title,
+        ),
+        category: AndroidNotificationCategory.message,
+        visibility: NotificationVisibility.public,
+        autoCancel: true,
+      );
+
+      final NotificationDetails details = NotificationDetails(
+        android: androidDetails,
+      );
+
+      await _bgNotificationsPlugin!.show(id, title, message, details);
+      debugPrint('[BG] ✓ 通知已直接发送: id=$id, title=$title');
+    } catch (e, stackTrace) {
+      debugPrint('[BG] ❌ 直接发送通知失败: $e');
+      debugPrint('[BG] 堆栈: $stackTrace');
     }
   }
 }

@@ -33,11 +33,16 @@ jobs:
 
       - name: Zip Payload to IPA
         run: |
+          # Extract version from pubspec.yaml
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | sed 's/+.*//' | sed 's/\.//g' | tr -d ' ')
+          FILENAME="汪汪机V${VERSION}.ipa"
+          echo "IPA_FILENAME=$FILENAME" >> $GITHUB_ENV
+          
           # 将 Payload 目录压缩为 .ipa 文件
-          zip -r -y release-unsigned.ipa Payload/
+          zip -r -y "$FILENAME" Payload/
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-unsigned-ipa
-          path: release-unsigned.ipa
+          name: ${{ env.IPA_FILENAME }}
+          path: ${{ env.IPA_FILENAME }}

@@ -57,6 +57,36 @@ class $ChatSessionsTable extends ChatSessions
           GeneratedColumn.constraintIsAlways('CHECK ("is_pinned" IN (0, 1))'),
       defaultValue: const Constant(false));
   @override
+  late final GeneratedColumnWithTypeConverter<List<String>, String>
+      worldInfoIds = GeneratedColumn<String>(
+              'world_info_ids', aliasedName, false,
+              type: DriftSqlType.string,
+              requiredDuringInsert: false,
+              defaultValue: const Constant('[]'))
+          .withConverter<List<String>>(
+              $ChatSessionsTable.$converterworldInfoIds);
+  @override
+  late final GeneratedColumnWithTypeConverter<List<String>, String>
+      textPresetIds = GeneratedColumn<String>(
+              'text_preset_ids', aliasedName, false,
+              type: DriftSqlType.string,
+              requiredDuringInsert: false,
+              defaultValue: const Constant('[]'))
+          .withConverter<List<String>>(
+              $ChatSessionsTable.$convertertextPresetIds);
+  static const VerificationMeta _apiPresetIdMeta =
+      const VerificationMeta('apiPresetId');
+  @override
+  late final GeneratedColumn<String> apiPresetId = GeneratedColumn<String>(
+      'api_preset_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _backgroundImageMeta =
+      const VerificationMeta('backgroundImage');
+  @override
+  late final GeneratedColumn<String> backgroundImage = GeneratedColumn<String>(
+      'background_image', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
   List<GeneratedColumn> get $columns => [
         id,
         roleId,
@@ -64,7 +94,11 @@ class $ChatSessionsTable extends ChatSessions
         lastUpdated,
         enableExtendedChat,
         currentState,
-        isPinned
+        isPinned,
+        worldInfoIds,
+        textPresetIds,
+        apiPresetId,
+        backgroundImage
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -117,6 +151,18 @@ class $ChatSessionsTable extends ChatSessions
       context.handle(_isPinnedMeta,
           isPinned.isAcceptableOrUnknown(data['is_pinned']!, _isPinnedMeta));
     }
+    if (data.containsKey('api_preset_id')) {
+      context.handle(
+          _apiPresetIdMeta,
+          apiPresetId.isAcceptableOrUnknown(
+              data['api_preset_id']!, _apiPresetIdMeta));
+    }
+    if (data.containsKey('background_image')) {
+      context.handle(
+          _backgroundImageMeta,
+          backgroundImage.isAcceptableOrUnknown(
+              data['background_image']!, _backgroundImageMeta));
+    }
     return context;
   }
 
@@ -140,6 +186,16 @@ class $ChatSessionsTable extends ChatSessions
           .read(DriftSqlType.string, data['${effectivePrefix}current_state']),
       isPinned: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}is_pinned'])!,
+      worldInfoIds: $ChatSessionsTable.$converterworldInfoIds.fromSql(
+          attachedDatabase.typeMapping.read(
+              DriftSqlType.string, data['${effectivePrefix}world_info_ids'])!),
+      textPresetIds: $ChatSessionsTable.$convertertextPresetIds.fromSql(
+          attachedDatabase.typeMapping.read(
+              DriftSqlType.string, data['${effectivePrefix}text_preset_ids'])!),
+      apiPresetId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}api_preset_id']),
+      backgroundImage: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}background_image']),
     );
   }
 
@@ -147,6 +203,11 @@ class $ChatSessionsTable extends ChatSessions
   $ChatSessionsTable createAlias(String alias) {
     return $ChatSessionsTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<List<String>, String> $converterworldInfoIds =
+      const StringListConverter();
+  static TypeConverter<List<String>, String> $convertertextPresetIds =
+      const StringListConverter();
 }
 
 class ChatSessionEntity extends DataClass
@@ -158,6 +219,10 @@ class ChatSessionEntity extends DataClass
   final bool enableExtendedChat;
   final String? currentState;
   final bool isPinned;
+  final List<String> worldInfoIds;
+  final List<String> textPresetIds;
+  final String? apiPresetId;
+  final String? backgroundImage;
   const ChatSessionEntity(
       {required this.id,
       required this.roleId,
@@ -165,7 +230,11 @@ class ChatSessionEntity extends DataClass
       required this.lastUpdated,
       required this.enableExtendedChat,
       this.currentState,
-      required this.isPinned});
+      required this.isPinned,
+      required this.worldInfoIds,
+      required this.textPresetIds,
+      this.apiPresetId,
+      this.backgroundImage});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -178,6 +247,20 @@ class ChatSessionEntity extends DataClass
       map['current_state'] = Variable<String>(currentState);
     }
     map['is_pinned'] = Variable<bool>(isPinned);
+    {
+      map['world_info_ids'] = Variable<String>(
+          $ChatSessionsTable.$converterworldInfoIds.toSql(worldInfoIds));
+    }
+    {
+      map['text_preset_ids'] = Variable<String>(
+          $ChatSessionsTable.$convertertextPresetIds.toSql(textPresetIds));
+    }
+    if (!nullToAbsent || apiPresetId != null) {
+      map['api_preset_id'] = Variable<String>(apiPresetId);
+    }
+    if (!nullToAbsent || backgroundImage != null) {
+      map['background_image'] = Variable<String>(backgroundImage);
+    }
     return map;
   }
 
@@ -192,6 +275,14 @@ class ChatSessionEntity extends DataClass
           ? const Value.absent()
           : Value(currentState),
       isPinned: Value(isPinned),
+      worldInfoIds: Value(worldInfoIds),
+      textPresetIds: Value(textPresetIds),
+      apiPresetId: apiPresetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(apiPresetId),
+      backgroundImage: backgroundImage == null && nullToAbsent
+          ? const Value.absent()
+          : Value(backgroundImage),
     );
   }
 
@@ -206,6 +297,10 @@ class ChatSessionEntity extends DataClass
       enableExtendedChat: serializer.fromJson<bool>(json['enableExtendedChat']),
       currentState: serializer.fromJson<String?>(json['currentState']),
       isPinned: serializer.fromJson<bool>(json['isPinned']),
+      worldInfoIds: serializer.fromJson<List<String>>(json['worldInfoIds']),
+      textPresetIds: serializer.fromJson<List<String>>(json['textPresetIds']),
+      apiPresetId: serializer.fromJson<String?>(json['apiPresetId']),
+      backgroundImage: serializer.fromJson<String?>(json['backgroundImage']),
     );
   }
   @override
@@ -219,6 +314,10 @@ class ChatSessionEntity extends DataClass
       'enableExtendedChat': serializer.toJson<bool>(enableExtendedChat),
       'currentState': serializer.toJson<String?>(currentState),
       'isPinned': serializer.toJson<bool>(isPinned),
+      'worldInfoIds': serializer.toJson<List<String>>(worldInfoIds),
+      'textPresetIds': serializer.toJson<List<String>>(textPresetIds),
+      'apiPresetId': serializer.toJson<String?>(apiPresetId),
+      'backgroundImage': serializer.toJson<String?>(backgroundImage),
     };
   }
 
@@ -229,7 +328,11 @@ class ChatSessionEntity extends DataClass
           int? lastUpdated,
           bool? enableExtendedChat,
           Value<String?> currentState = const Value.absent(),
-          bool? isPinned}) =>
+          bool? isPinned,
+          List<String>? worldInfoIds,
+          List<String>? textPresetIds,
+          Value<String?> apiPresetId = const Value.absent(),
+          Value<String?> backgroundImage = const Value.absent()}) =>
       ChatSessionEntity(
         id: id ?? this.id,
         roleId: roleId ?? this.roleId,
@@ -239,6 +342,12 @@ class ChatSessionEntity extends DataClass
         currentState:
             currentState.present ? currentState.value : this.currentState,
         isPinned: isPinned ?? this.isPinned,
+        worldInfoIds: worldInfoIds ?? this.worldInfoIds,
+        textPresetIds: textPresetIds ?? this.textPresetIds,
+        apiPresetId: apiPresetId.present ? apiPresetId.value : this.apiPresetId,
+        backgroundImage: backgroundImage.present
+            ? backgroundImage.value
+            : this.backgroundImage,
       );
   ChatSessionEntity copyWithCompanion(ChatSessionsCompanion data) {
     return ChatSessionEntity(
@@ -254,6 +363,17 @@ class ChatSessionEntity extends DataClass
           ? data.currentState.value
           : this.currentState,
       isPinned: data.isPinned.present ? data.isPinned.value : this.isPinned,
+      worldInfoIds: data.worldInfoIds.present
+          ? data.worldInfoIds.value
+          : this.worldInfoIds,
+      textPresetIds: data.textPresetIds.present
+          ? data.textPresetIds.value
+          : this.textPresetIds,
+      apiPresetId:
+          data.apiPresetId.present ? data.apiPresetId.value : this.apiPresetId,
+      backgroundImage: data.backgroundImage.present
+          ? data.backgroundImage.value
+          : this.backgroundImage,
     );
   }
 
@@ -266,14 +386,28 @@ class ChatSessionEntity extends DataClass
           ..write('lastUpdated: $lastUpdated, ')
           ..write('enableExtendedChat: $enableExtendedChat, ')
           ..write('currentState: $currentState, ')
-          ..write('isPinned: $isPinned')
+          ..write('isPinned: $isPinned, ')
+          ..write('worldInfoIds: $worldInfoIds, ')
+          ..write('textPresetIds: $textPresetIds, ')
+          ..write('apiPresetId: $apiPresetId, ')
+          ..write('backgroundImage: $backgroundImage')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, roleId, meId, lastUpdated,
-      enableExtendedChat, currentState, isPinned);
+  int get hashCode => Object.hash(
+      id,
+      roleId,
+      meId,
+      lastUpdated,
+      enableExtendedChat,
+      currentState,
+      isPinned,
+      worldInfoIds,
+      textPresetIds,
+      apiPresetId,
+      backgroundImage);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -284,7 +418,11 @@ class ChatSessionEntity extends DataClass
           other.lastUpdated == this.lastUpdated &&
           other.enableExtendedChat == this.enableExtendedChat &&
           other.currentState == this.currentState &&
-          other.isPinned == this.isPinned);
+          other.isPinned == this.isPinned &&
+          other.worldInfoIds == this.worldInfoIds &&
+          other.textPresetIds == this.textPresetIds &&
+          other.apiPresetId == this.apiPresetId &&
+          other.backgroundImage == this.backgroundImage);
 }
 
 class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
@@ -295,6 +433,10 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
   final Value<bool> enableExtendedChat;
   final Value<String?> currentState;
   final Value<bool> isPinned;
+  final Value<List<String>> worldInfoIds;
+  final Value<List<String>> textPresetIds;
+  final Value<String?> apiPresetId;
+  final Value<String?> backgroundImage;
   final Value<int> rowid;
   const ChatSessionsCompanion({
     this.id = const Value.absent(),
@@ -304,6 +446,10 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     this.enableExtendedChat = const Value.absent(),
     this.currentState = const Value.absent(),
     this.isPinned = const Value.absent(),
+    this.worldInfoIds = const Value.absent(),
+    this.textPresetIds = const Value.absent(),
+    this.apiPresetId = const Value.absent(),
+    this.backgroundImage = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ChatSessionsCompanion.insert({
@@ -314,6 +460,10 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     this.enableExtendedChat = const Value.absent(),
     this.currentState = const Value.absent(),
     this.isPinned = const Value.absent(),
+    this.worldInfoIds = const Value.absent(),
+    this.textPresetIds = const Value.absent(),
+    this.apiPresetId = const Value.absent(),
+    this.backgroundImage = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         roleId = Value(roleId),
@@ -327,6 +477,10 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     Expression<bool>? enableExtendedChat,
     Expression<String>? currentState,
     Expression<bool>? isPinned,
+    Expression<String>? worldInfoIds,
+    Expression<String>? textPresetIds,
+    Expression<String>? apiPresetId,
+    Expression<String>? backgroundImage,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -338,6 +492,10 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
         'enable_extended_chat': enableExtendedChat,
       if (currentState != null) 'current_state': currentState,
       if (isPinned != null) 'is_pinned': isPinned,
+      if (worldInfoIds != null) 'world_info_ids': worldInfoIds,
+      if (textPresetIds != null) 'text_preset_ids': textPresetIds,
+      if (apiPresetId != null) 'api_preset_id': apiPresetId,
+      if (backgroundImage != null) 'background_image': backgroundImage,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -350,6 +508,10 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       Value<bool>? enableExtendedChat,
       Value<String?>? currentState,
       Value<bool>? isPinned,
+      Value<List<String>>? worldInfoIds,
+      Value<List<String>>? textPresetIds,
+      Value<String?>? apiPresetId,
+      Value<String?>? backgroundImage,
       Value<int>? rowid}) {
     return ChatSessionsCompanion(
       id: id ?? this.id,
@@ -359,6 +521,10 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       enableExtendedChat: enableExtendedChat ?? this.enableExtendedChat,
       currentState: currentState ?? this.currentState,
       isPinned: isPinned ?? this.isPinned,
+      worldInfoIds: worldInfoIds ?? this.worldInfoIds,
+      textPresetIds: textPresetIds ?? this.textPresetIds,
+      apiPresetId: apiPresetId ?? this.apiPresetId,
+      backgroundImage: backgroundImage ?? this.backgroundImage,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -387,6 +553,21 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     if (isPinned.present) {
       map['is_pinned'] = Variable<bool>(isPinned.value);
     }
+    if (worldInfoIds.present) {
+      map['world_info_ids'] = Variable<String>(
+          $ChatSessionsTable.$converterworldInfoIds.toSql(worldInfoIds.value));
+    }
+    if (textPresetIds.present) {
+      map['text_preset_ids'] = Variable<String>($ChatSessionsTable
+          .$convertertextPresetIds
+          .toSql(textPresetIds.value));
+    }
+    if (apiPresetId.present) {
+      map['api_preset_id'] = Variable<String>(apiPresetId.value);
+    }
+    if (backgroundImage.present) {
+      map['background_image'] = Variable<String>(backgroundImage.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -403,6 +584,10 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
           ..write('enableExtendedChat: $enableExtendedChat, ')
           ..write('currentState: $currentState, ')
           ..write('isPinned: $isPinned, ')
+          ..write('worldInfoIds: $worldInfoIds, ')
+          ..write('textPresetIds: $textPresetIds, ')
+          ..write('apiPresetId: $apiPresetId, ')
+          ..write('backgroundImage: $backgroundImage, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1269,18 +1454,637 @@ class MomentsPostsCompanion extends UpdateCompanion<MomentsPostEntity> {
   }
 }
 
+class $WorldInfosTable extends WorldInfos
+    with TableInfo<$WorldInfosTable, WorldInfoEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WorldInfosTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _contentMeta =
+      const VerificationMeta('content');
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+      'content', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, name, content, createdAt, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'world_infos';
+  @override
+  VerificationContext validateIntegrity(Insertable<WorldInfoEntity> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(_contentMeta,
+          content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WorldInfoEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WorldInfoEntity(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      content: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $WorldInfosTable createAlias(String alias) {
+    return $WorldInfosTable(attachedDatabase, alias);
+  }
+}
+
+class WorldInfoEntity extends DataClass implements Insertable<WorldInfoEntity> {
+  final String id;
+  final String name;
+  final String content;
+  final int createdAt;
+  final int updatedAt;
+  const WorldInfoEntity(
+      {required this.id,
+      required this.name,
+      required this.content,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['content'] = Variable<String>(content);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  WorldInfosCompanion toCompanion(bool nullToAbsent) {
+    return WorldInfosCompanion(
+      id: Value(id),
+      name: Value(name),
+      content: Value(content),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory WorldInfoEntity.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WorldInfoEntity(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      content: serializer.fromJson<String>(json['content']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'content': serializer.toJson<String>(content),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  WorldInfoEntity copyWith(
+          {String? id,
+          String? name,
+          String? content,
+          int? createdAt,
+          int? updatedAt}) =>
+      WorldInfoEntity(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        content: content ?? this.content,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  WorldInfoEntity copyWithCompanion(WorldInfosCompanion data) {
+    return WorldInfoEntity(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      content: data.content.present ? data.content.value : this.content,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WorldInfoEntity(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('content: $content, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, content, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WorldInfoEntity &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.content == this.content &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class WorldInfosCompanion extends UpdateCompanion<WorldInfoEntity> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> content;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const WorldInfosCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.content = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WorldInfosCompanion.insert({
+    required String id,
+    required String name,
+    required String content,
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        name = Value(name),
+        content = Value(content),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<WorldInfoEntity> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? content,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (content != null) 'content': content,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WorldInfosCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? name,
+      Value<String>? content,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return WorldInfosCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      content: content ?? this.content,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WorldInfosCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('content: $content, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TextPresetsTable extends TextPresets
+    with TableInfo<$TextPresetsTable, TextPresetEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TextPresetsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _contentMeta =
+      const VerificationMeta('content');
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+      'content', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, name, content, createdAt, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'text_presets';
+  @override
+  VerificationContext validateIntegrity(Insertable<TextPresetEntity> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(_contentMeta,
+          content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TextPresetEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TextPresetEntity(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      content: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $TextPresetsTable createAlias(String alias) {
+    return $TextPresetsTable(attachedDatabase, alias);
+  }
+}
+
+class TextPresetEntity extends DataClass
+    implements Insertable<TextPresetEntity> {
+  final String id;
+  final String name;
+  final String content;
+  final int createdAt;
+  final int updatedAt;
+  const TextPresetEntity(
+      {required this.id,
+      required this.name,
+      required this.content,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['content'] = Variable<String>(content);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  TextPresetsCompanion toCompanion(bool nullToAbsent) {
+    return TextPresetsCompanion(
+      id: Value(id),
+      name: Value(name),
+      content: Value(content),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory TextPresetEntity.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TextPresetEntity(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      content: serializer.fromJson<String>(json['content']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'content': serializer.toJson<String>(content),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  TextPresetEntity copyWith(
+          {String? id,
+          String? name,
+          String? content,
+          int? createdAt,
+          int? updatedAt}) =>
+      TextPresetEntity(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        content: content ?? this.content,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  TextPresetEntity copyWithCompanion(TextPresetsCompanion data) {
+    return TextPresetEntity(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      content: data.content.present ? data.content.value : this.content,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TextPresetEntity(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('content: $content, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, content, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TextPresetEntity &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.content == this.content &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class TextPresetsCompanion extends UpdateCompanion<TextPresetEntity> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> content;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const TextPresetsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.content = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TextPresetsCompanion.insert({
+    required String id,
+    required String name,
+    required String content,
+    required int createdAt,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        name = Value(name),
+        content = Value(content),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<TextPresetEntity> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? content,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (content != null) 'content': content,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TextPresetsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? name,
+      Value<String>? content,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<int>? rowid}) {
+    return TextPresetsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      content: content ?? this.content,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TextPresetsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('content: $content, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $ChatSessionsTable chatSessions = $ChatSessionsTable(this);
   late final $ChatMessagesTable chatMessages = $ChatMessagesTable(this);
   late final $MomentsPostsTable momentsPosts = $MomentsPostsTable(this);
+  late final $WorldInfosTable worldInfos = $WorldInfosTable(this);
+  late final $TextPresetsTable textPresets = $TextPresetsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [chatSessions, chatMessages, momentsPosts];
+      [chatSessions, chatMessages, momentsPosts, worldInfos, textPresets];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
         [
@@ -1304,6 +2108,10 @@ typedef $$ChatSessionsTableCreateCompanionBuilder = ChatSessionsCompanion
   Value<bool> enableExtendedChat,
   Value<String?> currentState,
   Value<bool> isPinned,
+  Value<List<String>> worldInfoIds,
+  Value<List<String>> textPresetIds,
+  Value<String?> apiPresetId,
+  Value<String?> backgroundImage,
   Value<int> rowid,
 });
 typedef $$ChatSessionsTableUpdateCompanionBuilder = ChatSessionsCompanion
@@ -1315,6 +2123,10 @@ typedef $$ChatSessionsTableUpdateCompanionBuilder = ChatSessionsCompanion
   Value<bool> enableExtendedChat,
   Value<String?> currentState,
   Value<bool> isPinned,
+  Value<List<String>> worldInfoIds,
+  Value<List<String>> textPresetIds,
+  Value<String?> apiPresetId,
+  Value<String?> backgroundImage,
   Value<int> rowid,
 });
 
@@ -1369,6 +2181,23 @@ class $$ChatSessionsTableFilterComposer
   ColumnFilters<bool> get isPinned => $composableBuilder(
       column: $table.isPinned, builder: (column) => ColumnFilters(column));
 
+  ColumnWithTypeConverterFilters<List<String>, List<String>, String>
+      get worldInfoIds => $composableBuilder(
+          column: $table.worldInfoIds,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnWithTypeConverterFilters<List<String>, List<String>, String>
+      get textPresetIds => $composableBuilder(
+          column: $table.textPresetIds,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<String> get apiPresetId => $composableBuilder(
+      column: $table.apiPresetId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get backgroundImage => $composableBuilder(
+      column: $table.backgroundImage,
+      builder: (column) => ColumnFilters(column));
+
   Expression<bool> chatMessagesRefs(
       Expression<bool> Function($$ChatMessagesTableFilterComposer f) f) {
     final $$ChatMessagesTableFilterComposer composer = $composerBuilder(
@@ -1422,6 +2251,21 @@ class $$ChatSessionsTableOrderingComposer
 
   ColumnOrderings<bool> get isPinned => $composableBuilder(
       column: $table.isPinned, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get worldInfoIds => $composableBuilder(
+      column: $table.worldInfoIds,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get textPresetIds => $composableBuilder(
+      column: $table.textPresetIds,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get apiPresetId => $composableBuilder(
+      column: $table.apiPresetId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get backgroundImage => $composableBuilder(
+      column: $table.backgroundImage,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$ChatSessionsTableAnnotationComposer
@@ -1453,6 +2297,20 @@ class $$ChatSessionsTableAnnotationComposer
 
   GeneratedColumn<bool> get isPinned =>
       $composableBuilder(column: $table.isPinned, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<List<String>, String> get worldInfoIds =>
+      $composableBuilder(
+          column: $table.worldInfoIds, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<List<String>, String> get textPresetIds =>
+      $composableBuilder(
+          column: $table.textPresetIds, builder: (column) => column);
+
+  GeneratedColumn<String> get apiPresetId => $composableBuilder(
+      column: $table.apiPresetId, builder: (column) => column);
+
+  GeneratedColumn<String> get backgroundImage => $composableBuilder(
+      column: $table.backgroundImage, builder: (column) => column);
 
   Expression<T> chatMessagesRefs<T extends Object>(
       Expression<T> Function($$ChatMessagesTableAnnotationComposer a) f) {
@@ -1506,6 +2364,10 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             Value<bool> enableExtendedChat = const Value.absent(),
             Value<String?> currentState = const Value.absent(),
             Value<bool> isPinned = const Value.absent(),
+            Value<List<String>> worldInfoIds = const Value.absent(),
+            Value<List<String>> textPresetIds = const Value.absent(),
+            Value<String?> apiPresetId = const Value.absent(),
+            Value<String?> backgroundImage = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ChatSessionsCompanion(
@@ -1516,6 +2378,10 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             enableExtendedChat: enableExtendedChat,
             currentState: currentState,
             isPinned: isPinned,
+            worldInfoIds: worldInfoIds,
+            textPresetIds: textPresetIds,
+            apiPresetId: apiPresetId,
+            backgroundImage: backgroundImage,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -1526,6 +2392,10 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             Value<bool> enableExtendedChat = const Value.absent(),
             Value<String?> currentState = const Value.absent(),
             Value<bool> isPinned = const Value.absent(),
+            Value<List<String>> worldInfoIds = const Value.absent(),
+            Value<List<String>> textPresetIds = const Value.absent(),
+            Value<String?> apiPresetId = const Value.absent(),
+            Value<String?> backgroundImage = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ChatSessionsCompanion.insert(
@@ -1536,6 +2406,10 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             enableExtendedChat: enableExtendedChat,
             currentState: currentState,
             isPinned: isPinned,
+            worldInfoIds: worldInfoIds,
+            textPresetIds: textPresetIds,
+            apiPresetId: apiPresetId,
+            backgroundImage: backgroundImage,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -2137,6 +3011,350 @@ typedef $$MomentsPostsTableProcessedTableManager = ProcessedTableManager<
     ),
     MomentsPostEntity,
     PrefetchHooks Function()>;
+typedef $$WorldInfosTableCreateCompanionBuilder = WorldInfosCompanion Function({
+  required String id,
+  required String name,
+  required String content,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$WorldInfosTableUpdateCompanionBuilder = WorldInfosCompanion Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String> content,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$WorldInfosTableFilterComposer
+    extends Composer<_$AppDatabase, $WorldInfosTable> {
+  $$WorldInfosTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$WorldInfosTableOrderingComposer
+    extends Composer<_$AppDatabase, $WorldInfosTable> {
+  $$WorldInfosTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$WorldInfosTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WorldInfosTable> {
+  $$WorldInfosTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$WorldInfosTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $WorldInfosTable,
+    WorldInfoEntity,
+    $$WorldInfosTableFilterComposer,
+    $$WorldInfosTableOrderingComposer,
+    $$WorldInfosTableAnnotationComposer,
+    $$WorldInfosTableCreateCompanionBuilder,
+    $$WorldInfosTableUpdateCompanionBuilder,
+    (
+      WorldInfoEntity,
+      BaseReferences<_$AppDatabase, $WorldInfosTable, WorldInfoEntity>
+    ),
+    WorldInfoEntity,
+    PrefetchHooks Function()> {
+  $$WorldInfosTableTableManager(_$AppDatabase db, $WorldInfosTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WorldInfosTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WorldInfosTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WorldInfosTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String> content = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WorldInfosCompanion(
+            id: id,
+            name: name,
+            content: content,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String name,
+            required String content,
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WorldInfosCompanion.insert(
+            id: id,
+            name: name,
+            content: content,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$WorldInfosTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $WorldInfosTable,
+    WorldInfoEntity,
+    $$WorldInfosTableFilterComposer,
+    $$WorldInfosTableOrderingComposer,
+    $$WorldInfosTableAnnotationComposer,
+    $$WorldInfosTableCreateCompanionBuilder,
+    $$WorldInfosTableUpdateCompanionBuilder,
+    (
+      WorldInfoEntity,
+      BaseReferences<_$AppDatabase, $WorldInfosTable, WorldInfoEntity>
+    ),
+    WorldInfoEntity,
+    PrefetchHooks Function()>;
+typedef $$TextPresetsTableCreateCompanionBuilder = TextPresetsCompanion
+    Function({
+  required String id,
+  required String name,
+  required String content,
+  required int createdAt,
+  required int updatedAt,
+  Value<int> rowid,
+});
+typedef $$TextPresetsTableUpdateCompanionBuilder = TextPresetsCompanion
+    Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String> content,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<int> rowid,
+});
+
+class $$TextPresetsTableFilterComposer
+    extends Composer<_$AppDatabase, $TextPresetsTable> {
+  $$TextPresetsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$TextPresetsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TextPresetsTable> {
+  $$TextPresetsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$TextPresetsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TextPresetsTable> {
+  $$TextPresetsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$TextPresetsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $TextPresetsTable,
+    TextPresetEntity,
+    $$TextPresetsTableFilterComposer,
+    $$TextPresetsTableOrderingComposer,
+    $$TextPresetsTableAnnotationComposer,
+    $$TextPresetsTableCreateCompanionBuilder,
+    $$TextPresetsTableUpdateCompanionBuilder,
+    (
+      TextPresetEntity,
+      BaseReferences<_$AppDatabase, $TextPresetsTable, TextPresetEntity>
+    ),
+    TextPresetEntity,
+    PrefetchHooks Function()> {
+  $$TextPresetsTableTableManager(_$AppDatabase db, $TextPresetsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TextPresetsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TextPresetsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TextPresetsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String> content = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              TextPresetsCompanion(
+            id: id,
+            name: name,
+            content: content,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String name,
+            required String content,
+            required int createdAt,
+            required int updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              TextPresetsCompanion.insert(
+            id: id,
+            name: name,
+            content: content,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$TextPresetsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $TextPresetsTable,
+    TextPresetEntity,
+    $$TextPresetsTableFilterComposer,
+    $$TextPresetsTableOrderingComposer,
+    $$TextPresetsTableAnnotationComposer,
+    $$TextPresetsTableCreateCompanionBuilder,
+    $$TextPresetsTableUpdateCompanionBuilder,
+    (
+      TextPresetEntity,
+      BaseReferences<_$AppDatabase, $TextPresetsTable, TextPresetEntity>
+    ),
+    TextPresetEntity,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2147,4 +3365,8 @@ class $AppDatabaseManager {
       $$ChatMessagesTableTableManager(_db, _db.chatMessages);
   $$MomentsPostsTableTableManager get momentsPosts =>
       $$MomentsPostsTableTableManager(_db, _db.momentsPosts);
+  $$WorldInfosTableTableManager get worldInfos =>
+      $$WorldInfosTableTableManager(_db, _db.worldInfos);
+  $$TextPresetsTableTableManager get textPresets =>
+      $$TextPresetsTableTableManager(_db, _db.textPresets);
 }

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// 本地通知服务
@@ -15,41 +16,64 @@ class NotificationService {
   Future<void> initialize() async {
     if (_initialized) return;
 
+    debugPrint('[NotificationService] 开始初始化...');
+
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
     const DarwinInitializationSettings initializationSettingsIOS =
         DarwinInitializationSettings(
-          requestAlertPermission: true,
-          requestBadgePermission: true,
-          requestSoundPermission: true,
-        );
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
 
     const InitializationSettings initializationSettings =
         InitializationSettings(
-          android: initializationSettingsAndroid,
-          iOS: initializationSettingsIOS,
-        );
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsIOS,
+    );
 
     await _flutterLocalNotificationsPlugin.initialize(
       initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        // 处理通知点击事件（如果需要）
+        debugPrint('[NotificationService] 收到通知响应: ${response.payload}');
       },
     );
 
-    // 请求 Android 13+ 通知权限
+    // 获取 Android 实现
     final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-        _flutterLocalNotificationsPlugin
-            .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin
-            >();
+        _flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
 
     if (androidImplementation != null) {
-      await androidImplementation.requestNotificationsPermission();
+      // 1. 创建通知频道（Android 8.0+ 必需，Android 15 更加严格）
+      const AndroidNotificationChannel channel = AndroidNotificationChannel(
+        'ai_reply_channel', // 频道ID，必须与发送通知时一致
+        'AI回复通知', // 频道名称
+        description: 'AI角色回复消息的通知',
+        importance: Importance.high, // 高优先级才能弹出通知
+        playSound: true,
+        enableVibration: true,
+        showBadge: true,
+      );
+
+      await androidImplementation.createNotificationChannel(channel);
+      debugPrint('[NotificationService] ✓ 通知频道已创建: ${channel.id}');
+
+      // 2. 请求 Android 13+ (API 33+) 通知权限
+      final bool? granted =
+          await androidImplementation.requestNotificationsPermission();
+      debugPrint('[NotificationService] 通知权限请求结果: $granted');
+
+      // 3. 检查精确闹钟权限（Android 12+）
+      final bool? exactAlarmsGranted =
+          await androidImplementation.requestExactAlarmsPermission();
+      debugPrint('[NotificationService] 精确闹钟权限请求结果: $exactAlarmsGranted');
     }
 
     _initialized = true;
+    debugPrint('[NotificationService] ✓ 初始化完成');
   }
 
   /// 显示AI回复通知
@@ -62,39 +86,65 @@ class NotificationService {
     required String message,
     int id = 0,
   }) async {
+    debugPrint(
+        '[NotificationService] showAiReplyNotification called: title=$title, id=$id');
+
     if (!_initialized) {
+      debugPrint('[NotificationService] 尚未初始化，先进行初始化...');
       await initialize();
     }
 
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+    // Android 通知详情
+    // 注意：频道ID必须与 initialize() 中创建的频道一致
+    final AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-          'ai_reply_channel', // 频道ID
-          'AI回复通知', // 频道名称
-          channelDescription: 'AI角色回复消息的通知', // 频道描述
-          importance: Importance.high,
-          priority: Priority.high,
-          showWhen: true,
-          styleInformation: BigTextStyleInformation(''), // 支持长文本
-        );
+      'ai_reply_channel', // 频道ID，必须与初始化时创建的一致
+      'AI回复通知', // 频道名称
+      channelDescription: 'AI角色回复消息的通知',
+      importance: Importance.max, // 最高优先级
+      priority: Priority.max, // 最高优先级
+      showWhen: true,
+      enableVibration: true,
+      playSound: true,
+      // 使用 BigTextStyle 支持长文本
+      styleInformation: BigTextStyleInformation(
+        message,
+        contentTitle: title,
+        htmlFormatContent: false,
+        htmlFormatContentTitle: false,
+      ),
+      // Android 15 相关设置
+      category: AndroidNotificationCategory.message, // 消息类型
+      visibility: NotificationVisibility.public, // 锁屏可见
+      autoCancel: true, // 点击后自动消失
+      ongoing: false, // 非持续通知
+    );
 
     const DarwinNotificationDetails iOSPlatformChannelSpecifics =
         DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        );
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
 
-    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+    final NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,
       iOS: iOSPlatformChannelSpecifics,
     );
 
-    await _flutterLocalNotificationsPlugin.show(
-      id,
-      title,
-      message,
-      platformChannelSpecifics,
-    );
+    try {
+      await _flutterLocalNotificationsPlugin.show(
+        id,
+        title,
+        message,
+        platformChannelSpecifics,
+      );
+      debugPrint('[NotificationService] ✓ 通知已发送: id=$id');
+    } catch (e, stackTrace) {
+      debugPrint('[NotificationService] ❌ 发送通知失败: $e');
+      debugPrint('[NotificationService] 堆栈: $stackTrace');
+      rethrow;
+    }
   }
 
   /// 取消指定通知

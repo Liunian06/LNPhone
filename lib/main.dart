@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'screens/system_shell.dart';
 import 'core/providers/system_state_provider.dart';
 import 'core/providers/contact_provider.dart';
@@ -9,12 +10,23 @@ import 'core/providers/chat_provider.dart';
 import 'core/providers/prompt_settings_provider.dart';
 import 'core/providers/moments_provider.dart';
 import 'core/services/background_service.dart';
+import 'core/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 初始化后台服务
+  // 1. 预先初始化通知服务（在主 Isolate 中，有完整的 Context）
+  debugPrint('Initializing Notification Service...');
+  await NotificationService().initialize();
+  debugPrint('Notification Service Initialized');
+
+  // 2. 初始化后台服务
+  debugPrint('Initializing Background Service...');
   await BackgroundService.initializeService();
+  debugPrint('Background Service Initialized');
+
+  // 3. 监听后台服务发来的通知请求（IPC 机制）
+  _setupBackgroundServiceListener();
 
   // 设置全屏模式
   SystemChrome.setEnabledSystemUIMode(
@@ -40,6 +52,37 @@ void main() async {
   ]);
 
   runApp(const LnPhoneApp());
+}
+
+/// 设置后台服务监听器，接收后台 Isolate 发来的通知请求
+void _setupBackgroundServiceListener() {
+  final service = FlutterBackgroundService();
+
+  // 监听后台服务发来的通知请求
+  service.on('show_notification').listen((event) async {
+    if (event == null) return;
+
+    final title = event['title'] as String?;
+    final message = event['message'] as String?;
+    final id = event['id'] as int? ?? 0;
+
+    if (title != null && message != null) {
+      debugPrint(
+          '[Main] 收到后台通知请求: $title - ${message.length > 30 ? '${message.substring(0, 30)}...' : message}');
+      try {
+        await NotificationService().showAiReplyNotification(
+          title: title,
+          message: message,
+          id: id,
+        );
+        debugPrint('[Main] ✓ 通知发送成功');
+      } catch (e) {
+        debugPrint('[Main] ❌ 通知发送失败: $e');
+      }
+    }
+  });
+
+  debugPrint('[Main] 后台服务通知监听器已设置');
 }
 
 /// LnPhone - AI Native 手机系统应用

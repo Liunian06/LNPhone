@@ -3,6 +3,26 @@ import 'package:drift/drift.dart';
 import '../models/chat_model.dart';
 import '../models/moments_model.dart';
 
+/// List<String> 的转换器
+class StringListConverter extends TypeConverter<List<String>, String> {
+  const StringListConverter();
+
+  @override
+  List<String> fromSql(String fromDb) {
+    try {
+      final List<dynamic> list = json.decode(fromDb);
+      return list.map((e) => e.toString()).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  @override
+  String toSql(List<String> value) {
+    return json.encode(value);
+  }
+}
+
 /// 消息类型的转换器：Enum <-> Int
 class MessageTypeConverter extends TypeConverter<MessageType, int> {
   const MessageTypeConverter();
@@ -115,6 +135,40 @@ class ChatSessions extends Table {
       boolean().withDefault(const Constant(true))();
   TextColumn get currentState => text().nullable()();
   BoolColumn get isPinned => boolean().withDefault(const Constant(false))();
+  TextColumn get worldInfoIds => text()
+      .map(const StringListConverter())
+      .withDefault(const Constant('[]'))();
+  TextColumn get textPresetIds => text()
+      .map(const StringListConverter())
+      .withDefault(const Constant('[]'))();
+  TextColumn get apiPresetId => text().nullable()();
+  TextColumn get backgroundImage => text().nullable()(); // 聊天背景图路径
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 世界书表
+@DataClassName('WorldInfoEntity')
+class WorldInfos extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get content => text()();
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 预设表
+@DataClassName('TextPresetEntity')
+class TextPresets extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get content => text()();
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
 
   @override
   Set<Column> get primaryKey => {id};

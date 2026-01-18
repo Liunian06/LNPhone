@@ -118,6 +118,10 @@ class ChatSession {
   final bool enableExtendedChat; // 是否启用扩展聊天（解析action和thought）
   final String? currentState; // 当前状态
   final bool isPinned; // 是否置顶
+  final List<String> worldInfoIds; // 关联的世界书 ID 列表
+  final List<String> textPresetIds; // 关联的预设 ID 列表
+  final String? apiPresetId; // 独立的 API 预设 ID
+  final String? backgroundImage; // 聊天背景图路径
 
   ChatSession({
     required this.id,
@@ -128,6 +132,10 @@ class ChatSession {
     this.enableExtendedChat = true, // 默认开启
     this.currentState,
     this.isPinned = false, // 默认不置顶
+    this.worldInfoIds = const [],
+    this.textPresetIds = const [],
+    this.apiPresetId,
+    this.backgroundImage,
   });
 
   Map<String, dynamic> toJson() {
@@ -140,6 +148,10 @@ class ChatSession {
       'enableExtendedChat': enableExtendedChat,
       'currentState': currentState,
       'isPinned': isPinned,
+      'worldInfoIds': worldInfoIds,
+      'textPresetIds': textPresetIds,
+      'apiPresetId': apiPresetId,
+      'backgroundImage': backgroundImage,
     };
   }
 
@@ -155,6 +167,14 @@ class ChatSession {
       enableExtendedChat: json['enableExtendedChat'] ?? true, // 默认开启
       currentState: json['currentState'],
       isPinned: json['isPinned'] ?? false, // 默认不置顶
+      worldInfoIds:
+          (json['worldInfoIds'] as List?)?.map((e) => e.toString()).toList() ??
+              [],
+      textPresetIds:
+          (json['textPresetIds'] as List?)?.map((e) => e.toString()).toList() ??
+              [],
+      apiPresetId: json['apiPresetId'],
+      backgroundImage: json['backgroundImage'],
     );
   }
 
@@ -175,5 +195,10 @@ class ChatSession {
     }
 
     return '';
+  }
+
+  /// 获取未读消息数量（只计算来自对方的未读消息）
+  int get unreadCount {
+    return messages.where((m) => !m.isMe && !m.isRead).length;
   }
 }

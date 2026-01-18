@@ -12,6 +12,8 @@ import '../widgets/ios_notification_center.dart';
 import '../widgets/ios_draggable_grid.dart';
 import 'settings_screen.dart';
 import 'wechat_main_screen.dart';
+import 'world_info_list_screen.dart';
+import 'text_preset_list_screen.dart';
 
 /// iOS风格主屏幕
 class HomeScreen extends StatefulWidget {
@@ -109,9 +111,70 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       return;
     }
 
+    // 世界书应用
+    if (appId == 'world_info') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const WorldInfoListScreen()),
+      );
+      return;
+    }
+
+    // 预设应用
+    if (appId == 'text_preset') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const TextPresetListScreen()),
+      );
+      return;
+    }
+
     // contacts 和 moments 已整合到微信主界面中，不再需要单独入口
 
     _launchApp(appId);
+  }
+
+  void _checkAndAddNewApps(SystemStateProvider provider) {
+    final existingApps = <String>{};
+    for (final page in _gridPages) {
+      for (final appId in page) {
+        if (appId != null) {
+          existingApps.add(appId);
+        }
+      }
+    }
+
+    // 只需要检查我们需要显示的应用
+    // 过滤掉不需要显示在桌面的应用（如果有的话，目前 appRegistry 里的应该都是要显示的）
+    final allApps = _appRegistry.keys.toList();
+    final missingApps =
+        allApps.where((id) => !existingApps.contains(id)).toList();
+
+    if (missingApps.isEmpty) return;
+
+    bool hasChanges = false;
+    int missingAppIndex = 0;
+
+    // 尝试填入现有页面的空位
+    for (int i = 0; i < _gridPages.length; i++) {
+      if (missingAppIndex >= missingApps.length) break;
+
+      for (int j = 0; j < _gridPages[i].length; j++) {
+        if (missingAppIndex >= missingApps.length) break;
+
+        if (_gridPages[i][j] == null) {
+          _gridPages[i][j] = missingApps[missingAppIndex];
+          missingAppIndex++;
+          hasChanges = true;
+        }
+      }
+    }
+
+    if (hasChanges) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        provider.setGridPages(_gridPages);
+      });
+    }
   }
 
   void _launchApp(String appId) {
@@ -261,6 +324,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (provider.gridPages.isNotEmpty) {
         _gridPages =
             provider.gridPages.map((page) => List<String?>.from(page)).toList();
+        _checkAndAddNewApps(provider);
       } else {
         // 保存默认布局到 Provider
         // 使用 addPostFrameCallback 避免在 build 期间触发 notifyListeners
@@ -280,8 +344,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         body: IOSWallpaper(
           style: WallpaperStyle.values[provider.currentWallpaperIndex
               .clamp(0, WallpaperStyle.values.length - 1)],
-          customImagePath: provider.currentDailyWallpaperPath ??
-              provider.customWallpaperPath,
+          customImagePath: provider.effectiveWallpaperPath,
           child: Stack(
             children: [
               SafeArea(

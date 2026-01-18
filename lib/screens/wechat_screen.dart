@@ -5,6 +5,9 @@ import '../core/providers/chat_provider.dart';
 import '../core/providers/contact_provider.dart';
 import '../core/models/chat_model.dart';
 import '../core/models/contact_model.dart';
+import '../core/database/database.dart';
+import '../core/models/world_info_model.dart';
+import '../core/models/text_preset_model.dart';
 import 'chat_detail_screen.dart';
 
 class WeChatScreen extends StatefulWidget {
@@ -99,39 +102,78 @@ class _WeChatScreenState extends State<WeChatScreen> {
         },
         child: Row(
           children: [
-            // Avatar
+            // Avatar with unread badge
             Padding(
               padding: const EdgeInsets.all(12.0),
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: role.avatarPath != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: Image.file(
-                          File(role.avatarPath!),
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(Icons.person, color: Colors.grey);
-                          },
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: role.avatarPath != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: Image.file(
+                              File(role.avatarPath!),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(Icons.person,
+                                    color: Colors.grey);
+                              },
+                            ),
+                          )
+                        : Center(
+                            child: Text(
+                              role.name.isNotEmpty
+                                  ? role.name.substring(0, 1)
+                                  : '?',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                  ),
+                  // Unread badge
+                  if (chat.unreadCount > 0)
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: chat.unreadCount > 9 ? 4 : 0,
+                          vertical: 0,
                         ),
-                      )
-                    : Center(
-                        child: Text(
-                          role.name.isNotEmpty
-                              ? role.name.substring(0, 1)
-                              : '?',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF43F3F),
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(color: Colors.white, width: 1),
+                        ),
+                        child: Center(
+                          child: Text(
+                            chat.unreadCount > 99
+                                ? '99+'
+                                : '${chat.unreadCount}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ),
+                    ),
+                ],
               ),
             ),
             // Content
@@ -334,34 +376,93 @@ class CreateChatSheet extends StatefulWidget {
 }
 
 class _CreateChatSheetState extends State<CreateChatSheet> {
-  int _step = 0; // 0: Select Role, 1: Select Me
+  int _step = 0; // 0: Select Role, 1: Select Me, 2: Select World Info & Presets
   ContactRole? _selectedRole;
   ContactMe? _selectedMe;
+  List<String> _selectedWorldInfos = [];
+  List<String> _selectedTextPresets = [];
   bool _isCreating = false;
+
+  // Data for step 2
+  List<WorldInfo> _worldInfos = [];
+  List<TextPreset> _textPresets = [];
+  bool _isLoadingData = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExtraData();
+  }
+
+  Future<void> _loadExtraData() async {
+    final provider = Provider.of<ChatProvider>(context, listen: false);
+    setState(() => _isLoadingData = true);
+    try {
+      await Future.wait([
+        provider.refreshWorldInfos(),
+        provider.refreshTextPresets(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _worldInfos = provider.worldInfos;
+          _textPresets = provider.textPresets;
+          _isLoadingData = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading extra data: $e');
+      if (mounted) {
+        setState(() => _isLoadingData = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final contactProvider = Provider.of<ContactProvider>(context);
 
+    String title = '';
+    if (_step == 0)
+      title = '选择聊天对象 (角色)';
+    else if (_step == 1)
+      title = '选择你的身份 (用户)';
+    else
+      title = '选择世界书与预设 (可选)';
+
     return Container(
-      height: MediaQuery.of(context).size.height * 0.7,
+      height: MediaQuery.of(context).size.height * 0.8,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            _step == 0 ? '选择聊天对象 (角色)' : '选择你的身份 (用户)',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              if (_step == 2)
+                TextButton(
+                  onPressed: _createChat,
+                  child: const Text('完成'),
+                ),
+            ],
           ),
           const SizedBox(height: 16),
           Expanded(
-            child: _step == 0
-                ? _buildRoleList(contactProvider)
-                : _buildMeList(contactProvider),
+            child: _buildContent(contactProvider),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildContent(ContactProvider provider) {
+    if (_step == 0) return _buildRoleList(provider);
+    if (_step == 1) return _buildMeList(provider);
+    return _buildConfigList();
   }
 
   Widget _buildRoleList(ContactProvider provider) {
@@ -441,14 +542,98 @@ class _CreateChatSheetState extends State<CreateChatSheet> {
             overflow: TextOverflow.ellipsis,
           ),
           enabled: !_isCreating,
-          onTap: () async {
+          onTap: () {
             setState(() {
               _selectedMe = me;
+              _step = 2;
             });
-            await _createChat();
           },
         );
       },
+    );
+  }
+
+  Widget _buildConfigList() {
+    if (_isLoadingData) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return ListView(
+      children: [
+        if (_worldInfos.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              '世界书 (多选)',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          ..._worldInfos.map((info) {
+            final isSelected = _selectedWorldInfos.contains(info.id);
+            return CheckboxListTile(
+              title: Text(info.name),
+              subtitle: Text(
+                info.content,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              value: isSelected,
+              onChanged: (val) {
+                setState(() {
+                  if (val == true) {
+                    _selectedWorldInfos.add(info.id);
+                  } else {
+                    _selectedWorldInfos.remove(info.id);
+                  }
+                });
+              },
+            );
+          }),
+        ],
+        if (_textPresets.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              '预设 (多选)',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          ..._textPresets.map((preset) {
+            final isSelected = _selectedTextPresets.contains(preset.id);
+            return CheckboxListTile(
+              title: Text(preset.name),
+              subtitle: Text(
+                preset.content,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              value: isSelected,
+              onChanged: (val) {
+                setState(() {
+                  if (val == true) {
+                    _selectedTextPresets.add(preset.id);
+                  } else {
+                    _selectedTextPresets.remove(preset.id);
+                  }
+                });
+              },
+            );
+          }),
+        ],
+        if (_worldInfos.isEmpty && _textPresets.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(20),
+            child: Center(child: Text('暂无世界书或预设可选')),
+          ),
+      ],
     );
   }
 
@@ -465,6 +650,8 @@ class _CreateChatSheetState extends State<CreateChatSheet> {
         final chatId = await chatProvider.createChat(
           _selectedRole!.id,
           _selectedMe!.id,
+          worldInfoIds: _selectedWorldInfos,
+          textPresetIds: _selectedTextPresets,
         );
 
         if (mounted) {

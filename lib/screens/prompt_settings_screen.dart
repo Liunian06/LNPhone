@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import '../widgets/ios_wallpaper.dart';
 import '../core/providers/prompt_settings_provider.dart';
 
@@ -36,14 +37,6 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                           subtitle: '引导 AI 进行角色扮演任务',
                           value: provider.roleplayPrompt,
                           onChanged: provider.updateRoleplayPrompt,
-                          maxLines: 4,
-                        ),
-                        const SizedBox(height: 16),
-                        _PromptInputField(
-                          title: 'Presetting Prompt',
-                          subtitle: '引导 AI 输出特定的文风',
-                          value: provider.presettingPrompt,
-                          onChanged: provider.updatePresettingPrompt,
                           maxLines: 4,
                         ),
                         const SizedBox(height: 16),
@@ -340,6 +333,32 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 20),
+            Center(
+              child: CupertinoButton(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                color: const Color(0xFF007AFF).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(20),
+                onPressed: () {
+                  FlutterBackgroundService().invoke('force_check');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('已发送强制检查指令，请查看控制台日志'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+                child: const Text(
+                  '立即测试后台触发',
+                  style: TextStyle(
+                    color: Color(0xFF007AFF),
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
             ),
           ],
         ],
