@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter_file_dialog/flutter_file_dialog.dart';
 import 'package:intl/intl.dart';
 import '../core/providers/system_state_provider.dart';
+import '../core/providers/chat_provider.dart';
 import '../core/data/grid_default_apps.dart';
 import '../core/services/api_log_service.dart';
 import '../widgets/ios_wallpaper.dart';
@@ -490,11 +491,24 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
 
       if (!mounted) return;
 
+      // 如果导入成功，刷新 ChatProvider 的数据
+      if (success) {
+        try {
+          final chatProvider = context.read<ChatProvider>();
+          await chatProvider.reloadData();
+          debugPrint('ChatProvider 数据已刷新');
+        } catch (e) {
+          debugPrint('刷新 ChatProvider 数据失败: $e');
+        }
+      }
+
+      if (!mounted) return;
+
       showCupertinoDialog(
         context: context,
         builder: (context) => CupertinoAlertDialog(
           title: Text(success ? '导入成功' : '导入失败'),
-          content: Text(success ? '设置已成功导入' : '文件格式不正确或数据损坏'),
+          content: Text(success ? '设置和数据已成功导入' : '文件格式不正确或数据损坏'),
           actions: [
             CupertinoDialogAction(
               child: const Text('确定'),

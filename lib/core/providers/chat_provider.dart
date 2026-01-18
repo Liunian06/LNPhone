@@ -55,6 +55,35 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 重新加载数据（用于导入备份后刷新数据）
+  /// 这会重新获取数据库实例并刷新所有数据
+  Future<void> reloadData() async {
+    // 获取最新的数据库实例（可能已经被重连）
+    _database = db.AppDatabase();
+
+    // 清空当前状态
+    _typingStates.clear();
+    _currentStates.clear();
+    _debounceTimers.forEach((_, timer) => timer.cancel());
+    _debounceTimers.clear();
+
+    // 重新加载所有数据
+    _chats = await _database.getAllSessions();
+    _worldInfos = await _database.getAllWorldInfos();
+    _textPresets = await _database.getAllTextPresets();
+
+    // 恢复状态
+    for (final chat in _chats) {
+      if (chat.currentState != null) {
+        _currentStates[chat.id] = chat.currentState!;
+      }
+    }
+
+    debugPrint(
+        '[ChatProvider] 数据重新加载完成: ${_chats.length} 个会话, ${_worldInfos.length} 个世界书, ${_textPresets.length} 个预设');
+    notifyListeners();
+  }
+
   /// 从 SharedPreferences 迁移到 SQLite
   Future<void> _performMigration() async {
     final prefs = await SharedPreferences.getInstance();

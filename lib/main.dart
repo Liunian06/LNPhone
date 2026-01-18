@@ -15,20 +15,7 @@ import 'core/services/notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. 预先初始化通知服务（在主 Isolate 中，有完整的 Context）
-  debugPrint('Initializing Notification Service...');
-  await NotificationService().initialize();
-  debugPrint('Notification Service Initialized');
-
-  // 2. 初始化后台服务
-  debugPrint('Initializing Background Service...');
-  await BackgroundService.initializeService();
-  debugPrint('Background Service Initialized');
-
-  // 3. 监听后台服务发来的通知请求（IPC 机制）
-  _setupBackgroundServiceListener();
-
-  // 设置全屏模式
+  // 设置全屏模式（这是同步操作，优先执行）
   SystemChrome.setEnabledSystemUIMode(
     SystemUiMode.edgeToEdge,
     overlays: [SystemUiOverlay.top, SystemUiOverlay.bottom],
@@ -51,7 +38,37 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  // 先启动应用，然后在后台初始化服务
   runApp(const LnPhoneApp());
+
+  // 延迟初始化服务，避免阻塞应用启动
+  _initializeServicesAsync();
+}
+
+/// 异步初始化服务，不阻塞应用启动
+Future<void> _initializeServicesAsync() async {
+  try {
+    // 1. 初始化通知服务
+    debugPrint('Initializing Notification Service...');
+    await NotificationService().initialize();
+    debugPrint('Notification Service Initialized');
+  } catch (e, stackTrace) {
+    debugPrint('Failed to initialize Notification Service: $e');
+    debugPrint('Stack trace: $stackTrace');
+  }
+
+  try {
+    // 2. 初始化后台服务
+    debugPrint('Initializing Background Service...');
+    await BackgroundService.initializeService();
+    debugPrint('Background Service Initialized');
+  } catch (e, stackTrace) {
+    debugPrint('Failed to initialize Background Service: $e');
+    debugPrint('Stack trace: $stackTrace');
+  }
+
+  // 3. 监听后台服务发来的通知请求（IPC 机制）
+  _setupBackgroundServiceListener();
 }
 
 /// 设置后台服务监听器，接收后台 Isolate 发来的通知请求

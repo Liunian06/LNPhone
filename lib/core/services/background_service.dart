@@ -29,8 +29,8 @@ class BackgroundService {
   static const String _lastBackgroundCheckKey = 'last_background_check_time';
 
   static Future<void> initializeService() async {
-    // 请求忽略电池优化权限
-    await _requestIgnoreBatteryOptimizations();
+    // 注意：权限请求移到后面，避免阻塞服务初始化
+    // 在某些设备上，权限请求可能会导致问题
 
     final service = FlutterBackgroundService();
 

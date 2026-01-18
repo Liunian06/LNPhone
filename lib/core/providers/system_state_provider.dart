@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import '../services/zip_backup_service.dart';
 import '../models/app_model.dart';
 import '../data/default_apps.dart';
+import '../database/database.dart';
 
 /// 系统状态Provider
 class SystemStateProvider extends ChangeNotifier {
@@ -742,12 +743,17 @@ class SystemStateProvider extends ChangeNotifier {
 
       // 恢复数据库文件
       // ZipBackupService 已经将文件解压到了 Documents 目录
-      // 如果 db.sqlite 存在，它应该已经被覆盖了（或者我们需要手动移动它）
-      // ZipBackupService 的 restoreBackup 方法会将所有文件解压到 Documents 目录
-      // 所以 db.sqlite 应该已经就位了。
-      // 但是，我们需要重启数据库连接或者应用才能生效。
-      // 目前我们假设用户重启应用后生效，或者我们可以在这里触发数据库重连（比较复杂）。
-      // 简单起见，提示用户重启。
+      // 数据库文件已经就位，现在需要重新连接数据库以使用新文件
+
+      // 重新连接数据库，这会关闭旧连接并打开新文件，同时触发必要的迁移
+      try {
+        await AppDatabase.reconnect();
+        debugPrint('数据库重连成功，导入的数据已生效');
+      } catch (e) {
+        debugPrint('数据库重连失败: $e');
+        // 即使重连失败，我们仍然继续处理其他设置
+        // 用户可能需要重启应用才能看到数据库变化
+      }
 
       // 导入桌面壁纸设置
       if (settings['homeWallpaper'] != null) {

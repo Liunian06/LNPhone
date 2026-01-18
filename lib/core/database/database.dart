@@ -28,6 +28,40 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase._internal() : super(_openConnection());
 
+  /// 重新连接数据库（用于导入备份后刷新连接）
+  /// 返回新的数据库实例
+  static Future<AppDatabase> reconnect() async {
+    // 关闭现有连接
+    if (_instance != null) {
+      try {
+        await _instance!.close();
+        print('[Database] 已关闭现有数据库连接');
+      } catch (e) {
+        print('[Database] 关闭数据库连接时出错: $e');
+      }
+    }
+
+    // 清除单例实例
+    _instance = null;
+
+    // 创建新实例（这会触发迁移）
+    _instance = AppDatabase._internal();
+    print('[Database] 已创建新的数据库连接');
+
+    // 执行一次简单查询以触发数据库打开和迁移
+    try {
+      await _instance!.customSelect('SELECT 1').get();
+      print('[Database] 数据库迁移检查完成');
+    } catch (e) {
+      print('[Database] 数据库初始化检查时出错: $e');
+    }
+
+    return _instance!;
+  }
+
+  /// 检查是否有活动的数据库连接
+  static bool get hasActiveConnection => _instance != null;
+
   @override
   int get schemaVersion => 7;
 
