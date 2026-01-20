@@ -8,6 +8,7 @@ class IOSWallpaper extends StatefulWidget {
   final WallpaperStyle style;
   final bool enableParallax;
   final String? customImagePath;
+  final bool? forceDark; // 强制深色模式，null 表示自动跟随系统
 
   const IOSWallpaper({
     super.key,
@@ -15,6 +16,7 @@ class IOSWallpaper extends StatefulWidget {
     this.style = WallpaperStyle.gradient1,
     this.enableParallax = true,
     this.customImagePath,
+    this.forceDark,
   });
 
   @override
@@ -41,18 +43,27 @@ class _IOSWallpaperState extends State<IOSWallpaper>
     super.dispose();
   }
 
+  bool _isDarkMode(BuildContext context) {
+    if (widget.forceDark != null) {
+      return widget.forceDark!;
+    }
+    return Theme.of(context).brightness == Brightness.dark;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = _isDarkMode(context);
+
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         return Stack(
           fit: StackFit.expand,
           children: [
-            // 默认黑色背景，防止透明问题
-            Container(color: Colors.black),
+            // 根据主题设置默认背景色
+            Container(color: isDark ? Colors.black : const Color(0xFFF5F5F7)),
             // 壁纸背景 - 固定，不可拖动
-            _buildWallpaper(),
+            _buildWallpaper(isDark),
             // 内容
             child!,
           ],
@@ -62,7 +73,7 @@ class _IOSWallpaperState extends State<IOSWallpaper>
     );
   }
 
-  Widget _buildWallpaper() {
+  Widget _buildWallpaper(bool isDark) {
     // 如果有自定义壁纸，优先使用
     if (widget.customImagePath != null) {
       return _buildCustomWallpaper();
@@ -70,17 +81,17 @@ class _IOSWallpaperState extends State<IOSWallpaper>
 
     switch (widget.style) {
       case WallpaperStyle.gradient1:
-        return _buildGradient1();
+        return isDark ? _buildGradient1() : _buildLightGradient1();
       case WallpaperStyle.gradient2:
-        return _buildGradient2();
+        return isDark ? _buildGradient2() : _buildLightGradient2();
       case WallpaperStyle.gradient3:
-        return _buildGradient3();
+        return isDark ? _buildGradient3() : _buildLightGradient3();
       case WallpaperStyle.dark:
-        return _buildDarkWallpaper();
+        return isDark ? _buildDarkWallpaper() : _buildLightWallpaper();
       case WallpaperStyle.aurora:
         return _buildAuroraWallpaper();
       case WallpaperStyle.mesh:
-        return _buildMeshGradient();
+        return isDark ? _buildMeshGradient() : _buildLightMeshGradient();
       case WallpaperStyle.randomLandscape:
         return _buildRandomLandscape();
     }
@@ -286,6 +297,167 @@ class _IOSWallpaperState extends State<IOSWallpaper>
                 gradient: RadialGradient(
                   colors: [
                     const Color(0xFF22d3ee).withOpacity(0.5),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===== 亮色模式壁纸 =====
+
+  // 亮色渐变1 - 柔和蓝紫色
+  Widget _buildLightGradient1() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFE8EAF6),
+            Color(0xFFE3F2FD),
+            Color(0xFFE1F5FE),
+            Color(0xFFF3E5F5),
+          ],
+          stops: [0.0, 0.3, 0.6, 1.0],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -100,
+            right: -100,
+            child: Container(
+              width: 400,
+              height: 400,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF7C4DFF).withOpacity(0.15),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -150,
+            left: -100,
+            child: Container(
+              width: 500,
+              height: 500,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF448AFF).withOpacity(0.1),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 亮色渐变2 - 柔和橙色
+  Widget _buildLightGradient2() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFFFFF8E1),
+            Color(0xFFFFECB3),
+            Color(0xFFFFE0B2),
+            Color(0xFFFFCCBC),
+            Color(0xFFFFCDD2),
+          ],
+          stops: [0.0, 0.25, 0.5, 0.75, 1.0],
+        ),
+      ),
+    );
+  }
+
+  // 亮色渐变3 - 柔和青绿色
+  Widget _buildLightGradient3() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFE0F7FA),
+            Color(0xFFB2EBF2),
+            Color(0xFFB3E5FC),
+            Color(0xFFBBDEFB),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 亮色壁纸
+  Widget _buildLightWallpaper() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFF5F5F7), Color(0xFFE8E8ED)],
+        ),
+      ),
+    );
+  }
+
+  // 亮色网格渐变
+  Widget _buildLightMeshGradient() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFE8EAF6), Color(0xFFF3E5F5), Color(0xFFFCE4EC)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: 100,
+            left: 50,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFFFFAB40).withOpacity(0.2),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 200,
+            right: 30,
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF40C4FF).withOpacity(0.2),
                     Colors.transparent,
                   ],
                 ),

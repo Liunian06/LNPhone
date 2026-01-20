@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import '../core/theme/app_theme.dart';
 import 'wechat_screen.dart';
 import 'contacts/roles_tab.dart';
 import 'moments_screen.dart';
@@ -26,16 +27,17 @@ class _WeChatMainScreenState extends State<WeChatMainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 设置状态栏样式
+    // 根据主题模式动态设置状态栏样式
     SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
+      SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
+        statusBarIconBrightness:
+            context.isDarkMode ? Brightness.light : Brightness.dark,
       ),
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFEDEDED),
+      backgroundColor: context.chatBackground,
       body: IndexedStack(index: _currentIndex, children: _tabs),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -44,9 +46,9 @@ class _WeChatMainScreenState extends State<WeChatMainScreen> {
             _currentIndex = index;
           });
         },
-        selectedItemColor: const Color(0xFF07C160), // 微信绿
-        unselectedItemColor: Colors.grey,
-        backgroundColor: const Color(0xFFF7F7F7),
+        selectedItemColor: AppTheme.wechatGreen, // 微信绿
+        unselectedItemColor: context.secondaryTextColor,
+        backgroundColor: context.surfaceColor,
         type: BottomNavigationBarType.fixed,
         selectedFontSize: 12,
         unselectedFontSize: 12,

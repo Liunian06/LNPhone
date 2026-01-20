@@ -30,19 +30,30 @@ class _AddRoleScreenState extends State<AddRoleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBgColor =
+        isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF5F5F5);
+    final cardBgColor = isDark ? const Color(0xFF2C2C2E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final hintColor = isDark ? Colors.grey[400] : Colors.grey;
+    final inputBgColor =
+        isDark ? const Color(0xFF3A3A3C) : const Color(0xFFF7F8FA);
+    final avatarPlaceholderBgColor =
+        isDark ? const Color(0xFF3A3A3C) : const Color(0xFFF0F0F0);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: scaffoldBgColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: cardBgColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
+          icon: Icon(Icons.arrow_back_ios, color: textColor, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           '新建角色',
           style: TextStyle(
-            color: Colors.black,
+            color: textColor,
             fontSize: 17,
             fontWeight: FontWeight.w600,
           ),
@@ -57,17 +68,17 @@ class _AddRoleScreenState extends State<AddRoleScreen> {
             // 头像卡片
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardBgColor,
                 borderRadius: BorderRadius.circular(16),
               ),
               padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
               child: Column(
                 children: [
-                  const Text(
+                  Text(
                     '头像',
                     style: TextStyle(
                       fontSize: 16,
-                      color: Colors.black,
+                      color: textColor,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -81,7 +92,7 @@ class _AddRoleScreenState extends State<AddRoleScreen> {
                           height: 100,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: const Color(0xFFF0F0F0),
+                            color: avatarPlaceholderBgColor,
                             image: _avatarPath != null
                                 ? DecorationImage(
                                     image: FileImage(File(_avatarPath!)),
@@ -90,19 +101,22 @@ class _AddRoleScreenState extends State<AddRoleScreen> {
                                 : null,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black
+                                    .withOpacity(isDark ? 0.2 : 0.05),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
                             ],
                           ),
                           child: _avatarPath == null
-                              ? const Center(
+                              ? Center(
                                   child: Text(
                                     'A',
                                     style: TextStyle(
                                       fontSize: 40,
-                                      color: Color(0xFFB0B0B0),
+                                      color: isDark
+                                          ? Colors.grey[600]
+                                          : const Color(0xFFB0B0B0),
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -115,20 +129,21 @@ class _AddRoleScreenState extends State<AddRoleScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: cardBgColor,
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
+                                  color: Colors.black
+                                      .withOpacity(isDark ? 0.3 : 0.1),
                                   blurRadius: 4,
                                   offset: const Offset(0, 2),
                                 ),
                               ],
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.camera_alt,
                               size: 16,
-                              color: Colors.black54,
+                              color: isDark ? Colors.grey[400] : Colors.black54,
                             ),
                           ),
                         ),
@@ -142,26 +157,32 @@ class _AddRoleScreenState extends State<AddRoleScreen> {
             // 姓名卡片
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardBgColor,
                 borderRadius: BorderRadius.circular(16),
               ),
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     '姓名',
                     style: TextStyle(
                       fontSize: 16,
-                      color: Colors.black,
+                      color: textColor,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 12),
                   Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF7F8FA),
+                      color: inputBgColor,
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFF48484A)
+                            : Colors.transparent,
+                        width: 1,
+                      ),
                     ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -169,13 +190,16 @@ class _AddRoleScreenState extends State<AddRoleScreen> {
                     ),
                     child: TextFormField(
                       controller: _nameController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: '输入姓名',
-                        hintStyle: TextStyle(color: Colors.grey),
+                        hintStyle: TextStyle(color: hintColor),
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 12),
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 12),
+                        filled: false,
+                        isDense: true,
                       ),
-                      style: const TextStyle(fontSize: 16, color: Colors.black),
+                      style: TextStyle(fontSize: 16, color: textColor),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return '请输入角色姓名';
@@ -191,26 +215,32 @@ class _AddRoleScreenState extends State<AddRoleScreen> {
             // 人设卡片
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardBgColor,
                 borderRadius: BorderRadius.circular(16),
               ),
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     '人设',
                     style: TextStyle(
                       fontSize: 16,
-                      color: Colors.black,
+                      color: textColor,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 12),
                   Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF7F8FA),
+                      color: inputBgColor,
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFF48484A)
+                            : Colors.transparent,
+                        width: 1,
+                      ),
                     ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -218,13 +248,16 @@ class _AddRoleScreenState extends State<AddRoleScreen> {
                     ),
                     child: TextFormField(
                       controller: _descriptionController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         hintText: '输入人物设定',
-                        hintStyle: TextStyle(color: Colors.grey),
+                        hintStyle: TextStyle(color: hintColor),
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 12),
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 12),
+                        filled: false,
+                        isDense: true,
                       ),
-                      style: const TextStyle(fontSize: 16, color: Colors.black),
+                      style: TextStyle(fontSize: 16, color: textColor),
                       maxLines: 5,
                       minLines: 3,
                       validator: (value) {
@@ -246,10 +279,10 @@ class _AddRoleScreenState extends State<AddRoleScreen> {
                 onPressed: () {
                   if (_formKey.currentState!.validate()) {
                     context.read<ContactProvider>().addRole(
-                      _nameController.text,
-                      _avatarPath,
-                      _descriptionController.text,
-                    );
+                          _nameController.text,
+                          _avatarPath,
+                          _descriptionController.text,
+                        );
                     Navigator.pop(context);
                   }
                 },

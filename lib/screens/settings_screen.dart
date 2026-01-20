@@ -27,14 +27,16 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: isDark ? Colors.black : const Color(0xFFF5F5F7),
       body: IOSWallpaper(
         style: WallpaperStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
-              _buildHeader(),
+              _buildHeader(isDark),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -101,7 +103,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.2)
+        : Colors.black.withValues(alpha: 0.1);
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Row(
@@ -112,21 +119,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: bgColor,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(
+              child: Icon(
                 CupertinoIcons.back,
-                color: Colors.white,
+                color: textColor,
                 size: 24,
               ),
             ),
           ),
           const SizedBox(width: 16),
-          const Text(
+          Text(
             '设置',
             style: TextStyle(
-              color: Colors.white,
+              color: textColor,
               fontSize: 28,
               fontWeight: FontWeight.bold,
             ),
@@ -147,14 +154,16 @@ class DisplaySettingsScreen extends StatefulWidget {
 class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: isDark ? Colors.black : const Color(0xFFF5F5F7),
       body: IOSWallpaper(
         style: WallpaperStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
-              _buildHeader(),
+              _buildHeader(isDark),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -194,7 +203,12 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.2)
+        : Colors.black.withValues(alpha: 0.1);
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Row(
@@ -205,21 +219,21 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: bgColor,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(
+              child: Icon(
                 CupertinoIcons.back,
-                color: Colors.white,
+                color: textColor,
                 size: 24,
               ),
             ),
           ),
           const SizedBox(width: 16),
-          const Text(
+          Text(
             '显示设置',
             style: TextStyle(
-              color: Colors.white,
+              color: textColor,
               fontSize: 28,
               fontWeight: FontWeight.bold,
             ),
@@ -256,14 +270,16 @@ class DataManagementScreen extends StatefulWidget {
 class _DataManagementScreenState extends State<DataManagementScreen> {
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: isDark ? Colors.black : const Color(0xFFF5F5F7),
       body: IOSWallpaper(
         style: WallpaperStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
-              _buildHeader(),
+              _buildHeader(isDark),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -317,7 +333,12 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.2)
+        : Colors.black.withValues(alpha: 0.1);
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Row(
@@ -328,21 +349,21 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: bgColor,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(
+              child: Icon(
                 CupertinoIcons.back,
-                color: Colors.white,
+                color: textColor,
                 size: 24,
               ),
             ),
           ),
           const SizedBox(width: 16),
-          const Text(
+          Text(
             '数据管理',
             style: TextStyle(
-              color: Colors.white,
+              color: textColor,
               fontSize: 28,
               fontWeight: FontWeight.bold,
             ),
@@ -756,6 +777,12 @@ class SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -767,7 +794,7 @@ class SettingsSection extends StatelessWidget {
                 if (icon != null) ...[
                   Icon(
                     icon,
-                    color: Colors.white.withValues(alpha: 0.6),
+                    color: textColor.withValues(alpha: 0.6),
                     size: 20,
                   ),
                   const SizedBox(width: 8),
@@ -775,7 +802,7 @@ class SettingsSection extends StatelessWidget {
                 Text(
                   title!,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.6),
+                    color: textColor.withValues(alpha: 0.6),
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.5,
@@ -786,7 +813,7 @@ class SettingsSection extends StatelessWidget {
           ),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.1),
+            color: bgColor,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(children: children),
@@ -816,6 +843,9 @@ class SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -844,8 +874,8 @@ class SettingsTile extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: textColor,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -855,7 +885,7 @@ class SettingsTile extends StatelessWidget {
                       Text(
                         subtitle!,
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
+                          color: textColor.withValues(alpha: 0.6),
                           fontSize: 13,
                         ),
                       ),
@@ -865,7 +895,7 @@ class SettingsTile extends StatelessWidget {
               ),
               Icon(
                 CupertinoIcons.chevron_right,
-                color: Colors.white.withValues(alpha: 0.4),
+                color: textColor.withValues(alpha: 0.4),
                 size: 20,
               ),
             ],
@@ -893,24 +923,27 @@ class _WallpaperSettingsSheetState extends State<_WallpaperSettingsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
-      decoration: const BoxDecoration(
-        color: Color(0xFF1C1C1E),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Stack(
         children: [
           Column(
             children: [
-              _buildHandle(),
-              _buildHeader(context),
+              _buildHandle(isDark),
+              _buildHeader(context, isDark),
               Expanded(child: _buildWallpaperGrid(context)),
             ],
           ),
           if (_isLoading)
             Container(
-              color: Colors.black54,
+              color: isDark ? Colors.black54 : Colors.white54,
               child: const Center(
                 child: CupertinoActivityIndicator(radius: 20),
               ),
@@ -920,19 +953,23 @@ class _WallpaperSettingsSheetState extends State<_WallpaperSettingsSheet> {
     );
   }
 
-  Widget _buildHandle() {
+  Widget _buildHandle(bool isDark) {
     return Container(
       margin: const EdgeInsets.only(top: 12),
       width: 40,
       height: 5,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.3),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.3)
+            : Colors.black.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(2.5),
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Row(
@@ -940,8 +977,8 @@ class _WallpaperSettingsSheetState extends State<_WallpaperSettingsSheet> {
         children: [
           Text(
             widget.isLockScreen ? '选择锁屏壁纸' : '选择桌面壁纸',
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: textColor,
               fontSize: 24,
               fontWeight: FontWeight.bold,
             ),
@@ -1250,8 +1287,10 @@ class _IconSettingsScreenState extends State<_IconSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: isDark ? Colors.black : const Color(0xFFF5F5F7),
       body: IOSWallpaper(
         style: WallpaperStyle.dark,
         child: SafeArea(
@@ -1259,13 +1298,13 @@ class _IconSettingsScreenState extends State<_IconSettingsScreen> {
             children: [
               Column(
                 children: [
-                  _buildHeader(context),
-                  Expanded(child: _buildAppList(context)),
+                  _buildHeader(context, isDark),
+                  Expanded(child: _buildAppList(context, isDark)),
                 ],
               ),
               if (_isLoading)
                 Container(
-                  color: Colors.black54,
+                  color: isDark ? Colors.black54 : Colors.white54,
                   child: const Center(
                     child: CupertinoActivityIndicator(radius: 20),
                   ),
@@ -1277,7 +1316,12 @@ class _IconSettingsScreenState extends State<_IconSettingsScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.2)
+        : Colors.black.withValues(alpha: 0.1);
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Row(
@@ -1288,21 +1332,21 @@ class _IconSettingsScreenState extends State<_IconSettingsScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: bgColor,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(
+              child: Icon(
                 CupertinoIcons.back,
-                color: Colors.white,
+                color: textColor,
                 size: 24,
               ),
             ),
           ),
           const SizedBox(width: 16),
-          const Text(
+          Text(
             '自定义图标',
             style: TextStyle(
-              color: Colors.white,
+              color: textColor,
               fontSize: 28,
               fontWeight: FontWeight.bold,
             ),
@@ -1312,26 +1356,30 @@ class _IconSettingsScreenState extends State<_IconSettingsScreen> {
     );
   }
 
-  Widget _buildAppList(BuildContext context) {
+  Widget _buildAppList(BuildContext context, bool isDark) {
     final apps = GridDefaultApps.appRegistry.values.toList();
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       itemCount: apps.length,
       itemBuilder: (context, index) {
-        return _buildAppItem(context, apps[index]);
+        return _buildAppItem(context, apps[index], isDark);
       },
     );
   }
 
-  Widget _buildAppItem(BuildContext context, app) {
+  Widget _buildAppItem(BuildContext context, app, bool isDark) {
     final provider = context.watch<SystemStateProvider>();
     final hasCustomIcon = provider.getCustomAppIcon(app.id) != null;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: bgColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Material(
@@ -1361,8 +1409,8 @@ class _IconSettingsScreenState extends State<_IconSettingsScreen> {
                     children: [
                       Text(
                         app.name,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: textColor,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1373,7 +1421,7 @@ class _IconSettingsScreenState extends State<_IconSettingsScreen> {
                         style: TextStyle(
                           color: hasCustomIcon
                               ? const Color(0xFF007AFF)
-                              : Colors.white.withValues(alpha: 0.6),
+                              : textColor.withValues(alpha: 0.6),
                           fontSize: 13,
                         ),
                       ),
@@ -1382,7 +1430,7 @@ class _IconSettingsScreenState extends State<_IconSettingsScreen> {
                 ),
                 Icon(
                   CupertinoIcons.chevron_right,
-                  color: Colors.white.withValues(alpha: 0.4),
+                  color: textColor.withValues(alpha: 0.4),
                   size: 20,
                 ),
               ],

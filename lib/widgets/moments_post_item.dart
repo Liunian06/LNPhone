@@ -28,8 +28,11 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final containerBgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+
     return Container(
-      color: Colors.white,
+      color: containerBgColor,
       padding: const EdgeInsets.all(16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -45,15 +48,17 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                 // 用户名
                 Text(
                   widget.post.user.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: Color(0xFF576B95),
+                    color: isDark
+                        ? const Color(0xFF7AA3E5)
+                        : const Color(0xFF576B95),
                   ),
                 ),
                 const SizedBox(height: 6),
                 // 文字内容
-                if (widget.post.content != null) _buildContent(),
+                if (widget.post.content != null) _buildContent(isDark),
                 // 图片/视频
                 if (widget.post.mediaItems.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -61,12 +66,12 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                 ],
                 const SizedBox(height: 8),
                 // 时间、位置和操作按钮
-                _buildTimeLocationAndAction(),
+                _buildTimeLocationAndAction(isDark),
                 const SizedBox(height: 8),
                 // 点赞和评论区域
                 if (widget.post.likes.isNotEmpty ||
                     widget.post.comments.isNotEmpty)
-                  _buildInteractionArea(),
+                  _buildInteractionArea(isDark),
               ],
             ),
           ),
@@ -103,9 +108,12 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
   }
 
   /// 构建文字内容
-  Widget _buildContent() {
+  Widget _buildContent(bool isDark) {
     final content = widget.post.content!;
     final shouldTruncate = content.length > 100 && !_showFullContent;
+    final textColor = isDark ? Colors.white.withOpacity(0.9) : Colors.black87;
+    final linkColor =
+        isDark ? const Color(0xFF7AA3E5) : const Color(0xFF576B95);
 
     return GestureDetector(
       onTap: () {
@@ -119,19 +127,18 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
         TextSpan(
           children: [
             TextSpan(
-              text: shouldTruncate
-                  ? '${content.substring(0, 100)}...'
-                  : content,
-              style: const TextStyle(
+              text:
+                  shouldTruncate ? '${content.substring(0, 100)}...' : content,
+              style: TextStyle(
                 fontSize: 16,
-                color: Colors.black87,
+                color: textColor,
                 height: 1.4,
               ),
             ),
             if (shouldTruncate)
-              const TextSpan(
+              TextSpan(
                 text: ' 全文',
-                style: TextStyle(fontSize: 16, color: Color(0xFF576B95)),
+                style: TextStyle(fontSize: 16, color: linkColor),
               ),
           ],
         ),
@@ -232,23 +239,24 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
   }
 
   /// 构建时间、位置和操作按钮
-  Widget _buildTimeLocationAndAction() {
+  Widget _buildTimeLocationAndAction(bool isDark) {
     final momentsProvider = context.watch<MomentsProvider>();
     final isMenuVisible = momentsProvider.activePostId == widget.post.id;
+    final secondaryColor = isDark ? Colors.grey[400] : Colors.grey[600];
 
     return Row(
       children: [
         Text(
           TimeFormatter.formatMomentsTime(widget.post.createdAt),
-          style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+          style: TextStyle(fontSize: 14, color: secondaryColor),
         ),
         if (widget.post.location != null) ...[
           const SizedBox(width: 8),
-          Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
+          Icon(Icons.location_on, size: 14, color: secondaryColor),
           const SizedBox(width: 2),
           Text(
             widget.post.location!,
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            style: TextStyle(fontSize: 14, color: secondaryColor),
           ),
         ],
         const Spacer(),
@@ -265,7 +273,7 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                     )
                   : const SizedBox.shrink(),
             ),
-            _buildMoreButton(isMenuVisible),
+            _buildMoreButton(isMenuVisible, isDark),
           ],
         ),
       ],
@@ -273,7 +281,11 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
   }
 
   /// 构建更多按钮
-  Widget _buildMoreButton(bool isVisible) {
+  Widget _buildMoreButton(bool isVisible, bool isDark) {
+    final bgColor = isDark ? const Color(0xFF3A3A3C) : const Color(0xFFF7F7F7);
+    final iconColor =
+        isDark ? const Color(0xFF7AA3E5) : const Color(0xFF576B95);
+
     return GestureDetector(
       onTap: () {
         final provider = context.read<MomentsProvider>();
@@ -287,10 +299,10 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
         height: 24,
         width: 36,
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F7F7),
+          color: bgColor,
           borderRadius: BorderRadius.circular(4),
         ),
-        child: const Icon(Icons.more_horiz, size: 18, color: Color(0xFF576B95)),
+        child: Icon(Icons.more_horiz, size: 18, color: iconColor),
       ),
     );
   }
@@ -367,43 +379,51 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
   }
 
   /// 构建互动区域（点赞和评论）
-  Widget _buildInteractionArea() {
+  Widget _buildInteractionArea(bool isDark) {
+    final bgColor = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF7F7F7);
+    final dividerColor =
+        isDark ? const Color(0xFF3A3A3C) : const Color(0xFFE5E5E5);
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F7F7),
+        color: bgColor,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 点赞列表
-          if (widget.post.likes.isNotEmpty) _buildLikesList(),
+          if (widget.post.likes.isNotEmpty) _buildLikesList(isDark),
           // 分隔线
           if (widget.post.likes.isNotEmpty && widget.post.comments.isNotEmpty)
             Container(
               height: 1,
               margin: const EdgeInsets.symmetric(vertical: 6),
-              color: const Color(0xFFE5E5E5),
+              color: dividerColor,
             ),
           // 评论列表
-          if (widget.post.comments.isNotEmpty) _buildCommentsList(),
+          if (widget.post.comments.isNotEmpty) _buildCommentsList(isDark),
         ],
       ),
     );
   }
 
   /// 构建点赞列表
-  Widget _buildLikesList() {
+  Widget _buildLikesList(bool isDark) {
+    final linkColor =
+        isDark ? const Color(0xFF7AA3E5) : const Color(0xFF576B95);
+    final textColor = isDark ? Colors.white.withOpacity(0.9) : Colors.black87;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 3),
+        Padding(
+          padding: const EdgeInsets.only(top: 3),
           child: Icon(
             Icons.favorite_border,
             size: 14,
-            color: Color(0xFF576B95),
+            color: linkColor,
           ),
         ),
         const SizedBox(width: 6),
@@ -416,14 +436,14 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                 return TextSpan(
                   children: [
                     if (index > 0)
-                      const TextSpan(
+                      TextSpan(
                         text: ', ',
-                        style: TextStyle(color: Colors.black87, fontSize: 14),
+                        style: TextStyle(color: textColor, fontSize: 14),
                       ),
                     TextSpan(
                       text: user.name,
-                      style: const TextStyle(
-                        color: Color(0xFF576B95),
+                      style: TextStyle(
+                        color: linkColor,
                         fontSize: 14,
                       ),
                     ),
@@ -438,7 +458,11 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
   }
 
   /// 构建评论列表
-  Widget _buildCommentsList() {
+  Widget _buildCommentsList(bool isDark) {
+    final linkColor =
+        isDark ? const Color(0xFF7AA3E5) : const Color(0xFF576B95);
+    final textColor = isDark ? Colors.white.withOpacity(0.9) : Colors.black87;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: widget.post.comments.map((comment) {
@@ -457,27 +481,27 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                 children: [
                   TextSpan(
                     text: comment.user.name,
-                    style: const TextStyle(
-                      color: Color(0xFF576B95),
+                    style: TextStyle(
+                      color: linkColor,
                       fontSize: 14,
                     ),
                   ),
                   if (comment.replyTo != null) ...[
-                    const TextSpan(
+                    TextSpan(
                       text: ' 回复 ',
-                      style: TextStyle(color: Colors.black87, fontSize: 14),
+                      style: TextStyle(color: textColor, fontSize: 14),
                     ),
                     TextSpan(
                       text: comment.replyTo!.name,
-                      style: const TextStyle(
-                        color: Color(0xFF576B95),
+                      style: TextStyle(
+                        color: linkColor,
                         fontSize: 14,
                       ),
                     ),
                   ],
                   TextSpan(
                     text: ': ${comment.content}',
-                    style: const TextStyle(color: Colors.black87, fontSize: 14),
+                    style: TextStyle(color: textColor, fontSize: 14),
                   ),
                 ],
               ),
@@ -490,6 +514,12 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
 
   /// 显示评论输入框
   void _showCommentInput() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBgColor = isDark ? const Color(0xFF2C2C2E) : Colors.white;
+    final inputBgColor = isDark ? const Color(0xFF3A3A3C) : Colors.grey[100];
+    final textColor = isDark ? Colors.white : Colors.black;
+    final hintColor = isDark ? Colors.grey[400] : Colors.grey[600];
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -499,9 +529,9 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom,
           ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          decoration: BoxDecoration(
+            color: sheetBgColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           ),
           child: SafeArea(
             child: Padding(
@@ -514,7 +544,7 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                       padding: const EdgeInsets.all(8),
                       margin: const EdgeInsets.only(bottom: 8),
                       decoration: BoxDecoration(
-                        color: Colors.grey[100],
+                        color: inputBgColor,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Row(
@@ -523,7 +553,7 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                             '回复 ${_replyToUser!.name}',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.grey[600],
+                              color: hintColor,
                             ),
                           ),
                           const Spacer(),
@@ -533,7 +563,8 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                                 _replyToUser = null;
                               });
                             },
-                            child: const Icon(Icons.close, size: 18),
+                            child:
+                                Icon(Icons.close, size: 18, color: textColor),
                           ),
                         ],
                       ),
@@ -544,9 +575,31 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                         child: TextField(
                           controller: _commentController,
                           autofocus: true,
-                          decoration: const InputDecoration(
+                          style: TextStyle(color: textColor),
+                          decoration: InputDecoration(
                             hintText: '发表评论...',
-                            border: OutlineInputBorder(),
+                            hintStyle: TextStyle(color: hintColor),
+                            border: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: isDark
+                                    ? Colors.grey[600]!
+                                    : Colors.grey[300]!,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: isDark
+                                    ? Colors.grey[600]!
+                                    : Colors.grey[300]!,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: isDark ? Colors.blue[300]! : Colors.blue,
+                              ),
+                            ),
+                            fillColor: inputBgColor,
+                            filled: true,
                           ),
                           maxLines: 3,
                           minLines: 1,
@@ -558,10 +611,10 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                           final content = _commentController.text.trim();
                           if (content.isNotEmpty) {
                             context.read<MomentsProvider>().addComment(
-                              widget.post.id,
-                              content,
-                              replyTo: _replyToUser,
-                            );
+                                  widget.post.id,
+                                  content,
+                                  replyTo: _replyToUser,
+                                );
                             _commentController.clear();
                             setState(() {
                               _replyToUser = null;

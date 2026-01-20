@@ -106,6 +106,8 @@ class ChatProvider extends ChangeNotifier {
                 meId: drift.Value(session.meId),
                 lastUpdated: drift.Value(session.lastUpdated),
                 enableExtendedChat: drift.Value(session.enableExtendedChat),
+                enableIndependentSendButton:
+                    drift.Value(session.enableIndependentSendButton),
               ),
             );
 
@@ -241,12 +243,14 @@ class ChatProvider extends ChangeNotifier {
     MessageType type,
     bool isMe, {
     Map<String, dynamic>? metadata,
+    String? sender, // 发送者名称（用于引用显示）
   }) async {
     final newMessage = db.ChatMessagesCompanion(
       id: drift.Value(_generateId()),
       sessionId: drift.Value(chatId),
       content: drift.Value(content),
       isMe: drift.Value(isMe),
+      sender: drift.Value(sender),
       type: drift.Value(type),
       timestamp: drift.Value(DateTime.now().millisecondsSinceEpoch),
       metadata: drift.Value(metadata),
@@ -342,9 +346,14 @@ class ChatProvider extends ChangeNotifier {
   /// 更新聊天的扩展聊天设置
   Future<void> updateChatSettings(
     String chatId, {
-    required bool enableExtendedChat,
+    bool? enableExtendedChat,
+    bool? enableIndependentSendButton,
   }) async {
-    await _database.updateSessionSettings(chatId, enableExtendedChat);
+    await _database.updateSessionSettings(
+      chatId,
+      enableExtendedChat: enableExtendedChat,
+      enableIndependentSendButton: enableIndependentSendButton,
+    );
     await _refreshChats();
   }
 
@@ -483,13 +492,57 @@ class ChatProvider extends ChangeNotifier {
 
               await Future.delayed(Duration(milliseconds: delayMs));
 
+              // 处理 AI 回复中的引用
+              Map<String, dynamic>? metadata = message.metadata;
+              if (metadata != null && metadata.containsKey('reply_id')) {
+                final replyId = metadata['reply_id'] as String;
+                debugPrint('[ChatProvider] 处理引用，reply_id: $replyId');
+                debugPrint(
+                    '[ChatProvider] 当前消息列表ID: ${chat.messages.map((m) => m.id).toList()}');
+                // 查找被引用的消息
+                try {
+                  final replyMsg =
+                      chat.messages.firstWhere((m) => m.id == replyId);
+                  debugPrint(
+                      '[ChatProvider] ✓ 找到被引用消息: ${replyMsg.content.substring(0, replyMsg.content.length > 30 ? 30 : replyMsg.content.length)}');
+
+                  // 获取被引用消息的发送者名字
+                  String senderName = '未知用户';
+                  if (replyMsg.isMe) {
+                    senderName = me.name;
+                  } else {
+                    senderName = role.name;
+                  }
+
+                  // 构建 quote 元数据
+                  final quoteMetadata = {
+                    'id': replyMsg.id,
+                    'content': replyMsg.content,
+                    'sender': senderName,
+                    'isMe': replyMsg.isMe, // 保存被引用消息的发送者身份
+                  };
+
+                  // 合并 metadata
+                  metadata = Map<String, dynamic>.from(metadata!);
+                  metadata['quote'] = quoteMetadata;
+                  metadata.remove('reply_id'); // 移除临时的 reply_id
+                  debugPrint('[ChatProvider] ✓ 构建quote元数据成功');
+                } catch (e) {
+                  // 找不到引用消息，忽略引用
+                  debugPrint('[ChatProvider] ❌ 找不到被引用消息: $replyId, 错误: $e');
+                  metadata = Map<String, dynamic>.from(metadata!);
+                  metadata.remove('reply_id');
+                }
+              }
+
               // 添加消息
               await addMessage(
                 chatId,
                 message.content,
                 message.type,
                 message.isMe,
-                metadata: message.metadata,
+                metadata: metadata,
+                sender: role.name, // AI 消息使用角色名
               );
 
               // 发送通知 (仅 words 类型)

@@ -11,6 +11,7 @@ import 'core/providers/prompt_settings_provider.dart';
 import 'core/providers/moments_provider.dart';
 import 'core/services/background_service.dart';
 import 'core/services/notification_service.dart';
+import 'core/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -120,29 +121,11 @@ class LnPhoneApp extends StatelessWidget {
       child: MaterialApp(
         title: 'LnPhone',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF007AFF),
-            brightness: Brightness.dark,
-          ),
-          fontFamily: '.SF Pro Display',
-          scaffoldBackgroundColor: Colors.black,
-          appBarTheme: const AppBarTheme(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-          ),
-        ),
-        darkTheme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF007AFF),
-            brightness: Brightness.dark,
-          ),
-          fontFamily: '.SF Pro Display',
-          scaffoldBackgroundColor: Colors.black,
-        ),
-        themeMode: ThemeMode.dark,
+        // 使用 AppTheme 定义的亮色和暗色主题
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        // 设置为 system 模式，自动跟随系统设置切换
+        themeMode: ThemeMode.system,
         home: const SystemShell(),
       ),
     );

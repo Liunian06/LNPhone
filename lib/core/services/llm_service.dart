@@ -48,12 +48,23 @@ class LlmService {
     print('[LLM] 系统提示词长度: ${systemPrompt.length} 字符');
 
     print('[LLM] 构建消息列表（上下文长度: ${promptConfig.contextLength}）...');
-    final messages = await _buildMessages(
+    // 使用简化ID构建消息，并获取ID映射表
+    final buildResult = await _buildMessagesWithSimpleIds(
       history,
       systemPrompt,
       promptConfig.contextLength,
     );
+    final messages = buildResult['messages'] as List<Map<String, dynamic>>;
+    final idMapping = buildResult['idMapping'] as Map<String, String>;
     print('[LLM] 消息列表构建完成，共 ${messages.length} 条');
+    print('[LLM] ID映射表: $idMapping');
+    for (var i = 0; i < messages.length; i++) {
+      final role = messages[i]['role'];
+      final content = messages[i]['content'] as String;
+      final preview =
+          content.length > 100 ? '${content.substring(0, 100)}...' : content;
+      print('[LLM] Request Msg $i ($role): $preview');
+    }
 
     List<String> errorLogs = [];
     String? rawResponse;
@@ -122,12 +133,13 @@ class LlmService {
       throw LlmRetryException(errorLogs);
     }
 
-    // 解析 XML 响应为消息列表
+    // 解析 XML 响应为消息列表，传入ID映射表用于将简化ID转换回真实ID
     print('[LLM] 解析 XML 响应...');
     try {
       final parsedMessages = XmlResponseParser.parse(
         rawResponse,
         messageIdPrefix,
+        simpleIdToRealId: idMapping,
       );
       print('[LLM] ✓ XML 解析成功，得到 ${parsedMessages.length} 条消息');
       for (var i = 0; i < parsedMessages.length; i++) {
@@ -202,12 +214,17 @@ class LlmService {
     return buffer.toString();
   }
 
-  static Future<List<Map<String, dynamic>>> _buildMessages(
+  /// 使用简化ID构建消息列表，返回消息列表和ID映射表
+  /// 简化ID格式: 0001, 0002, 0003...
+  /// 这样AI更容易理解和正确引用
+  static Future<Map<String, dynamic>> _buildMessagesWithSimpleIds(
     List<ChatMessage> history,
     String systemPrompt,
     int contextLength,
   ) async {
     final messages = <Map<String, dynamic>>[];
+    // 简化ID -> 真实ID 的映射表
+    final idMapping = <String, String>{};
 
     // System Message
     messages.add({'role': 'system', 'content': systemPrompt});
@@ -216,14 +233,34 @@ class LlmService {
     final start = (history.length - contextLength).clamp(0, history.length);
     final recentHistory = history.sublist(start);
 
+    // 为每条消息分配简化ID
+    int simpleIdCounter = 1;
+    final realIdToSimpleId = <String, String>{};
+
     for (final msg in recentHistory) {
+      final simpleId = simpleIdCounter.toString().padLeft(4, '0');
+      realIdToSimpleId[msg.id] = simpleId;
+      idMapping[simpleId] = msg.id;
+      simpleIdCounter++;
+    }
+
+    for (final msg in recentHistory) {
+      final simpleId = realIdToSimpleId[msg.id]!;
+
+      // 构建XML格式的消息内容，使用简化ID
+      final xmlContent = _buildXmlMessageContentWithSimpleId(
+        msg,
+        simpleId,
+        realIdToSimpleId,
+      );
+
       if (msg.type == MessageType.image) {
         // 处理图片消息
         final base64Image = await ImageUtils.imageToBase64(msg.content);
         if (base64Image != null) {
           messages.add({
             'role': msg.isMe ? 'user' : 'assistant',
-            'content': '', // 占位，实际内容在 type 中区分
+            'content': '<image id="$simpleId">[图片]</image>',
             'image_data': base64Image,
             'mime_type': ImageUtils.getMimeType(msg.content),
             'type': 'image',
@@ -232,21 +269,124 @@ class LlmService {
           // 图片加载失败，作为文本提示
           messages.add({
             'role': msg.isMe ? 'user' : 'assistant',
-            'content': '[图片加载失败: ${msg.content}]',
+            'content': '<image id="$simpleId">[图片加载失败]</image>',
             'type': 'text',
           });
         }
       } else {
-        // 普通文本消息
+        // 普通文本消息，使用XML格式
         messages.add({
           'role': msg.isMe ? 'user' : 'assistant',
-          'content': msg.content,
+          'content': xmlContent,
           'type': 'text',
         });
       }
     }
 
-    return messages;
+    return {
+      'messages': messages,
+      'idMapping': idMapping,
+    };
+  }
+
+  /// 将消息构建为XML格式，使用简化ID
+  static String _buildXmlMessageContentWithSimpleId(
+    ChatMessage msg,
+    String simpleId,
+    Map<String, String> realIdToSimpleId,
+  ) {
+    // 获取消息类型对应的标签名
+    final tagName = _getTagNameForType(msg.type);
+
+    // 构建属性字符串，使用简化ID
+    final attributes = StringBuffer();
+    attributes.write(' id="$simpleId"');
+
+    // 处理引用消息，将引用的真实ID转换为简化ID
+    if (msg.metadata != null && msg.metadata!.containsKey('quote')) {
+      try {
+        final quote = msg.metadata!['quote'] as Map<String, dynamic>;
+        final quoteRealId = quote['id'] as String;
+        // 查找引用消息的简化ID
+        final quoteSimpleId = realIdToSimpleId[quoteRealId];
+        if (quoteSimpleId != null) {
+          attributes.write(' ref="$quoteSimpleId"');
+        }
+      } catch (e) {
+        // 忽略引用解析错误
+      }
+    }
+
+    // 处理特定类型的额外属性
+    if (msg.metadata != null) {
+      switch (msg.type) {
+        case MessageType.redpacket:
+        case MessageType.transfer:
+          final message = msg.metadata!['message'] as String? ?? '';
+          if (message.isNotEmpty) {
+            attributes.write(' message="$message"');
+          }
+          break;
+        case MessageType.product:
+          final name = msg.metadata!['name'] as String? ?? '';
+          final price = msg.metadata!['price'] as String? ?? '';
+          if (name.isNotEmpty) attributes.write(' name="$name"');
+          if (price.isNotEmpty) attributes.write(' price="$price"');
+          break;
+        case MessageType.link:
+          final title = msg.metadata!['title'] as String? ?? '';
+          final url = msg.metadata!['url'] as String? ?? '';
+          if (title.isNotEmpty) attributes.write(' title="$title"');
+          if (url.isNotEmpty) attributes.write(' url="$url"');
+          break;
+        case MessageType.note:
+          final title = msg.metadata!['title'] as String? ?? '';
+          if (title.isNotEmpty) attributes.write(' title="$title"');
+          break;
+        default:
+          break;
+      }
+    }
+
+    return '<$tagName$attributes>${msg.content}</$tagName>';
+  }
+
+  /// 获取消息类型对应的XML标签名
+  static String _getTagNameForType(MessageType type) {
+    switch (type) {
+      case MessageType.words:
+        return 'words';
+      case MessageType.action:
+        return 'action';
+      case MessageType.thought:
+        return 'thought';
+      case MessageType.state:
+        return 'state';
+      case MessageType.emoji:
+        return 'emoji';
+      case MessageType.image:
+        return 'image';
+      case MessageType.location:
+        return 'location';
+      case MessageType.redpacket:
+        return 'redpacket';
+      case MessageType.transfer:
+        return 'transfer';
+      case MessageType.product:
+        return 'product';
+      case MessageType.link:
+        return 'link';
+      case MessageType.note:
+        return 'note';
+      case MessageType.anniversary:
+        return 'anniversary';
+      case MessageType.memory:
+        return 'memory';
+      case MessageType.diary:
+        return 'diary';
+      case MessageType.moment:
+        return 'moment';
+    }
   }
 
   /// 记录API调用日志

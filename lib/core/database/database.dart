@@ -63,7 +63,7 @@ class AppDatabase extends _$AppDatabase {
   static bool get hasActiveConnection => _instance != null;
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 9;
 
   // Migration Strategy
   @override
@@ -98,6 +98,14 @@ class AppDatabase extends _$AppDatabase {
         }
         if (from < 7) {
           await m.addColumn(chatSessions, chatSessions.backgroundImage);
+        }
+        if (from < 8) {
+          await m.addColumn(
+              chatSessions, chatSessions.enableIndependentSendButton);
+        }
+        if (from < 9) {
+          // 添加 sender 字段用于存储发送者名称
+          await m.addColumn(chatMessages, chatMessages.sender);
         }
       },
     );
@@ -138,6 +146,7 @@ class AppDatabase extends _$AppDatabase {
                 (m) => ChatMessage(
                   id: m.id,
                   isMe: m.isMe,
+                  sender: m.sender,
                   type: m.type,
                   content: m.content,
                   timestamp: m.timestamp,
@@ -148,6 +157,7 @@ class AppDatabase extends _$AppDatabase {
               .toList(),
           lastUpdated: s.lastUpdated,
           enableExtendedChat: s.enableExtendedChat,
+          enableIndependentSendButton: s.enableIndependentSendButton,
           currentState: s.currentState,
           isPinned: s.isPinned,
           worldInfoIds: s.worldInfoIds,
@@ -187,6 +197,7 @@ class AppDatabase extends _$AppDatabase {
             (m) => ChatMessage(
               id: m.id,
               isMe: m.isMe,
+              sender: m.sender,
               type: m.type,
               content: m.content,
               timestamp: m.timestamp,
@@ -197,6 +208,7 @@ class AppDatabase extends _$AppDatabase {
           .toList(),
       lastUpdated: s.lastUpdated,
       enableExtendedChat: s.enableExtendedChat,
+      enableIndependentSendButton: s.enableIndependentSendButton,
       currentState: s.currentState,
       isPinned: s.isPinned,
       worldInfoIds: s.worldInfoIds,
@@ -286,9 +298,20 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// 更新会话设置
-  Future<void> updateSessionSettings(String id, bool enableExtendedChat) {
+  Future<void> updateSessionSettings(
+    String id, {
+    bool? enableExtendedChat,
+    bool? enableIndependentSendButton,
+  }) {
     return (update(chatSessions)..where((t) => t.id.equals(id))).write(
-      ChatSessionsCompanion(enableExtendedChat: Value(enableExtendedChat)),
+      ChatSessionsCompanion(
+        enableExtendedChat: enableExtendedChat != null
+            ? Value(enableExtendedChat)
+            : const Value.absent(),
+        enableIndependentSendButton: enableIndependentSendButton != null
+            ? Value(enableIndependentSendButton)
+            : const Value.absent(),
+      ),
     );
   }
 
@@ -517,6 +540,7 @@ class AppDatabase extends _$AppDatabase {
     return ChatMessage(
       id: msg.id,
       isMe: msg.isMe,
+      sender: msg.sender,
       type: msg.type,
       content: msg.content,
       timestamp: msg.timestamp,
@@ -598,6 +622,7 @@ class AppDatabase extends _$AppDatabase {
           (m) => ChatMessage(
             id: m.id,
             isMe: m.isMe,
+            sender: m.sender,
             type: m.type,
             content: m.content,
             timestamp: m.timestamp,

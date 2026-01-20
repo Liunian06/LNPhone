@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import '../../core/theme/app_theme.dart';
 import 'roles_tab.dart';
 import 'me_tab.dart';
 
@@ -18,7 +19,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEDEDED),
+      backgroundColor: context.chatBackground,
       body: IndexedStack(index: _currentIndex, children: _tabs),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -28,8 +29,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
           });
         },
         selectedItemColor: const Color(0xFF07C160), // WeChat Green
-        unselectedItemColor: Colors.grey,
-        backgroundColor: const Color(0xFFF7F7F7),
+        unselectedItemColor: context.secondaryTextColor,
+        backgroundColor: context.surfaceColor,
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(

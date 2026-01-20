@@ -133,6 +133,8 @@ class ChatSessions extends Table {
   IntColumn get lastUpdated => integer()();
   BoolColumn get enableExtendedChat =>
       boolean().withDefault(const Constant(true))();
+  BoolColumn get enableIndependentSendButton =>
+      boolean().withDefault(const Constant(false))();
   TextColumn get currentState => text().nullable()();
   BoolColumn get isPinned => boolean().withDefault(const Constant(false))();
   TextColumn get worldInfoIds => text()
@@ -198,6 +200,7 @@ class ChatMessages extends Table {
   TextColumn get sessionId =>
       text().references(ChatSessions, #id, onDelete: KeyAction.cascade)();
   BoolColumn get isMe => boolean()();
+  TextColumn get sender => text().nullable()(); // 发送者名称（用于引用显示）
   IntColumn get type => integer().map(const MessageTypeConverter())();
   TextColumn get content => text()();
   IntColumn get timestamp => integer()();

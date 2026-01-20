@@ -7,12 +7,19 @@ import '../widgets/moments_post_item.dart';
 import 'edit_moment_screen.dart';
 
 /// 朋友圈主页
-class MomentsScreen extends Scaffold {
-  MomentsScreen({super.key})
-    : super(
-        backgroundColor: const Color(0xFFF5F5F5),
-        body: const _MomentsBody(),
-      );
+class MomentsScreen extends StatelessWidget {
+  const MomentsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF111111) : const Color(0xFFF5F5F5);
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      body: const _MomentsBody(),
+    );
+  }
 }
 
 class _MomentsBody extends StatefulWidget {
@@ -49,6 +56,10 @@ class _MomentsBodyState extends State<_MomentsBody> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final appBarBgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final titleColor = isDark ? Colors.white : Colors.black;
+
     return Consumer<MomentsProvider>(
       builder: (context, momentsProvider, child) {
         final currentUser = momentsProvider.currentUser;
@@ -72,13 +83,13 @@ class _MomentsBodyState extends State<_MomentsBody> {
                 collapsedHeight: _collapsedHeight,
                 toolbarHeight: 44.0, // 显式设置工具栏高度
                 pinned: true,
-                backgroundColor: Colors.white.withOpacity(opacity),
+                backgroundColor: appBarBgColor.withOpacity(opacity),
                 automaticallyImplyLeading: false, // 移除返回按钮
                 title: isCollapsed
-                    ? const Text(
+                    ? Text(
                         '朋友圈',
                         style: TextStyle(
-                          color: Colors.black,
+                          color: titleColor,
                           fontSize: 17,
                           fontWeight: FontWeight.w600,
                         ),
@@ -89,7 +100,7 @@ class _MomentsBodyState extends State<_MomentsBody> {
                   IconButton(
                     icon: Icon(
                       Icons.camera_alt,
-                      color: isCollapsed ? Colors.black : Colors.white,
+                      color: isCollapsed ? titleColor : Colors.white,
                     ),
                     onPressed: () {
                       Navigator.push(
@@ -123,24 +134,24 @@ class _MomentsBodyState extends State<_MomentsBody> {
                         child: SizedBox.expand(
                           child: currentUser.coverImageUrl != null
                               ? (currentUser.coverImageUrl!.startsWith('http')
-                                    ? Image.network(
-                                        currentUser.coverImageUrl!,
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) {
-                                              return Container(
-                                                color: Colors.grey[300],
-                                                child: const Icon(
-                                                  Icons.image,
-                                                  size: 50,
-                                                ),
-                                              );
-                                            },
-                                      )
-                                    : Image.file(
-                                        File(currentUser.coverImageUrl!),
-                                        fit: BoxFit.cover,
-                                      ))
+                                  ? Image.network(
+                                      currentUser.coverImageUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                        return Container(
+                                          color: Colors.grey[300],
+                                          child: const Icon(
+                                            Icons.image,
+                                            size: 50,
+                                          ),
+                                        );
+                                      },
+                                    )
+                                  : Image.file(
+                                      File(currentUser.coverImageUrl!),
+                                      fit: BoxFit.cover,
+                                    ))
                               : Container(color: Colors.grey[300]),
                         ),
                       ),
@@ -213,11 +224,11 @@ class _MomentsBodyState extends State<_MomentsBody> {
                                   borderRadius: BorderRadius.circular(2),
                                   child:
                                       currentUser.avatarUrl.startsWith('http')
-                                      ? Image.network(
-                                          currentUser.avatarUrl,
-                                          fit: BoxFit.cover,
-                                          errorBuilder:
-                                              (context, error, stackTrace) {
+                                          ? Image.network(
+                                              currentUser.avatarUrl,
+                                              fit: BoxFit.cover,
+                                              errorBuilder:
+                                                  (context, error, stackTrace) {
                                                 return Container(
                                                   color: Colors.grey[300],
                                                   child: const Icon(
@@ -225,11 +236,11 @@ class _MomentsBodyState extends State<_MomentsBody> {
                                                   ),
                                                 );
                                               },
-                                        )
-                                      : Image.file(
-                                          File(currentUser.avatarUrl),
-                                          fit: BoxFit.cover,
-                                        ),
+                                            )
+                                          : Image.file(
+                                              File(currentUser.avatarUrl),
+                                              fit: BoxFit.cover,
+                                            ),
                                 ),
                               ),
                             ),

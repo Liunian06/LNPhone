@@ -62,19 +62,25 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF111111) : const Color(0xFFEDEDED);
+    final textColor = isDark ? Colors.white : Colors.black;
+    final subtitleColor = isDark ? Colors.white70 : Colors.black87;
+    final cardColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFEDEDED),
+      backgroundColor: bgColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFEDEDED),
+        backgroundColor: bgColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black, size: 20),
+          icon: Icon(Icons.arrow_back_ios, color: textColor, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           '聊天设置',
           style: TextStyle(
-            color: Colors.black,
+            color: textColor,
             fontSize: 18,
           ),
         ),
@@ -85,13 +91,12 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           final chat = chatProvider.getChat(widget.chatId);
 
           if (chat == null) {
-            return const Center(
-                child: Text('聊天不存在', style: TextStyle(color: Colors.black)));
+            return Center(
+                child: Text('聊天不存在', style: TextStyle(color: textColor)));
           }
 
           if (_isLoadingData) {
-            return const Center(
-                child: CupertinoActivityIndicator(color: Colors.black));
+            return Center(child: CupertinoActivityIndicator(color: textColor));
           }
 
           return ListView(
@@ -99,17 +104,18 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
               const SizedBox(height: 10),
               // 扩展聊天设置
               _buildSettingItem(
+                isDark: isDark,
                 child: SwitchListTile(
-                  title: const Text(
+                  title: Text(
                     '启用扩展聊天',
                     style: TextStyle(
                         fontSize: 16,
-                        color: Colors.black,
+                        color: textColor,
                         fontWeight: FontWeight.bold),
                   ),
-                  subtitle: const Text(
+                  subtitle: Text(
                     '开启后将显示角色的动作和想法',
-                    style: TextStyle(fontSize: 13, color: Colors.black),
+                    style: TextStyle(fontSize: 13, color: subtitleColor),
                   ),
                   value: chat.enableExtendedChat,
                   activeColor: const Color(0xFF07C160),
@@ -121,89 +127,117 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   },
                 ),
               ),
-
-              _buildSectionTitle('API 设置'),
               _buildSettingItem(
+                isDark: isDark,
+                child: SwitchListTile(
+                  title: Text(
+                    '启用独立发送/续写按钮',
+                    style: TextStyle(
+                        fontSize: 16,
+                        color: textColor,
+                        fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    '开启后将在输入框右侧显示独立的发送/续写按钮',
+                    style: TextStyle(fontSize: 13, color: subtitleColor),
+                  ),
+                  value: chat.enableIndependentSendButton,
+                  activeColor: const Color(0xFF07C160),
+                  onChanged: (value) async {
+                    await chatProvider.updateChatSettings(
+                      widget.chatId,
+                      enableIndependentSendButton: value,
+                    );
+                  },
+                ),
+              ),
+
+              _buildSectionTitle('API 设置', isDark),
+              _buildSettingItem(
+                isDark: isDark,
                 child: ListTile(
-                  title: const Text(
+                  title: Text(
                     '独立 API 预设',
                     style: TextStyle(
                         fontSize: 16,
-                        color: Colors.black,
+                        color: textColor,
                         fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(
                     chat.apiPresetId == null
                         ? '使用全局默认'
                         : _getApiPresetName(chat.apiPresetId!),
-                    style: const TextStyle(fontSize: 13, color: Colors.black),
+                    style: TextStyle(fontSize: 13, color: subtitleColor),
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios,
-                      size: 16, color: Colors.black),
+                  trailing:
+                      Icon(Icons.arrow_forward_ios, size: 16, color: textColor),
                   onTap: () => _showApiPresetSelector(
-                      context, chatProvider, chat.apiPresetId),
+                      context, chatProvider, chat.apiPresetId, isDark),
                 ),
               ),
 
-              _buildSectionTitle('世界书 (World Info)'),
+              _buildSectionTitle('世界书 (World Info)', isDark),
               _buildSettingItem(
+                isDark: isDark,
                 child: ListTile(
-                  title: const Text(
+                  title: Text(
                     '选择世界书',
                     style: TextStyle(
                         fontSize: 16,
-                        color: Colors.black,
+                        color: textColor,
                         fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(
                     chat.worldInfoIds.isEmpty
                         ? '未选择'
                         : '已选择 ${chat.worldInfoIds.length} 个',
-                    style: const TextStyle(fontSize: 13, color: Colors.black),
+                    style: TextStyle(fontSize: 13, color: subtitleColor),
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios,
-                      size: 16, color: Colors.black),
+                  trailing:
+                      Icon(Icons.arrow_forward_ios, size: 16, color: textColor),
                   onTap: () => _showWorldInfoSelector(
-                      context, chatProvider, chat.worldInfoIds),
+                      context, chatProvider, chat.worldInfoIds, isDark),
                 ),
               ),
 
-              _buildSectionTitle('预设 (Presets)'),
+              _buildSectionTitle('预设 (Presets)', isDark),
               _buildSettingItem(
+                isDark: isDark,
                 child: ListTile(
-                  title: const Text(
+                  title: Text(
                     '选择预设',
                     style: TextStyle(
                         fontSize: 16,
-                        color: Colors.black,
+                        color: textColor,
                         fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(
                     chat.textPresetIds.isEmpty
                         ? '未选择'
                         : '已选择 ${chat.textPresetIds.length} 个',
-                    style: const TextStyle(fontSize: 13, color: Colors.black),
+                    style: TextStyle(fontSize: 13, color: subtitleColor),
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios,
-                      size: 16, color: Colors.black),
+                  trailing:
+                      Icon(Icons.arrow_forward_ios, size: 16, color: textColor),
                   onTap: () => _showTextPresetSelector(
-                      context, chatProvider, chat.textPresetIds),
+                      context, chatProvider, chat.textPresetIds, isDark),
                 ),
               ),
 
-              _buildSectionTitle('外观设置'),
+              _buildSectionTitle('外观设置', isDark),
               _buildSettingItem(
+                isDark: isDark,
                 child: ListTile(
-                  title: const Text(
+                  title: Text(
                     '聊天背景图',
                     style: TextStyle(
                         fontSize: 16,
-                        color: Colors.black,
+                        color: textColor,
                         fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(
                     chat.backgroundImage != null ? '已设置' : '未设置',
-                    style: const TextStyle(fontSize: 13, color: Colors.black),
+                    style: TextStyle(fontSize: 13, color: subtitleColor),
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -221,12 +255,11 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                             ),
                           ),
                         ),
-                      const Icon(Icons.arrow_forward_ios,
-                          size: 16, color: Colors.black),
+                      Icon(Icons.arrow_forward_ios, size: 16, color: textColor),
                     ],
                   ),
                   onTap: () => _showBackgroundImageOptions(
-                      context, chatProvider, chat.backgroundImage),
+                      context, chatProvider, chat.backgroundImage, isDark),
                 ),
               ),
 
@@ -238,21 +271,23 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     );
   }
 
-  Widget _buildSettingItem({required Widget child}) {
+  Widget _buildSettingItem({required Widget child, required bool isDark}) {
+    final cardColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
     return Container(
-      color: Colors.white,
+      color: cardColor,
       child: child,
     );
   }
 
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(String title, bool isDark) {
+    final textColor = isDark ? Colors.white70 : Colors.black87;
     return Padding(
       padding: const EdgeInsets.only(left: 16, bottom: 8, top: 20),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 14,
-          color: Colors.black,
+          color: textColor,
         ),
       ),
     );
@@ -271,10 +306,15 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     BuildContext context,
     ChatProvider provider,
     String? currentId,
+    bool isDark,
   ) {
+    final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final subtitleColor = isDark ? Colors.white70 : Colors.black87;
+
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: bgColor,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
       builder: (context) {
@@ -284,17 +324,16 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 '选择 API 预设',
-                style: TextStyle(fontSize: 18, color: Colors.black),
+                style: TextStyle(fontSize: 18, color: textColor),
               ),
               const SizedBox(height: 16),
               Expanded(
                 child: ListView(
                   children: [
                     ListTile(
-                      title: const Text('使用全局默认',
-                          style: TextStyle(color: Colors.black)),
+                      title: Text('使用全局默认', style: TextStyle(color: textColor)),
                       trailing: currentId == null
                           ? const Icon(Icons.check, color: Color(0xFF07C160))
                           : null,
@@ -304,15 +343,15 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                         Navigator.pop(context);
                       },
                     ),
-                    const Divider(),
+                    Divider(color: isDark ? Colors.white24 : Colors.black12),
                     ..._allApiPresets.map((preset) {
                       final isSelected = currentId == preset.id;
                       return ListTile(
                         title: Text(preset.name,
-                            style: const TextStyle(color: Colors.black)),
+                            style: TextStyle(color: textColor)),
                         subtitle: Text(
                             '${preset.provider.name} - ${preset.model}',
-                            style: const TextStyle(color: Colors.black87)),
+                            style: TextStyle(color: subtitleColor)),
                         trailing: isSelected
                             ? const Icon(Icons.check, color: Color(0xFF07C160))
                             : null,
@@ -337,13 +376,17 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     BuildContext context,
     ChatProvider provider,
     List<String> currentIds,
+    bool isDark,
   ) {
     final selectedIds = List<String>.from(currentIds);
+    final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final subtitleColor = isDark ? Colors.white70 : Colors.black87;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: bgColor,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
       builder: (context) {
@@ -358,9 +401,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         '选择世界书',
-                        style: TextStyle(fontSize: 18, color: Colors.black),
+                        style: TextStyle(fontSize: 18, color: textColor),
                       ),
                       TextButton(
                         onPressed: () {
@@ -375,9 +418,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   const SizedBox(height: 16),
                   Expanded(
                     child: _allWorldInfos.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text('暂无世界书',
-                                style: TextStyle(color: Colors.black)))
+                                style: TextStyle(color: textColor)))
                         : ListView.builder(
                             itemCount: _allWorldInfos.length,
                             itemBuilder: (context, index) {
@@ -385,13 +428,12 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                               final isSelected = selectedIds.contains(info.id);
                               return CheckboxListTile(
                                 title: Text(info.name,
-                                    style:
-                                        const TextStyle(color: Colors.black)),
+                                    style: TextStyle(color: textColor)),
                                 subtitle: Text(
                                   info.content,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: Colors.black87),
+                                  style: TextStyle(color: subtitleColor),
                                 ),
                                 value: isSelected,
                                 activeColor: const Color(0xFF07C160),
@@ -422,13 +464,17 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     BuildContext context,
     ChatProvider provider,
     List<String> currentIds,
+    bool isDark,
   ) {
     final selectedIds = List<String>.from(currentIds);
+    final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final subtitleColor = isDark ? Colors.white70 : Colors.black87;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: bgColor,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
       builder: (context) {
@@ -443,9 +489,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         '选择预设',
-                        style: TextStyle(fontSize: 18, color: Colors.black),
+                        style: TextStyle(fontSize: 18, color: textColor),
                       ),
                       TextButton(
                         onPressed: () {
@@ -460,9 +506,9 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   const SizedBox(height: 16),
                   Expanded(
                     child: _allTextPresets.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text('暂无预设',
-                                style: TextStyle(color: Colors.black)))
+                                style: TextStyle(color: textColor)))
                         : ListView.builder(
                             itemCount: _allTextPresets.length,
                             itemBuilder: (context, index) {
@@ -471,13 +517,12 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                                   selectedIds.contains(preset.id);
                               return CheckboxListTile(
                                 title: Text(preset.name,
-                                    style:
-                                        const TextStyle(color: Colors.black)),
+                                    style: TextStyle(color: textColor)),
                                 subtitle: Text(
                                   preset.content,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: Colors.black87),
+                                  style: TextStyle(color: subtitleColor),
                                 ),
                                 value: isSelected,
                                 activeColor: const Color(0xFF07C160),
@@ -509,10 +554,14 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     BuildContext context,
     ChatProvider provider,
     String? currentImage,
+    bool isDark,
   ) {
+    final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: bgColor,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
       builder: (context) {
@@ -522,22 +571,21 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 '聊天背景图',
-                style: TextStyle(fontSize: 18, color: Colors.black),
+                style: TextStyle(fontSize: 18, color: textColor),
               ),
               const SizedBox(height: 16),
               ListTile(
-                leading: const Icon(Icons.photo_library, color: Colors.black),
-                title:
-                    const Text('从相册选择', style: TextStyle(color: Colors.black)),
+                leading: Icon(Icons.photo_library, color: textColor),
+                title: Text('从相册选择', style: TextStyle(color: textColor)),
                 onTap: () async {
                   Navigator.pop(context);
                   await _pickBackgroundImage(provider);
                 },
               ),
               if (currentImage != null) ...[
-                const Divider(),
+                Divider(color: isDark ? Colors.white24 : Colors.black12),
                 ListTile(
                   leading: const Icon(Icons.delete, color: Colors.red),
                   title:

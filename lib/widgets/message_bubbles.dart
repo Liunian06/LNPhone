@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/models/chat_model.dart';
+import '../core/theme/app_theme.dart';
 
 /// 红包气泡
 class RedpacketBubble extends StatelessWidget {
@@ -102,9 +103,9 @@ class TransferBubble extends StatelessWidget {
       constraints: BoxConstraints(maxWidth: maxWidth * 0.6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.surfaceColor,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+        border: Border.all(color: context.dividerColor),
       ),
       child: Row(
         children: [
@@ -112,7 +113,7 @@ class TransferBubble extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
+              color: Colors.orange.withOpacity(context.isDarkMode ? 0.2 : 0.1),
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Icon(
@@ -128,21 +129,23 @@ class TransferBubble extends StatelessWidget {
               children: [
                 Text(
                   messageText,
-                  style: const TextStyle(fontSize: 14, color: Colors.black87),
+                  style:
+                      TextStyle(fontSize: 14, color: context.primaryTextColor),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '¥$amount',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                    color: context.primaryTextColor,
                   ),
                 ),
               ],
             ),
           ),
-          const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+          Icon(Icons.arrow_forward_ios,
+              size: 16, color: context.secondaryTextColor),
         ],
       ),
     );
@@ -169,9 +172,9 @@ class ProductBubble extends StatelessWidget {
     return Container(
       constraints: BoxConstraints(maxWidth: maxWidth * 0.7),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.surfaceColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+        border: Border.all(color: context.dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,13 +183,14 @@ class ProductBubble extends StatelessWidget {
           Container(
             height: 150,
             decoration: BoxDecoration(
-              color: Colors.grey[200],
+              color: context.isDarkMode ? Colors.grey[800] : Colors.grey[200],
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(8),
               ),
             ),
-            child: const Center(
-              child: Icon(Icons.shopping_bag, size: 48, color: Colors.grey),
+            child: Center(
+              child: Icon(Icons.shopping_bag,
+                  size: 48, color: context.secondaryTextColor),
             ),
           ),
           Padding(
@@ -196,10 +200,10 @@ class ProductBubble extends StatelessWidget {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: Colors.black,
+                    color: context.primaryTextColor,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -208,7 +212,8 @@ class ProductBubble extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    style: TextStyle(
+                        fontSize: 13, color: context.secondaryTextColor),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -248,9 +253,9 @@ class LinkBubble extends StatelessWidget {
       constraints: BoxConstraints(maxWidth: maxWidth * 0.7),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.surfaceColor,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+        border: Border.all(color: context.dividerColor),
       ),
       child: Row(
         children: [
@@ -258,7 +263,7 @@ class LinkBubble extends StatelessWidget {
             width: 50,
             height: 50,
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
+              color: Colors.blue.withOpacity(context.isDarkMode ? 0.2 : 0.1),
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Icon(Icons.link, color: Colors.blue, size: 28),
@@ -270,10 +275,10 @@ class LinkBubble extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
-                    color: Colors.black,
+                    color: context.primaryTextColor,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -282,7 +287,8 @@ class LinkBubble extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    style: TextStyle(
+                        fontSize: 13, color: context.secondaryTextColor),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -291,7 +297,9 @@ class LinkBubble extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     url,
-                    style: TextStyle(fontSize: 11, color: Colors.grey[400]),
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: context.secondaryTextColor.withOpacity(0.7)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -321,9 +329,13 @@ class NoteBubble extends StatelessWidget {
       constraints: BoxConstraints(maxWidth: maxWidth * 0.7),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF9E6),
+        color: context.isDarkMode
+            ? const Color(0xFF3D3520)
+            : const Color(0xFFFFF9E6),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.3)),
+        border: Border.all(
+            color: const Color(0xFFFFD700)
+                .withOpacity(context.isDarkMode ? 0.5 : 0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,17 +352,18 @@ class NoteBubble extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                    color: context.primaryTextColor,
                   ),
                 ),
                 if (content.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Text(
                     content,
-                    style: const TextStyle(fontSize: 14, color: Colors.black54),
+                    style: TextStyle(
+                        fontSize: 14, color: context.secondaryTextColor),
                   ),
                 ],
               ],
@@ -380,9 +393,9 @@ class LocationBubble extends StatelessWidget {
     return Container(
       constraints: BoxConstraints(maxWidth: maxWidth * 0.7),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.surfaceColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+        border: Border.all(color: context.dividerColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -391,7 +404,7 @@ class LocationBubble extends StatelessWidget {
           Container(
             height: 120,
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
+              color: Colors.blue.withOpacity(context.isDarkMode ? 0.2 : 0.1),
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(8),
               ),
@@ -409,7 +422,8 @@ class LocationBubble extends StatelessWidget {
                 Expanded(
                   child: Text(
                     location,
-                    style: const TextStyle(fontSize: 14, color: Colors.black87),
+                    style: TextStyle(
+                        fontSize: 14, color: context.primaryTextColor),
                   ),
                 ),
               ],
@@ -538,18 +552,20 @@ class EmojiBubble extends StatelessWidget {
         width: 120,
         height: 120,
         decoration: BoxDecoration(
-          color: Colors.grey[200],
+          color: context.isDarkMode ? Colors.grey[800] : Colors.grey[200],
           borderRadius: BorderRadius.circular(8),
         ),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.emoji_emotions, size: 48, color: Colors.grey),
+              Icon(Icons.emoji_emotions,
+                  size: 48, color: context.secondaryTextColor),
               const SizedBox(height: 8),
               Text(
                 emojiId,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style:
+                    TextStyle(fontSize: 12, color: context.secondaryTextColor),
                 textAlign: TextAlign.center,
               ),
             ],

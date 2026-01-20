@@ -6,8 +6,13 @@ import '../models/chat_model.dart';
 class XmlResponseParser {
   /// 解析 XML 响应
   ///
+  /// [simpleIdToRealId] - 简化ID到真实ID的映射表，用于将AI回复中的简化ID转换回真实ID
   /// 返回解析后的消息列表。如果返回空列表，表示 AI 选择沉默（不回复）
-  static List<ChatMessage> parse(String xmlResponse, String messageIdPrefix) {
+  static List<ChatMessage> parse(
+    String xmlResponse,
+    String messageIdPrefix, {
+    Map<String, String>? simpleIdToRealId,
+  }) {
     print('[XML-Parser] ========== 开始解析 XML 响应 ==========');
     print('[XML-Parser] 原始响应长度: ${xmlResponse.length} 字符');
 
@@ -143,6 +148,7 @@ class XmlResponseParser {
           content,
           element,
           '$messageIdPrefix-$messageIndex',
+          simpleIdToRealId: simpleIdToRealId,
         );
 
         if (message != null) {
@@ -185,13 +191,55 @@ class XmlResponseParser {
   }
 
   /// 解析单个元素为消息
+  ///
+  /// [simpleIdToRealId] - 简化ID到真实ID的映射表
   static ChatMessage? _parseElement(
     String tagName,
     String content,
     XmlElement element,
-    String messageId,
-  ) {
+    String messageId, {
+    Map<String, String>? simpleIdToRealId,
+  }) {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+    // 优先使用 ref 属性，如果不存在则尝试使用 quote/reply 或 id 属性作为引用
+    String? refId = element.getAttribute('ref');
+    if (refId == null || refId.isEmpty) {
+      // 兼容 quote 属性
+      refId = element.getAttribute('quote');
+    }
+    if (refId == null || refId.isEmpty) {
+      // 兼容旧的 reply 属性
+      refId = element.getAttribute('reply');
+    }
+    if (refId == null || refId.isEmpty) {
+      // 检查 id 属性是否看起来像是简化ID的引用
+      final idAttr = element.getAttribute('id');
+      if (idAttr != null && idAttr.isNotEmpty) {
+        // 检查是否是简化ID格式（如 0001, 0002）
+        if (RegExp(r'^\d{4}$').hasMatch(idAttr)) {
+          refId = idAttr;
+          print('[XML-Parser] 检测到简化ID作为引用: $refId');
+        }
+      }
+    }
+
+    final Map<String, dynamic> metadata = {};
+
+    // 将简化ID转换为真实ID
+    if (refId != null && refId.isNotEmpty) {
+      if (simpleIdToRealId != null && simpleIdToRealId.containsKey(refId)) {
+        final realId = simpleIdToRealId[refId]!;
+        print('[XML-Parser] 将简化ID $refId 转换为真实ID: $realId');
+        metadata['reply_id'] = realId;
+      } else {
+        // 如果没有映射表或找不到映射，打印警告
+        print(
+            '[XML-Parser] ⚠️ 无法找到简化ID $refId 的映射，可用映射: ${simpleIdToRealId?.keys.toList()}');
+        // 仍然保存原始ID，让 chat_provider 尝试查找
+        metadata['reply_id'] = refId;
+      }
+    }
 
     switch (tagName) {
       // ========== 基础消息类型 ==========
@@ -202,6 +250,7 @@ class XmlResponseParser {
           type: MessageType.words,
           content: content,
           timestamp: timestamp,
+          metadata: metadata.isEmpty ? null : metadata,
           isRead: false,
         );
 
@@ -212,6 +261,7 @@ class XmlResponseParser {
           type: MessageType.action,
           content: content,
           timestamp: timestamp,
+          metadata: metadata.isEmpty ? null : metadata,
           isRead: false,
         );
 
@@ -222,6 +272,7 @@ class XmlResponseParser {
           type: MessageType.thought,
           content: content,
           timestamp: timestamp,
+          metadata: metadata.isEmpty ? null : metadata,
           isRead: false,
         );
 
@@ -232,6 +283,7 @@ class XmlResponseParser {
           type: MessageType.state,
           content: content,
           timestamp: timestamp,
+          metadata: metadata.isEmpty ? null : metadata,
           isRead: false,
         );
 
@@ -246,31 +298,34 @@ class XmlResponseParser {
           type: MessageType.location,
           content: content,
           timestamp: timestamp,
+          metadata: metadata.isEmpty ? null : metadata,
           isRead: false,
         );
 
       // ========== 资金往来类型 ==========
       case 'redpacket':
         final message = element.getAttribute('message') ?? '';
+        metadata['message'] = message;
         return ChatMessage(
           id: messageId,
           isMe: false,
           type: MessageType.redpacket,
           content: content, // 金额
           timestamp: timestamp,
-          metadata: {'message': message},
+          metadata: metadata,
           isRead: false,
         );
 
       case 'transfer':
         final message = element.getAttribute('message') ?? '';
+        metadata['message'] = message;
         return ChatMessage(
           id: messageId,
           isMe: false,
           type: MessageType.transfer,
           content: content, // 金额
           timestamp: timestamp,
-          metadata: {'message': message},
+          metadata: metadata,
           isRead: false,
         );
 
@@ -279,42 +334,44 @@ class XmlResponseParser {
         final name = element.getAttribute('name') ?? '';
         final price = element.getAttribute('price') ?? '';
         final image = element.getAttribute('image');
+        metadata['name'] = name;
+        metadata['price'] = price;
+        if (image != null) metadata['image'] = image;
         return ChatMessage(
           id: messageId,
           isMe: false,
           type: MessageType.product,
           content: content, // 商品描述
           timestamp: timestamp,
-          metadata: {
-            'name': name,
-            'price': price,
-            if (image != null) 'image': image,
-          },
+          metadata: metadata,
           isRead: false,
         );
 
       case 'link':
         final title = element.getAttribute('title') ?? '';
         final url = element.getAttribute('url') ?? '';
+        metadata['title'] = title;
+        metadata['url'] = url;
         return ChatMessage(
           id: messageId,
           isMe: false,
           type: MessageType.link,
           content: content, // 链接描述
           timestamp: timestamp,
-          metadata: {'title': title, 'url': url},
+          metadata: metadata,
           isRead: false,
         );
 
       case 'note':
         final title = element.getAttribute('title') ?? '';
+        metadata['title'] = title;
         return ChatMessage(
           id: messageId,
           isMe: false,
           type: MessageType.note,
           content: content, // 备忘详细内容
           timestamp: timestamp,
-          metadata: {'title': title},
+          metadata: metadata,
           isRead: false,
         );
 
@@ -325,20 +382,19 @@ class XmlResponseParser {
         final label = element.getAttribute('label') ?? '';
         final date = element.getAttribute('date') ?? '';
         final background = element.getAttribute('background');
+        metadata['anniversary_id'] = id;
+        metadata['title'] = title;
+        metadata['days'] = days;
+        metadata['label'] = label;
+        metadata['date'] = date;
+        if (background != null) metadata['background'] = background;
         return ChatMessage(
           id: messageId,
           isMe: false,
           type: MessageType.anniversary,
           content: content, // 祝福语或感想
           timestamp: timestamp,
-          metadata: {
-            'anniversary_id': id,
-            'title': title,
-            'days': days,
-            'label': label,
-            'date': date,
-            if (background != null) 'background': background,
-          },
+          metadata: metadata,
           isRead: false,
         );
 

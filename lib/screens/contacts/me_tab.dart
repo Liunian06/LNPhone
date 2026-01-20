@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/contact_provider.dart';
+import '../../core/theme/app_theme.dart';
 import 'edit_me_screen.dart';
 import 'add_me_screen.dart';
 
@@ -14,15 +15,15 @@ class MeTab extends StatelessWidget {
     final provider = context.watch<ContactProvider>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: context.chatBackground,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: context.surfaceColor,
         elevation: 0,
-        automaticallyImplyLeading: false, // 移除返回按钮
-        title: const Text(
+        automaticallyImplyLeading: false,
+        title: Text(
           '我',
           style: TextStyle(
-            color: Colors.black,
+            color: context.primaryTextColor,
             fontSize: 17,
             fontWeight: FontWeight.w600,
           ),
@@ -30,7 +31,7 @@ class MeTab extends StatelessWidget {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.add, color: Colors.black, size: 26),
+            icon: Icon(Icons.add, color: context.primaryTextColor, size: 26),
             onPressed: () {
               Navigator.push(
                 context,
@@ -49,17 +50,20 @@ class MeTab extends StatelessWidget {
                   Icon(
                     CupertinoIcons.person,
                     size: 64,
-                    color: Colors.grey[300],
+                    color: context.secondaryTextColor.withOpacity(0.5),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     '暂无人设',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 15),
+                    style: TextStyle(
+                        color: context.secondaryTextColor, fontSize: 15),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     '点击右上角添加新人设',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                    style: TextStyle(
+                        color: context.secondaryTextColor.withOpacity(0.7),
+                        fontSize: 13),
                   ),
                 ],
               ),
@@ -73,11 +77,13 @@ class MeTab extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.surfaceColor,
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.03),
+                          color: context.isDarkMode
+                              ? Colors.black.withOpacity(0.3)
+                              : Colors.black.withOpacity(0.03),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -106,7 +112,9 @@ class MeTab extends StatelessWidget {
                                 height: 56,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: const Color(0xFFF0F0F0),
+                                  color: context.isDarkMode
+                                      ? Colors.grey[700]
+                                      : const Color(0xFFF0F0F0),
                                   image: me.avatarPath != null
                                       ? DecorationImage(
                                           image: FileImage(
@@ -120,9 +128,9 @@ class MeTab extends StatelessWidget {
                                     ? Center(
                                         child: Text(
                                           me.name.isNotEmpty ? me.name[0] : 'M',
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 24,
-                                            color: Color(0xFFB0B0B0),
+                                            color: context.secondaryTextColor,
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),
@@ -137,10 +145,10 @@ class MeTab extends StatelessWidget {
                                   children: [
                                     Text(
                                       me.name,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w600,
-                                        color: Colors.black87,
+                                        color: context.primaryTextColor,
                                       ),
                                     ),
                                     const SizedBox(height: 6),
@@ -148,7 +156,7 @@ class MeTab extends StatelessWidget {
                                       me.info,
                                       style: TextStyle(
                                         fontSize: 14,
-                                        color: Colors.grey[600],
+                                        color: context.secondaryTextColor,
                                         height: 1.4,
                                       ),
                                       maxLines: 2,

@@ -94,10 +94,8 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
       final remainingSlots = _maxImages - _selectedImages.length;
 
       setState(() {
-        final imagesToAdd = images
-            .take(remainingSlots)
-            .map((e) => e.path)
-            .toList();
+        final imagesToAdd =
+            images.take(remainingSlots).map((e) => e.path).toList();
         _selectedImages.addAll(imagesToAdd);
       });
 
@@ -174,19 +172,26 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBgColor =
+        isDark ? const Color(0xFF1C1C1E) : const Color(0xFFEDEDED);
+    final containerBgColor = isDark ? const Color(0xFF2C2C2E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final hintColor = isDark ? Colors.grey[400] : Colors.grey;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFEDEDED),
+      backgroundColor: scaffoldBgColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFEDEDED),
+        backgroundColor: scaffoldBgColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.black),
+          icon: Icon(Icons.close, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           '发表',
           style: TextStyle(
-            color: Colors.black,
+            color: textColor,
             fontSize: 17,
             fontWeight: FontWeight.w600,
           ),
@@ -208,7 +213,7 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
       ),
       body: SingleChildScrollView(
         child: Container(
-          color: Colors.white,
+          color: containerBgColor,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -219,13 +224,13 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
                   controller: _contentController,
                   maxLines: null,
                   minLines: 5,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: '这一刻的想法...',
                     border: InputBorder.none,
-                    hintStyle: TextStyle(color: Colors.grey, fontSize: 17),
+                    hintStyle: TextStyle(color: hintColor, fontSize: 17),
                   ),
-                  style: const TextStyle(
-                    color: Colors.black,
+                  style: TextStyle(
+                    color: textColor,
                     fontSize: 17,
                     height: 1.4,
                   ),
@@ -241,24 +246,36 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
               const SizedBox(height: 8),
 
               // 分隔线
-              const Divider(height: 1, thickness: 0.5),
+              Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  color: isDark ? Colors.grey[700] : null),
 
               // 所在位置
-              _buildLocationOption(),
+              _buildLocationOption(isDark, textColor),
 
-              const Divider(height: 1, thickness: 0.5),
+              Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  color: isDark ? Colors.grey[700] : null),
 
               // 提醒谁看
-              _buildMentionOption(),
+              _buildMentionOption(isDark, textColor),
 
-              const Divider(height: 1, thickness: 0.5),
+              Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  color: isDark ? Colors.grey[700] : null),
 
               // 谁可以看
-              _buildVisibilityOption(),
+              _buildVisibilityOption(isDark, textColor),
 
               // 上次分组（如果有的话）
               if (_lastGroupRoles != null && _lastGroupRoles!.isNotEmpty) ...[
-                const Divider(height: 1, thickness: 0.5),
+                Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    color: isDark ? Colors.grey[700] : null),
                 _buildLastGroupOption(),
               ],
 
@@ -325,63 +342,67 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
 
   /// 构建添加图片按钮
   Widget _buildAddImageButton() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: _showImageSourceDialog,
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F7F7),
+          color: isDark ? const Color(0xFF3A3A3C) : const Color(0xFFF7F7F7),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: const Color(0xFFE5E5E5)),
+          border: Border.all(
+              color:
+                  isDark ? const Color(0xFF48484A) : const Color(0xFFE5E5E5)),
         ),
-        child: const Icon(Icons.add, size: 40, color: Colors.grey),
+        child: Icon(Icons.add,
+            size: 40, color: isDark ? Colors.grey[400] : Colors.grey),
       ),
     );
   }
 
   /// 构建位置选项
-  Widget _buildLocationOption() {
+  Widget _buildLocationOption(bool isDark, Color textColor) {
     return ListTile(
-      leading: const Icon(Icons.location_on_outlined),
+      leading: Icon(Icons.location_on_outlined,
+          color: isDark ? Colors.grey[400] : null),
       title: Text(
         _location ?? '所在位置',
         style: TextStyle(
-          color: _location == null ? Colors.black : const Color(0xFF576B95),
+          color: _location == null ? textColor : const Color(0xFF576B95),
         ),
       ),
-      trailing: const Icon(
+      trailing: Icon(
         Icons.arrow_forward_ios,
         size: 16,
-        color: Colors.grey,
+        color: isDark ? Colors.grey[600] : Colors.grey,
       ),
       onTap: _showLocationInput,
     );
   }
 
   /// 构建提醒谁看选项
-  Widget _buildMentionOption() {
+  Widget _buildMentionOption(bool isDark, Color textColor) {
     return ListTile(
-      leading: const Icon(Icons.alternate_email),
+      leading:
+          Icon(Icons.alternate_email, color: isDark ? Colors.grey[400] : null),
       title: Text(
         _mentionedRoles.isEmpty
             ? '提醒谁看'
             : _mentionedRoles.map((r) => r.name).join('、'),
         style: TextStyle(
-          color: _mentionedRoles.isEmpty
-              ? Colors.black
-              : const Color(0xFF576B95),
+          color: _mentionedRoles.isEmpty ? textColor : const Color(0xFF576B95),
         ),
       ),
-      trailing: const Icon(
+      trailing: Icon(
         Icons.arrow_forward_ios,
         size: 16,
-        color: Colors.grey,
+        color: isDark ? Colors.grey[600] : Colors.grey,
       ),
       onTap: _showMentionSelector,
     );
   }
 
   /// 构建可见性选项
-  Widget _buildVisibilityOption() {
+  Widget _buildVisibilityOption(bool isDark, Color textColor) {
     String displayText;
     if (_visibleToRoles.isEmpty) {
       displayText = '公开';
@@ -390,17 +411,20 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
     }
 
     return ListTile(
-      leading: const Icon(Icons.person_outline),
-      title: const Text('谁可以看', style: TextStyle(color: Colors.black)),
+      leading:
+          Icon(Icons.person_outline, color: isDark ? Colors.grey[400] : null),
+      title: Text('谁可以看', style: TextStyle(color: textColor)),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             displayText,
-            style: const TextStyle(color: Colors.grey, fontSize: 15),
+            style: TextStyle(
+                color: isDark ? Colors.grey[400] : Colors.grey, fontSize: 15),
           ),
           const SizedBox(width: 4),
-          const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+          Icon(Icons.arrow_forward_ios,
+              size: 16, color: isDark ? Colors.grey[600] : Colors.grey),
         ],
       ),
       onTap: _showVisibilitySelector,
@@ -426,21 +450,32 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
   /// 显示位置输入
   void _showLocationInput() {
     final controller = TextEditingController(text: _location);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBgColor = isDark ? const Color(0xFF2C2C2E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('输入位置'),
+          backgroundColor: dialogBgColor,
+          title: Text('输入位置', style: TextStyle(color: textColor)),
           content: TextField(
             controller: controller,
-            decoration: const InputDecoration(hintText: '请输入位置信息'),
+            decoration: InputDecoration(
+              hintText: '请输入位置信息',
+              hintStyle:
+                  TextStyle(color: isDark ? Colors.grey[400] : Colors.grey),
+            ),
+            style: TextStyle(color: textColor),
             autofocus: true,
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
+              child: Text('取消',
+                  style: TextStyle(
+                      color: isDark ? Colors.grey[400] : Colors.grey)),
             ),
             TextButton(
               onPressed: () {
@@ -451,7 +486,8 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
                 });
                 Navigator.pop(context);
               },
-              child: const Text('确定'),
+              child:
+                  const Text('确定', style: TextStyle(color: Color(0xFF07C160))),
             ),
           ],
         );
@@ -463,6 +499,9 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
   void _showMentionSelector() {
     final contactProvider = context.read<ContactProvider>();
     final tempSelected = List<ContactRole>.from(_mentionedRoles);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBgColor = isDark ? const Color(0xFF2C2C2E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
 
     showDialog(
       context: context,
@@ -470,7 +509,8 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('提醒谁看'),
+              backgroundColor: dialogBgColor,
+              title: Text('提醒谁看', style: TextStyle(color: textColor)),
               content: SizedBox(
                 width: double.maxFinite,
                 child: ListView.builder(
@@ -481,8 +521,10 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
                     final isSelected = tempSelected.any((r) => r.id == role.id);
 
                     return CheckboxListTile(
-                      title: Text(role.name),
+                      title:
+                          Text(role.name, style: TextStyle(color: textColor)),
                       value: isSelected,
+                      activeColor: const Color(0xFF07C160),
                       onChanged: (value) {
                         setDialogState(() {
                           if (value == true) {
@@ -499,7 +541,9 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('取消'),
+                  child: Text('取消',
+                      style: TextStyle(
+                          color: isDark ? Colors.grey[400] : Colors.grey)),
                 ),
                 TextButton(
                   onPressed: () {
@@ -508,7 +552,8 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
                     });
                     Navigator.pop(context);
                   },
-                  child: const Text('确定'),
+                  child: const Text('确定',
+                      style: TextStyle(color: Color(0xFF07C160))),
                 ),
               ],
             );
@@ -522,6 +567,9 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
   void _showVisibilitySelector() {
     final contactProvider = context.read<ContactProvider>();
     final tempSelected = List<ContactRole>.from(_visibleToRoles);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBgColor = isDark ? const Color(0xFF2C2C2E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
 
     showDialog(
       context: context,
@@ -529,14 +577,15 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('谁可以看'),
+              backgroundColor: dialogBgColor,
+              title: Text('谁可以看', style: TextStyle(color: textColor)),
               content: SizedBox(
                 width: double.maxFinite,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     ListTile(
-                      title: const Text('公开'),
+                      title: Text('公开', style: TextStyle(color: textColor)),
                       trailing: tempSelected.isEmpty
                           ? const Icon(Icons.check, color: Color(0xFF07C160))
                           : null,
@@ -546,12 +595,14 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
                         });
                       },
                     ),
-                    const Divider(),
-                    const Padding(
-                      padding: EdgeInsets.all(8.0),
+                    Divider(color: isDark ? Colors.grey[700] : null),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
                       child: Text(
                         '或选择特定角色可见：',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.grey[400] : Colors.grey),
                       ),
                     ),
                     Flexible(
@@ -565,8 +616,10 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
                           );
 
                           return CheckboxListTile(
-                            title: Text(role.name),
+                            title: Text(role.name,
+                                style: TextStyle(color: textColor)),
                             value: isSelected,
+                            activeColor: const Color(0xFF07C160),
                             onChanged: (value) {
                               setDialogState(() {
                                 if (value == true) {
@@ -588,7 +641,9 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('取消'),
+                  child: Text('取消',
+                      style: TextStyle(
+                          color: isDark ? Colors.grey[400] : Colors.grey)),
                 ),
                 TextButton(
                   onPressed: () {
@@ -597,7 +652,8 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
                     });
                     Navigator.pop(context);
                   },
-                  child: const Text('确定'),
+                  child: const Text('确定',
+                      style: TextStyle(color: Color(0xFF07C160))),
                 ),
               ],
             );
@@ -609,41 +665,47 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
 
   /// 显示图片来源选择对话框
   void _showImageSourceDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBgColor = isDark ? const Color(0xFF2C2C2E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final iconColor = isDark ? Colors.grey[400] : null;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          decoration: BoxDecoration(
+            color: sheetBgColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           ),
           child: SafeArea(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 ListTile(
-                  leading: const Icon(Icons.photo_library),
-                  title: const Text('从相册选择'),
+                  leading: Icon(Icons.photo_library, color: iconColor),
+                  title: Text('从相册选择', style: TextStyle(color: textColor)),
                   onTap: () {
                     Navigator.pop(context);
                     _pickImages();
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.camera_alt),
-                  title: const Text('拍照'),
+                  leading: Icon(Icons.camera_alt, color: iconColor),
+                  title: Text('拍照', style: TextStyle(color: textColor)),
                   onTap: () {
                     Navigator.pop(context);
                     _takePhoto();
                   },
                 ),
-                const Divider(),
+                Divider(color: isDark ? Colors.grey[700] : null),
                 ListTile(
-                  title: const Text(
+                  title: Text(
                     '取消',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey),
+                    style: TextStyle(
+                        color: isDark ? Colors.grey[400] : Colors.grey),
                   ),
                   onTap: () => Navigator.pop(context),
                 ),

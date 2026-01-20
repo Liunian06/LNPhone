@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/contact_provider.dart';
-import '../../core/models/contact_model.dart'; // 需要导入模型以便类型检查
+import '../../core/models/contact_model.dart';
+import '../../core/theme/app_theme.dart';
 import 'add_role_screen.dart';
 import 'edit_role_screen.dart';
 
@@ -15,15 +16,15 @@ class RolesTab extends StatelessWidget {
     final provider = context.watch<ContactProvider>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFEDEDED), // 微信背景灰
+      backgroundColor: context.chatBackground,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFEDEDED),
+        backgroundColor: context.chatBackground,
         elevation: 0,
-        automaticallyImplyLeading: false, // 移除返回按钮
-        title: const Text(
+        automaticallyImplyLeading: false,
+        title: Text(
           '通讯录',
           style: TextStyle(
-            color: Colors.black,
+            color: context.primaryTextColor,
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
@@ -31,11 +32,12 @@ class RolesTab extends StatelessWidget {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.search, color: Colors.black),
+            icon: Icon(Icons.search, color: context.primaryTextColor),
             onPressed: () {},
           ),
           IconButton(
-            icon: const Icon(Icons.add_circle_outline, color: Colors.black),
+            icon:
+                Icon(Icons.add_circle_outline, color: context.primaryTextColor),
             onPressed: () {
               Navigator.push(
                 context,
@@ -54,32 +56,31 @@ class RolesTab extends StatelessWidget {
                   Icon(
                     CupertinoIcons.person_2,
                     size: 64,
-                    color: Colors.grey[300],
+                    color: context.secondaryTextColor.withOpacity(0.5),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     '暂无联系人',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 15),
+                    style: TextStyle(
+                        color: context.secondaryTextColor, fontSize: 15),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     '点击右上角 + 号添加',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                    style: TextStyle(
+                        color: context.secondaryTextColor.withOpacity(0.7),
+                        fontSize: 13),
                   ),
                 ],
               ),
             )
           : Column(
               children: [
-                // 您可以在这里添加 "新的朋友"、"群聊"、"标签"、"公众号" 等固定头部项
                 Expanded(
                   child: ListView.builder(
                     itemCount: provider.roles.length,
                     itemBuilder: (context, index) {
                       final role = provider.roles[index];
-                      // 检查是否是最后一个元素来决定是否显示分割线
-                      // 在微信中，通常列表项本身有分割线，或者容器有下边框
-                      // 我们这里使用 Container 的 decoration
                       return _buildContactItem(context, role);
                     },
                   ),
@@ -91,7 +92,7 @@ class RolesTab extends StatelessWidget {
 
   Widget _buildContactItem(BuildContext context, ContactRole role) {
     return Material(
-      color: Colors.white,
+      color: context.surfaceColor,
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -113,8 +114,10 @@ class RolesTab extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(4), // 微信风格圆角方形
-                  color: const Color(0xFFF0F0F0),
+                  borderRadius: BorderRadius.circular(4),
+                  color: context.isDarkMode
+                      ? Colors.grey[700]
+                      : const Color(0xFFF0F0F0),
                   image: role.avatarPath != null
                       ? DecorationImage(
                           image: FileImage(File(role.avatarPath!)),
@@ -126,9 +129,9 @@ class RolesTab extends StatelessWidget {
                     ? Center(
                         child: Text(
                           role.name.isNotEmpty ? role.name[0] : 'U',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 20,
-                            color: Color(0xFFB0B0B0),
+                            color: context.secondaryTextColor,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -140,9 +143,9 @@ class RolesTab extends StatelessWidget {
             Expanded(
               child: Container(
                 padding: const EdgeInsets.only(right: 16, top: 16, bottom: 16),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   border: Border(
-                    bottom: BorderSide(color: Color(0xFFEDEDED), width: 0.5),
+                    bottom: BorderSide(color: context.dividerColor, width: 0.5),
                   ),
                 ),
                 child: Column(
@@ -150,28 +153,14 @@ class RolesTab extends StatelessWidget {
                   children: [
                     Text(
                       role.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 17,
-                        color: Colors.black,
+                        color: context.primaryTextColor,
                         fontWeight: FontWeight.w400,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    // 如果有描述，也可以稍微显示一点，或者不显示，微信通讯录列表通常只显示名字
-                    // if (role.description.isNotEmpty)
-                    //   Padding(
-                    //     padding: const EdgeInsets.only(top: 2.0),
-                    //     child: Text(
-                    //       role.description,
-                    //       style: const TextStyle(
-                    //         fontSize: 13,
-                    //         color: Colors.grey,
-                    //       ),
-                    //       maxLines: 1,
-                    //       overflow: TextOverflow.ellipsis,
-                    //     ),
-                    //   ),
                   ],
                 ),
               ),

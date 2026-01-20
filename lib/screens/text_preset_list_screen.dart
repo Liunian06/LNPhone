@@ -11,26 +11,30 @@ class TextPresetListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBgColor = isDark ? Colors.black : const Color(0xFFF5F5F5);
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: scaffoldBgColor,
       body: IOSWallpaper(
         style: WallpaperStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
-              _buildHeader(context),
+              _buildHeader(context, isDark),
               Expanded(
                 child: Consumer<ChatProvider>(
                   builder: (context, provider, child) {
                     if (!provider.isLoaded) {
-                      return const Center(
-                        child: CupertinoActivityIndicator(color: Colors.white),
+                      return Center(
+                        child: CupertinoActivityIndicator(
+                            color: isDark ? Colors.white : Colors.grey),
                       );
                     }
 
                     final list = provider.textPresets;
                     if (list.isEmpty) {
-                      return _buildEmptyState();
+                      return _buildEmptyState(isDark);
                     }
 
                     return ListView.builder(
@@ -39,7 +43,8 @@ class TextPresetListScreen extends StatelessWidget {
                       itemCount: list.length,
                       itemBuilder: (context, index) {
                         final preset = list[index];
-                        return _buildListItem(context, preset, provider);
+                        return _buildListItem(
+                            context, preset, provider, isDark);
                       },
                     );
                   },
@@ -52,7 +57,8 @@ class TextPresetListScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black;
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -61,11 +67,12 @@ class TextPresetListScreen extends StatelessWidget {
           _buildHeaderButton(
             icon: CupertinoIcons.back,
             onTap: () => Navigator.pop(context),
+            isDark: isDark,
           ),
-          const Text(
+          Text(
             '预设',
             style: TextStyle(
-              color: Colors.white,
+              color: textColor,
               fontSize: 22,
               fontWeight: FontWeight.w900,
               letterSpacing: 1.2,
@@ -78,6 +85,7 @@ class TextPresetListScreen extends StatelessWidget {
               CupertinoPageRoute(
                   builder: (context) => const TextPresetEditScreen()),
             ),
+            isDark: isDark,
           ),
         ],
       ),
@@ -85,22 +93,28 @@ class TextPresetListScreen extends StatelessWidget {
   }
 
   Widget _buildHeaderButton(
-      {required IconData icon, required VoidCallback onTap}) {
+      {required IconData icon,
+      required VoidCallback onTap,
+      required bool isDark}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.15),
+          color: isDark
+              ? Colors.white.withOpacity(0.15)
+              : Colors.black.withOpacity(0.08),
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: Colors.white, size: 24),
+        child:
+            Icon(icon, color: isDark ? Colors.white : Colors.black, size: 24),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -108,13 +122,13 @@ class TextPresetListScreen extends StatelessWidget {
           Icon(
             CupertinoIcons.doc_text_fill,
             size: 80,
-            color: Colors.white.withValues(alpha: 0.2),
+            color: textColor.withOpacity(0.2),
           ),
           const SizedBox(height: 20),
           Text(
             '点击右上角按钮新建预设',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.4),
+              color: textColor.withOpacity(0.4),
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
@@ -124,8 +138,13 @@ class TextPresetListScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildListItem(
-      BuildContext context, TextPreset preset, ChatProvider provider) {
+  Widget _buildListItem(BuildContext context, TextPreset preset,
+      ChatProvider provider, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black;
+    final cardBgColor = isDark ? Colors.white.withOpacity(0.1) : Colors.white;
+    final borderColor =
+        isDark ? Colors.white.withOpacity(0.05) : Colors.grey.withOpacity(0.1);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: Dismissible(
@@ -171,9 +190,9 @@ class TextPresetListScreen extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
+              color: cardBgColor,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+              border: Border.all(color: borderColor),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,8 +205,8 @@ class TextPresetListScreen extends StatelessWidget {
                     Expanded(
                       child: Text(
                         preset.name,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: textColor,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -201,7 +220,7 @@ class TextPresetListScreen extends StatelessWidget {
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.6),
+                    color: textColor.withOpacity(0.6),
                     fontSize: 14,
                     height: 1.4,
                   ),
@@ -277,32 +296,36 @@ class _TextPresetEditScreenState extends State<TextPresetEditScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<ChatProvider>(context, listen: false);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBgColor = isDark ? Colors.black : const Color(0xFFF5F5F5);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: scaffoldBgColor,
       body: IOSWallpaper(
         style: WallpaperStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
-              _buildHeader(context, provider),
+              _buildHeader(context, provider, isDark),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.all(20),
                   children: [
-                    _buildInputLabel('名称'),
+                    _buildInputLabel('名称', isDark),
                     _buildTextField(
                       controller: _nameController,
                       placeholder: '输入预设名称...',
                       maxLines: 1,
+                      isDark: isDark,
                     ),
                     const SizedBox(height: 24),
-                    _buildInputLabel('内容'),
+                    _buildInputLabel('内容', isDark),
                     _buildTextField(
                       controller: _contentController,
                       placeholder: '输入预设详细内容 (纯文本)...',
                       maxLines: 15,
                       height: 400,
+                      isDark: isDark,
                     ),
                   ],
                 ),
@@ -314,7 +337,9 @@ class _TextPresetEditScreenState extends State<TextPresetEditScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, ChatProvider provider) {
+  Widget _buildHeader(
+      BuildContext context, ChatProvider provider, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black;
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -326,17 +351,18 @@ class _TextPresetEditScreenState extends State<TextPresetEditScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
+                color: isDark
+                    ? Colors.white.withOpacity(0.15)
+                    : Colors.black.withOpacity(0.08),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(CupertinoIcons.back,
-                  color: Colors.white, size: 24),
+              child: Icon(CupertinoIcons.back, color: textColor, size: 24),
             ),
           ),
           Text(
             widget.preset == null ? '新建预设' : '编辑预设',
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: textColor,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
@@ -351,7 +377,7 @@ class _TextPresetEditScreenState extends State<TextPresetEditScreen> {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF007AFF).withValues(alpha: 0.3),
+                    color: const Color(0xFF007AFF).withOpacity(0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -368,13 +394,14 @@ class _TextPresetEditScreenState extends State<TextPresetEditScreen> {
     );
   }
 
-  Widget _buildInputLabel(String label) {
+  Widget _buildInputLabel(String label, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black;
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
         label,
         style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.5),
+          color: textColor.withOpacity(0.5),
           fontSize: 14,
           fontWeight: FontWeight.bold,
         ),
@@ -387,20 +414,26 @@ class _TextPresetEditScreenState extends State<TextPresetEditScreen> {
     required String placeholder,
     int maxLines = 1,
     double? height,
+    required bool isDark,
   }) {
+    final textColor = isDark ? Colors.white : Colors.black;
+    final cardBgColor = isDark ? Colors.white.withOpacity(0.1) : Colors.white;
+    final borderColor =
+        isDark ? Colors.white.withOpacity(0.05) : Colors.grey.withOpacity(0.1);
+
     return Container(
       height: height,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: cardBgColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: borderColor),
       ),
       child: CupertinoTextField(
         controller: controller,
         placeholder: placeholder,
-        placeholderStyle: TextStyle(color: Colors.white.withValues(alpha: 0.2)),
-        style: const TextStyle(color: Colors.white, fontSize: 16),
+        placeholderStyle: TextStyle(color: textColor.withOpacity(0.2)),
+        style: TextStyle(color: textColor, fontSize: 16),
         decoration: null,
         maxLines: maxLines,
         cursorColor: const Color(0xFF007AFF),

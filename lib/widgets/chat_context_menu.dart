@@ -6,6 +6,7 @@ class ChatContextMenu extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onBacktrack;
   final VoidCallback onMultiSelect;
+  final VoidCallback onReply;
 
   const ChatContextMenu({
     super.key,
@@ -14,6 +15,7 @@ class ChatContextMenu extends StatelessWidget {
     required this.onDelete,
     required this.onBacktrack,
     required this.onMultiSelect,
+    required this.onReply,
   });
 
   @override
@@ -30,6 +32,7 @@ class ChatContextMenu extends StatelessWidget {
           runSpacing: 12,
           children: [
             _buildMenuItem(Icons.copy_rounded, '复制', onCopy),
+            _buildMenuItem(Icons.reply_rounded, '引用', onReply),
             _buildMenuItem(Icons.edit_rounded, '编辑', onEdit),
             _buildMenuItem(Icons.delete_outline_rounded, '删除', onDelete),
             _buildMenuItem(Icons.restore_rounded, '回溯', onBacktrack),

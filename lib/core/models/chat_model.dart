@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 /// 消息类型枚举
 enum MessageType {
   // 基础消息类型
@@ -30,6 +28,7 @@ class ChatMessage {
   final String id;
   final bool
       isMe; // true if sent by the user persona, false if by the role persona
+  final String? sender; // 发送者名称（用于引用显示，避免依赖 isMe 判断）
   final MessageType type;
   final String content;
   final int timestamp;
@@ -39,6 +38,7 @@ class ChatMessage {
   ChatMessage({
     required this.id,
     required this.isMe,
+    this.sender,
     required this.type,
     required this.content,
     required this.timestamp,
@@ -50,6 +50,7 @@ class ChatMessage {
     return {
       'id': id,
       'isMe': isMe,
+      if (sender != null) 'sender': sender,
       'type': type.index,
       'content': content,
       'timestamp': timestamp,
@@ -62,6 +63,7 @@ class ChatMessage {
     return ChatMessage(
       id: json['id'],
       isMe: json['isMe'],
+      sender: json['sender'],
       type: MessageType.values[json['type']],
       content: json['content'],
       timestamp: json['timestamp'],
@@ -116,6 +118,7 @@ class ChatSession {
   final List<ChatMessage> messages;
   final int lastUpdated;
   final bool enableExtendedChat; // 是否启用扩展聊天（解析action和thought）
+  final bool enableIndependentSendButton; // 是否启用独立发送/续写按钮
   final String? currentState; // 当前状态
   final bool isPinned; // 是否置顶
   final List<String> worldInfoIds; // 关联的世界书 ID 列表
@@ -130,6 +133,7 @@ class ChatSession {
     required this.messages,
     required this.lastUpdated,
     this.enableExtendedChat = true, // 默认开启
+    this.enableIndependentSendButton = false, // 默认关闭
     this.currentState,
     this.isPinned = false, // 默认不置顶
     this.worldInfoIds = const [],
@@ -146,6 +150,7 @@ class ChatSession {
       'messages': messages.map((m) => m.toJson()).toList(),
       'lastUpdated': lastUpdated,
       'enableExtendedChat': enableExtendedChat,
+      'enableIndependentSendButton': enableIndependentSendButton,
       'currentState': currentState,
       'isPinned': isPinned,
       'worldInfoIds': worldInfoIds,
@@ -165,6 +170,8 @@ class ChatSession {
           .toList(),
       lastUpdated: json['lastUpdated'],
       enableExtendedChat: json['enableExtendedChat'] ?? true, // 默认开启
+      enableIndependentSendButton:
+          json['enableIndependentSendButton'] ?? false, // 默认关闭
       currentState: json['currentState'],
       isPinned: json['isPinned'] ?? false, // 默认不置顶
       worldInfoIds:

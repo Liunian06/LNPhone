@@ -15,14 +15,16 @@ class PromptSettingsScreen extends StatefulWidget {
 class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: isDark ? Colors.black : const Color(0xFFF5F5F7),
       body: IOSWallpaper(
         style: WallpaperStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
-              _buildHeader(),
+              _buildHeader(isDark),
               Expanded(
                 child: Consumer<PromptSettingsProvider>(
                   builder: (context, provider, child) {
@@ -30,7 +32,7 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       children: [
                         const SizedBox(height: 20),
-                        _buildSectionTitle('系统提示词 (System Prompt)'),
+                        _buildSectionTitle('系统提示词 (System Prompt)', isDark),
                         const SizedBox(height: 10),
                         _PromptInputField(
                           title: 'Roleplay Prompt',
@@ -40,18 +42,18 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                           maxLines: 4,
                         ),
                         const SizedBox(height: 16),
-                        _buildRealityPromptSection(provider),
+                        _buildRealityPromptSection(provider, isDark),
                         const SizedBox(height: 30),
-                        _buildSectionTitle('用户提示词 (User Prompt)'),
+                        _buildSectionTitle('用户提示词 (User Prompt)', isDark),
                         const SizedBox(height: 10),
                         _ContextLengthSection(
                           value: provider.contextLength,
                           onChanged: provider.updateContextLength,
                         ),
                         const SizedBox(height: 16),
-                        _buildDelayedReplySection(provider),
+                        _buildDelayedReplySection(provider, isDark),
                         const SizedBox(height: 16),
-                        _buildBackgroundActiveReplySection(provider),
+                        _buildBackgroundActiveReplySection(provider, isDark),
                         const SizedBox(height: 40),
                       ],
                     );
@@ -65,7 +67,12 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.2)
+        : Colors.black.withValues(alpha: 0.1);
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Row(
@@ -76,21 +83,21 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: bgColor,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(
+              child: Icon(
                 CupertinoIcons.back,
-                color: Colors.white,
+                color: textColor,
                 size: 24,
               ),
             ),
           ),
           const SizedBox(width: 16),
-          const Text(
+          Text(
             '提示词与上下文',
             style: TextStyle(
-              color: Colors.white,
+              color: textColor,
               fontSize: 28,
               fontWeight: FontWeight.bold,
             ),
@@ -100,13 +107,15 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(String title, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+
     return Padding(
       padding: const EdgeInsets.only(left: 8, bottom: 8),
       child: Text(
         title,
         style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.6),
+          color: textColor.withValues(alpha: 0.6),
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
@@ -114,11 +123,17 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
     );
   }
 
-  Widget _buildRealityPromptSection(PromptSettingsProvider provider) {
+  Widget _buildRealityPromptSection(
+      PromptSettingsProvider provider, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: bgColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -130,10 +145,10 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Reality Prompt',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: textColor,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
@@ -142,7 +157,7 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                   Text(
                     '注入真实时间与日期信息',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
+                      color: textColor.withValues(alpha: 0.6),
                       fontSize: 13,
                     ),
                   ),
@@ -171,11 +186,17 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
     );
   }
 
-  Widget _buildDelayedReplySection(PromptSettingsProvider provider) {
+  Widget _buildDelayedReplySection(
+      PromptSettingsProvider provider, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: bgColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -184,10 +205,10 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 '延迟回复 (Delayed Reply)',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: textColor,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
@@ -210,7 +231,7 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                 ? '每发送一条消息后立即请求 AI 回复'
                 : '在用户停止发送消息 ${provider.delayedReplySeconds} 秒后请求 AI 回复',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.6),
+              color: textColor.withValues(alpha: 0.6),
               fontSize: 13,
             ),
           ),
@@ -233,11 +254,17 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
     );
   }
 
-  Widget _buildBackgroundActiveReplySection(PromptSettingsProvider provider) {
+  Widget _buildBackgroundActiveReplySection(
+      PromptSettingsProvider provider, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: bgColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -249,10 +276,10 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     '后台主动回复',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: textColor,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
@@ -261,7 +288,7 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                   Text(
                     '应用在后台时主动发送消息',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
+                      color: textColor.withValues(alpha: 0.6),
                       fontSize: 13,
                     ),
                   ),
@@ -279,9 +306,9 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   '触发间隔',
-                  style: TextStyle(color: Colors.white, fontSize: 14),
+                  style: TextStyle(color: textColor, fontSize: 14),
                 ),
                 Text(
                   '${provider.backgroundActiveReplyInterval} 分钟',
@@ -297,7 +324,7 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
             Text(
               '当应用在后台检测到超过此时间没有发送过消息，则所有角色都分别请求一次 API',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
+                color: textColor.withValues(alpha: 0.6),
                 fontSize: 12,
               ),
             ),
@@ -321,14 +348,14 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                 Text(
                   '1分钟',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.4),
+                    color: textColor.withValues(alpha: 0.4),
                     fontSize: 10,
                   ),
                 ),
                 Text(
                   '24小时',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.4),
+                    color: textColor.withValues(alpha: 0.4),
                     fontSize: 10,
                   ),
                 ),
@@ -411,10 +438,19 @@ class _ContextLengthSectionState extends State<_ContextLengthSection> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
+    final inputBgColor = isDark
+        ? Colors.black.withValues(alpha: 0.2)
+        : Colors.grey.withValues(alpha: 0.15);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: bgColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -423,10 +459,10 @@ class _ContextLengthSectionState extends State<_ContextLengthSection> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 '上下文长度 (Context Length)',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: textColor,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
@@ -442,7 +478,7 @@ class _ContextLengthSectionState extends State<_ContextLengthSection> {
                     fontWeight: FontWeight.bold,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.2),
+                    color: inputBgColor,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   textAlign: TextAlign.center,
@@ -460,7 +496,7 @@ class _ContextLengthSectionState extends State<_ContextLengthSection> {
           Text(
             '包含用户与 AI 的最近聊天记录数量',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.6),
+              color: textColor.withValues(alpha: 0.6),
               fontSize: 13,
             ),
           ),
@@ -535,11 +571,23 @@ class _PromptInputFieldState extends State<_PromptInputField> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
+    final inputBgColor = isDark
+        ? Colors.black.withValues(alpha: 0.2)
+        : Colors.grey.withValues(alpha: 0.15);
+    final placeholderColor = isDark
+        ? Colors.white.withValues(alpha: 0.3)
+        : Colors.black.withValues(alpha: 0.3);
+
     return Container(
       padding: widget.showHeader ? const EdgeInsets.all(16) : EdgeInsets.zero,
       decoration: widget.showHeader
           ? BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
+              color: bgColor,
               borderRadius: BorderRadius.circular(16),
             )
           : null,
@@ -549,8 +597,8 @@ class _PromptInputFieldState extends State<_PromptInputField> {
           if (widget.showHeader) ...[
             Text(
               widget.title,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: textColor,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -559,7 +607,7 @@ class _PromptInputFieldState extends State<_PromptInputField> {
             Text(
               widget.subtitle,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
+                color: textColor.withValues(alpha: 0.6),
                 fontSize: 13,
               ),
             ),
@@ -569,14 +617,12 @@ class _PromptInputFieldState extends State<_PromptInputField> {
             controller: _controller,
             onChanged: widget.onChanged,
             maxLines: widget.maxLines,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: textColor),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.2),
+              color: inputBgColor,
               borderRadius: BorderRadius.circular(8),
             ),
-            placeholderStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 0.3),
-            ),
+            placeholderStyle: TextStyle(color: placeholderColor),
           ),
         ],
       ),

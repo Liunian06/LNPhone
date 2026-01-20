@@ -11,14 +11,17 @@ class ApiSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white70 : Colors.black54;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: isDark ? Colors.black : const Color(0xFFF5F5F7),
       body: IOSWallpaper(
         style: WallpaperStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
-              _buildHeader(context),
+              _buildHeader(context, isDark),
               Expanded(
                 child: Consumer<ApiSettingsProvider>(
                   builder: (context, provider, child) {
@@ -27,12 +30,12 @@ class ApiSettingsScreen extends StatelessWidget {
                       children: [
                         const SizedBox(height: 20),
                         if (provider.presets.isEmpty)
-                          const Center(
+                          Center(
                             child: Padding(
-                              padding: EdgeInsets.all(20.0),
+                              padding: const EdgeInsets.all(20.0),
                               child: Text(
                                 '暂无 API 预设，请点击右上角添加',
-                                style: TextStyle(color: Colors.white70),
+                                style: TextStyle(color: textColor),
                               ),
                             ),
                           )
@@ -49,9 +52,8 @@ class ApiSettingsScreen extends StatelessWidget {
                                 icon: isActive
                                     ? CupertinoIcons.check_mark_circled_solid
                                     : CupertinoIcons.circle,
-                                iconColor: isActive
-                                    ? Colors.green
-                                    : Colors.grey,
+                                iconColor:
+                                    isActive ? Colors.green : Colors.grey,
                                 iconGradient: isActive
                                     ? [Colors.green, Colors.greenAccent]
                                     : [Colors.grey, Colors.blueGrey],
@@ -73,7 +75,12 @@ class ApiSettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.2)
+        : Colors.black.withValues(alpha: 0.1);
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Row(
@@ -87,21 +94,21 @@ class ApiSettingsScreen extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: bgColor,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     CupertinoIcons.back,
-                    color: Colors.white,
+                    color: textColor,
                     size: 24,
                   ),
                 ),
               ),
               const SizedBox(width: 16),
-              const Text(
+              Text(
                 'API 设置',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: textColor,
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                 ),
@@ -273,14 +280,19 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final buttonBgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.1);
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: isDark ? Colors.black : const Color(0xFFF5F5F7),
       body: IOSWallpaper(
         style: WallpaperStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
-              _buildHeader(context),
+              _buildHeader(context, isDark),
               Expanded(
                 child: Form(
                   key: _formKey,
@@ -290,17 +302,20 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
                       const SizedBox(height: 20),
                       _buildSection(
                         title: '基本信息',
+                        isDark: isDark,
                         children: [
                           _buildTextField(
                             label: '预设名称',
                             controller: _nameController,
+                            isDark: isDark,
                           ),
-                          _buildProviderSelector(),
+                          _buildProviderSelector(isDark),
                         ],
                       ),
                       const SizedBox(height: 20),
                       _buildSection(
                         title: 'API 配置',
+                        isDark: isDark,
                         children: [
                           _buildTextField(
                             label: 'Base URL',
@@ -308,22 +323,26 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
                             placeholder: _provider == ApiProvider.openai
                                 ? 'https://api.openai.com/v1'
                                 : 'https://generativelanguage.googleapis.com',
+                            isDark: isDark,
                           ),
                           _buildTextField(
                             label: 'API Key',
                             controller: _apiKeyController,
                             obscureText: false,
+                            isDark: isDark,
                           ),
                         ],
                       ),
                       const SizedBox(height: 20),
                       _buildSection(
                         title: '模型选择',
-                        children: [_buildModelSelector()],
+                        isDark: isDark,
+                        children: [_buildModelSelector(isDark)],
                       ),
                       const SizedBox(height: 20),
                       _buildSection(
                         title: '参数设置',
+                        isDark: isDark,
                         children: [
                           _buildSlider(
                             label: 'Temperature',
@@ -332,6 +351,7 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
                             max: 2.0,
                             controller: _temperatureController,
                             onChanged: (v) => setState(() => _temperature = v),
+                            isDark: isDark,
                           ),
                           _buildSlider(
                             label: 'Top P',
@@ -340,25 +360,33 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
                             max: 1.0,
                             controller: _topPController,
                             onChanged: (v) => setState(() => _topP = v),
+                            isDark: isDark,
                           ),
                           _buildSwitch(
                             label: '流式输出 (Stream)',
                             value: _isStream,
                             onChanged: (v) => setState(() => _isStream = v),
+                            isDark: isDark,
                           ),
                           _buildSwitch(
                             label: '启用推理 (Thinking)',
                             value: _enableThinking,
                             onChanged: (v) =>
                                 setState(() => _enableThinking = v),
+                            isDark: isDark,
                           ),
                         ],
                       ),
                       const SizedBox(height: 20),
                       CupertinoButton(
-                        color: Colors.white.withValues(alpha: 0.1),
+                        color: buttonBgColor,
                         onPressed: _testConnection,
-                        child: const Text('测试连接'),
+                        child: Text(
+                          '测试连接',
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 20),
                       CupertinoButton.filled(
@@ -377,7 +405,12 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.2)
+        : Colors.black.withValues(alpha: 0.1);
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Row(
@@ -388,12 +421,12 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: bgColor,
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(
+              child: Icon(
                 CupertinoIcons.back,
-                color: Colors.white,
+                color: textColor,
                 size: 24,
               ),
             ),
@@ -401,8 +434,8 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
           const SizedBox(width: 16),
           Text(
             widget.preset == null ? '添加预设' : '编辑预设',
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: textColor,
               fontSize: 28,
               fontWeight: FontWeight.bold,
             ),
@@ -415,7 +448,13 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
   Widget _buildSection({
     required String title,
     required List<Widget> children,
+    required bool isDark,
   }) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -424,7 +463,7 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
           child: Text(
             title,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.6),
+              color: textColor.withValues(alpha: 0.6),
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
@@ -432,7 +471,7 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
         ),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.1),
+            color: bgColor,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(children: children),
@@ -447,7 +486,16 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
     String? placeholder,
     bool obscureText = false,
     ValueChanged<String>? onChanged,
+    required bool isDark,
   }) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final inputBgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
+    final placeholderColor = isDark
+        ? Colors.white.withValues(alpha: 0.3)
+        : Colors.black.withValues(alpha: 0.3);
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -455,19 +503,17 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(color: Colors.white, fontSize: 16),
+            style: TextStyle(color: textColor, fontSize: 16),
           ),
           const SizedBox(height: 8),
           CupertinoTextField(
             controller: controller,
             placeholder: placeholder,
             obscureText: obscureText,
-            style: const TextStyle(color: Colors.white),
-            placeholderStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 0.3),
-            ),
+            style: TextStyle(color: textColor),
+            placeholderStyle: TextStyle(color: placeholderColor),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
+              color: inputBgColor,
               borderRadius: BorderRadius.circular(8),
             ),
             onChanged: onChanged,
@@ -477,15 +523,20 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
     );
   }
 
-  Widget _buildProviderSelector() {
+  Widget _buildProviderSelector(bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.2)
+        : Colors.black.withValues(alpha: 0.1);
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text(
+          Text(
             '提供商',
-            style: TextStyle(color: Colors.white, fontSize: 16),
+            style: TextStyle(color: textColor, fontSize: 16),
           ),
           CupertinoSlidingSegmentedControl<ApiProvider>(
             groupValue: _provider,
@@ -503,7 +554,7 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
                 });
               }
             },
-            backgroundColor: Colors.white.withValues(alpha: 0.2),
+            backgroundColor: bgColor,
             thumbColor: const Color(0xFF6366f1),
           ),
         ],
@@ -511,7 +562,15 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
     );
   }
 
-  Widget _buildModelSelector() {
+  Widget _buildModelSelector(bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final inputBgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
+    final placeholderColor = isDark
+        ? Colors.white.withValues(alpha: 0.3)
+        : Colors.black.withValues(alpha: 0.3);
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -520,9 +579,9 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 '模型',
-                style: TextStyle(color: Colors.white, fontSize: 16),
+                style: TextStyle(color: textColor, fontSize: 16),
               ),
               CupertinoButton(
                 padding: EdgeInsets.zero,
@@ -538,12 +597,10 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
                 child: CupertinoTextField(
                   controller: _modelController,
                   placeholder: '输入或选择模型 ID',
-                  style: const TextStyle(color: Colors.white),
-                  placeholderStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.3),
-                  ),
+                  style: TextStyle(color: textColor),
+                  placeholderStyle: TextStyle(color: placeholderColor),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: inputBgColor,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   onChanged: (value) {
@@ -557,12 +614,12 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: inputBgColor,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     CupertinoIcons.chevron_down,
-                    color: Colors.white,
+                    color: textColor,
                     size: 20,
                   ),
                 ),
@@ -581,7 +638,13 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
     required double max,
     required ValueChanged<double> onChanged,
     required TextEditingController controller,
+    required bool isDark,
   }) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final inputBgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -592,7 +655,7 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
             children: [
               Text(
                 label,
-                style: const TextStyle(color: Colors.white, fontSize: 16),
+                style: TextStyle(color: textColor, fontSize: 16),
               ),
               SizedBox(
                 width: 60,
@@ -601,9 +664,9 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: textColor),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: inputBgColor,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   onChanged: (text) {
@@ -639,7 +702,10 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
     required String label,
     required bool value,
     required ValueChanged<bool> onChanged,
+    required bool isDark,
   }) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -647,7 +713,7 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(color: Colors.white, fontSize: 16),
+            style: TextStyle(color: textColor, fontSize: 16),
           ),
           CupertinoSwitch(value: value, onChanged: onChanged),
         ],
@@ -692,11 +758,15 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
       return;
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
     showCupertinoModalPopup(
       context: context,
       builder: (context) => Container(
         height: 400,
-        color: const Color(0xFF1C1C1E),
+        color: bgColor,
         child: SafeArea(
           top: false,
           child: Column(
@@ -728,7 +798,7 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
                         (m) => Center(
                           child: Text(
                             m,
-                            style: const TextStyle(color: Colors.white),
+                            style: TextStyle(color: textColor),
                           ),
                         ),
                       )

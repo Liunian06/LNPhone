@@ -14,6 +14,7 @@ import '../core/services/notification_service.dart';
 import '../core/models/chat_model.dart';
 import '../core/models/contact_model.dart';
 import '../core/models/moments_model.dart';
+import '../core/theme/app_theme.dart';
 import '../widgets/message_bubbles.dart';
 import '../widgets/chat_context_menu.dart';
 import 'chat_settings_screen.dart';
@@ -30,11 +31,13 @@ class ChatDetailScreen extends StatefulWidget {
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _focusNode = FocusNode();
   OverlayEntry? _overlayEntry;
   bool _isMultiSelectMode = false;
   final Set<String> _selectedMessageIds = {};
   bool _showAttachmentOptions = false; // 控制是否显示附件选项
   int _lastMessageCount = 0;
+  ChatMessage? _replyingMessage; // 当前正在引用的消息
 
   @override
   void initState() {
@@ -68,6 +71,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _removeOverlay();
     _textController.dispose();
     _scrollController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -124,11 +128,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           },
           child: Scaffold(
             resizeToAvoidBottomInset: true,
-            backgroundColor: const Color(0xFFEDEDED),
+            backgroundColor: context.chatBackground,
             appBar: AppBar(
               backgroundColor: backgroundImage != null
                   ? Colors.transparent
-                  : const Color(0xFFEDEDED),
+                  : context.appBarBackground,
               elevation: 0,
               leading: _isMultiSelectMode
                   ? TextButton(
@@ -138,15 +142,16 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                           _selectedMessageIds.clear();
                         });
                       },
-                      child: const Text(
+                      child: Text(
                         '取消',
-                        style: TextStyle(color: Colors.black, fontSize: 16),
+                        style: TextStyle(
+                            color: context.primaryTextColor, fontSize: 16),
                       ),
                     )
                   : IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.arrow_back_ios,
-                        color: Colors.black,
+                        color: context.primaryTextColor,
                         size: 20,
                       ),
                       onPressed: () => Navigator.pop(context),
@@ -163,8 +168,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     children: [
                       Text(
                         isTyping ? '正在输入中…' : role.name,
-                        style: const TextStyle(
-                          color: Colors.black,
+                        style: TextStyle(
+                          color: context.primaryTextColor,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                         ),
@@ -173,7 +178,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         Text(
                           currentState,
                           style: TextStyle(
-                            color: Colors.grey[600],
+                            color: context.secondaryTextColor,
                             fontSize: 12,
                           ),
                         ),
@@ -184,7 +189,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               centerTitle: true,
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.more_horiz, color: Colors.black),
+                  icon: Icon(Icons.more_horiz, color: context.primaryTextColor),
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -220,49 +225,80 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       itemCount: chat.messages.length,
                       itemBuilder: (context, index) {
                         final messageIndex = chat.messages.length - 1 - index;
-                        return MessageItem(
-                          key: ValueKey(chat.messages[messageIndex].id),
-                          message: chat.messages[messageIndex],
-                          role: role,
-                          me: me,
-                          isMultiSelectMode: _isMultiSelectMode,
-                          isSelected: _selectedMessageIds
-                              .contains(chat.messages[messageIndex].id),
-                          onTap: () {
-                            if (_isMultiSelectMode) {
-                              setState(() {
-                                if (_selectedMessageIds
-                                    .contains(chat.messages[messageIndex].id)) {
-                                  _selectedMessageIds
-                                      .remove(chat.messages[messageIndex].id);
+                        final currentMessage = chat.messages[messageIndex];
+
+                        // 判断是否需要显示时间戳
+                        // 由于是reverse列表，index=0是最新消息，我们需要检查下一条消息（更早的消息）
+                        bool showTimestamp = false;
+                        if (messageIndex == 0) {
+                          // 第一条消息（最早的消息）总是显示时间戳
+                          showTimestamp = true;
+                        } else {
+                          final previousMessage =
+                              chat.messages[messageIndex - 1];
+                          final currentTime =
+                              DateTime.fromMillisecondsSinceEpoch(
+                                  currentMessage.timestamp);
+                          final previousTime =
+                              DateTime.fromMillisecondsSinceEpoch(
+                                  previousMessage.timestamp);
+                          final timeDiff = currentTime.difference(previousTime);
+                          // 如果与上一条消息间隔超过5分钟，显示时间戳
+                          if (timeDiff.inMinutes.abs() >= 5) {
+                            showTimestamp = true;
+                          }
+                        }
+
+                        return Column(
+                          children: [
+                            // 时间戳气泡（显示在消息上方，但由于reverse，需要放在消息下方）
+                            if (showTimestamp)
+                              _TimestampBubble(
+                                  timestamp: currentMessage.timestamp),
+                            MessageItem(
+                              key: ValueKey(currentMessage.id),
+                              message: currentMessage,
+                              role: role,
+                              me: me,
+                              isMultiSelectMode: _isMultiSelectMode,
+                              isSelected: _selectedMessageIds
+                                  .contains(currentMessage.id),
+                              onTap: () {
+                                if (_isMultiSelectMode) {
+                                  setState(() {
+                                    if (_selectedMessageIds
+                                        .contains(currentMessage.id)) {
+                                      _selectedMessageIds
+                                          .remove(currentMessage.id);
+                                    } else {
+                                      _selectedMessageIds
+                                          .add(currentMessage.id);
+                                    }
+                                  });
                                 } else {
-                                  _selectedMessageIds
-                                      .add(chat.messages[messageIndex].id);
+                                  // 非多选模式下，点击空白处收起键盘和菜单
+                                  _removeOverlay();
+                                  FocusScope.of(context).unfocus();
                                 }
-                              });
-                            } else {
-                              // 非多选模式下，点击空白处收起键盘和菜单
-                              _removeOverlay();
-                              FocusScope.of(context).unfocus();
-                            }
-                          },
-                          onLongPress: (details) {
-                            if (!_isMultiSelectMode) {
-                              _showContextMenu(context, details.globalPosition,
-                                  chat.messages[messageIndex]);
-                            }
-                          },
-                          onSelectionChanged: (value) {
-                            setState(() {
-                              if (value == true) {
-                                _selectedMessageIds
-                                    .add(chat.messages[messageIndex].id);
-                              } else {
-                                _selectedMessageIds
-                                    .remove(chat.messages[messageIndex].id);
-                              }
-                            });
-                          },
+                              },
+                              onLongPress: (details) {
+                                if (!_isMultiSelectMode) {
+                                  _showContextMenu(context,
+                                      details.globalPosition, currentMessage);
+                                }
+                              },
+                              onSelectionChanged: (value) {
+                                setState(() {
+                                  if (value == true) {
+                                    _selectedMessageIds.add(currentMessage.id);
+                                  } else {
+                                    _selectedMessageIds
+                                        .remove(currentMessage.id);
+                                  }
+                                });
+                              },
+                            ),
+                          ],
                         );
                       },
                     ),
@@ -270,7 +306,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   if (_isMultiSelectMode)
                     _buildMultiSelectBottomBar(chatProvider)
                   else
-                    _buildInputArea(chatProvider),
+                    _buildInputArea(chatProvider, role, me),
                 ],
               ),
             ),
@@ -282,11 +318,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   // _buildMessageItem, _buildMessageBubble, _buildAvatar methods removed and refactored into MessageItem class
 
-  Widget _buildInputArea(ChatProvider chatProvider) {
+  Widget _buildInputArea(
+      ChatProvider chatProvider, ContactRole role, ContactMe me) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFF7F7F7),
-        border: Border(top: BorderSide(color: Color(0xFFDCDCDC), width: 0.5)),
+      decoration: BoxDecoration(
+        color: context.inputBackground,
+        border:
+            Border(top: BorderSide(color: context.dividerColor, width: 0.5)),
       ),
       child: SafeArea(
         child: Column(
@@ -300,27 +338,44 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Container(
-                      height: 40,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      constraints: const BoxConstraints(minHeight: 40),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: context.surfaceColor,
                         borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: context.isDarkMode
+                              ? const Color(0xFF48484A)
+                              : Colors.transparent,
+                          width: 0.5,
+                        ),
                       ),
                       child: TextField(
                         controller: _textController,
-                        style: const TextStyle(color: Colors.black),
+                        focusNode: _focusNode,
+                        style: TextStyle(color: context.primaryTextColor),
+                        minLines: 1,
+                        maxLines: 3,
+                        textInputAction: TextInputAction.send,
                         decoration: const InputDecoration(
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.only(bottom: 8),
+                          contentPadding: EdgeInsets.symmetric(vertical: 8),
+                          filled: false,
+                          isDense: true,
                         ),
-                        onSubmitted: (value) => _sendMessage(chatProvider),
+                        onSubmitted: (value) {
+                          _sendMessage(chatProvider);
+                          // 发送后重新请求焦点，保持输入法不关闭
+                          _focusNode.requestFocus();
+                        },
                       ),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.sentiment_satisfied_alt_outlined,
-                      color: Colors.black87,
+                      color: context.primaryTextColor,
                     ),
                     onPressed: () {
                       // TODO: Show emoji picker
@@ -331,7 +386,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       _showAttachmentOptions
                           ? Icons.keyboard
                           : Icons.add_circle_outline,
-                      color: Colors.black87,
+                      color: context.primaryTextColor,
                     ),
                     onPressed: () {
                       setState(() {
@@ -339,9 +394,121 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       });
                     },
                   ),
+                  if (chatProvider
+                          .getChat(widget.chatId)
+                          ?.enableIndependentSendButton ??
+                      false) ...[
+                    const SizedBox(width: 8),
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _textController,
+                      builder: (context, value, child) {
+                        final isEmpty = value.text.trim().isEmpty;
+                        return GestureDetector(
+                          onTap: () {
+                            if (isEmpty) {
+                              // 续写 - 强制立即回复
+                              _sendMessage(chatProvider,
+                                  isContinue: true, forceImmediate: true);
+                            } else {
+                              // 发送 - 仍然使用延迟回复（因为用户可能还有下一条消息）
+                              _sendMessage(chatProvider, forceImmediate: false);
+                            }
+                          },
+                          child: Container(
+                            height: 34,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF07C160),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              isEmpty ? '续写' : '发送',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
+            // 引用预览区域
+            if (_replyingMessage != null)
+              Builder(
+                builder: (context) {
+                  // 从最新的消息列表中获取被引用消息
+                  // 避免因 Consumer2 重建导致 _replyingMessage 指向过时对象
+                  final chat = chatProvider.getChat(widget.chatId);
+                  final freshMessage = chat?.messages.firstWhere(
+                    (m) => m.id == _replyingMessage!.id,
+                    orElse: () => _replyingMessage!,
+                  );
+
+                  final targetMessage = freshMessage ?? _replyingMessage!;
+                  final senderName = _resolveSenderName(
+                    isMe: targetMessage.isMe,
+                    sender: targetMessage.sender,
+                    me: me,
+                    role: role,
+                  );
+
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    color: context.surfaceColor.withOpacity(0.5),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 4,
+                          height: 36,
+                          color: context.primaryTextColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '回复 $senderName',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: context.primaryTextColor,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _replyingMessage!.displayText,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: context.secondaryTextColor,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.close,
+                              size: 18, color: context.secondaryTextColor),
+                          onPressed: () {
+                            setState(() {
+                              _replyingMessage = null;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             // 附件选项区域（可选显示，放在输入框下方）
             if (_showAttachmentOptions) _buildAttachmentOptionsPanel(),
           ],
@@ -494,9 +661,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  void _sendMessage(ChatProvider chatProvider) async {
+  void _sendMessage(ChatProvider chatProvider,
+      {bool isContinue = false, bool forceImmediate = false}) async {
     final text = _textController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty && !isContinue) return;
 
     // 预先获取所有需要的上下文数据，防止 await 期间 context 失效导致无法触发 AI 回复
     final apiProvider = context.read<ApiSettingsProvider>();
@@ -505,19 +673,67 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final momentsProvider = context.read<MomentsProvider>();
     final chatId = widget.chatId;
 
+    // 提前获取用户人设信息（用于发送消息和引用）
+    final currentChat = chatProvider.getChat(chatId);
+    final currentMe = contactProvider.meList.firstWhere(
+      (m) => m.id == currentChat?.meId,
+      orElse: () =>
+          ContactMe(id: 'unknown', name: '我', info: '', avatarPath: null),
+    );
+    final currentRole = contactProvider.roles.firstWhere(
+      (r) => r.id == currentChat?.roleId,
+      orElse: () => ContactRole(
+        id: 'unknown',
+        name: '未知用户',
+        description: '',
+        avatarPath: null,
+      ),
+    );
+
     // 1. 发送用户消息
-    await chatProvider.addMessage(chatId, text, MessageType.words, true);
+    if (text.isNotEmpty) {
+      Map<String, dynamic>? metadata;
+      if (_replyingMessage != null) {
+        final quotedSenderName = _resolveSenderName(
+          isMe: _replyingMessage!.isMe,
+          sender: _replyingMessage!.sender,
+          me: currentMe,
+          role: currentRole,
+        );
 
-    // 标记会话为已读
-    await chatProvider.markSessionAsRead(chatId);
+        metadata = {
+          'quote': {
+            'id': _replyingMessage!.id,
+            'content': _replyingMessage!.content,
+            'sender': quotedSenderName, // 使用 sender 字段存储发送者名称
+            'isMe': _replyingMessage!.isMe, // 保持兼容性
+          }
+        };
+      }
 
-    _textController.clear();
+      await chatProvider.addMessage(
+        chatId,
+        text,
+        MessageType.words,
+        true,
+        metadata: metadata,
+        sender: currentMe.name, // 用户消息使用用户人设名
+      );
 
-    // 滚动到底部 (UI 操作，需要 mounted)
-    if (mounted) {
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (mounted) _scrollToBottom();
+      // 标记会话为已读
+      await chatProvider.markSessionAsRead(chatId);
+
+      _textController.clear();
+      setState(() {
+        _replyingMessage = null; // 清除引用状态
       });
+
+      // 滚动到底部 (UI 操作，需要 mounted)
+      if (mounted) {
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) _scrollToBottom();
+        });
+      }
     }
 
     // 2. 准备 AI 回复所需的参数
@@ -588,7 +804,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         }
       },
       enableExtendedChat: chat.enableExtendedChat,
-      delayedReplySeconds: promptProvider.delayedReplySeconds,
+      delayedReplySeconds:
+          forceImmediate ? 0 : promptProvider.delayedReplySeconds,
     );
   }
 
@@ -657,6 +874,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 setState(() {
                   _isMultiSelectMode = true;
                   _selectedMessageIds.add(message.id);
+                });
+              },
+              onReply: () {
+                _removeOverlay();
+                setState(() {
+                  _replyingMessage = message;
+                });
+                // 聚焦输入框
+                _focusNode.requestFocus();
+                // 延迟一下再聚焦，确保UI更新
+                Future.delayed(const Duration(milliseconds: 100), () {
+                  if (mounted) {
+                    _focusNode.requestFocus();
+                  }
                 });
               },
             ),
@@ -851,15 +1082,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.surfaceColor,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, size: 26, color: Colors.black87),
+              child: Icon(icon, size: 26, color: context.primaryTextColor),
             ),
             const SizedBox(height: 4),
             Text(
               label,
-              style: const TextStyle(fontSize: 11, color: Colors.black87),
+              style: TextStyle(fontSize: 11, color: context.primaryTextColor),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -873,15 +1104,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   Widget _buildMultiSelectBottomBar(ChatProvider chatProvider) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        color: Color(0xFFF7F7F7),
-        border: Border(top: BorderSide(color: Color(0xFFDCDCDC), width: 0.5)),
+      decoration: BoxDecoration(
+        color: context.inputBackground,
+        border:
+            Border(top: BorderSide(color: context.dividerColor, width: 0.5)),
       ),
       child: SafeArea(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('已选择 ${_selectedMessageIds.length} 条消息'),
+            Text(
+              '已选择 ${_selectedMessageIds.length} 条消息',
+              style: TextStyle(color: context.primaryTextColor),
+            ),
             IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.red),
               onPressed: _selectedMessageIds.isEmpty
@@ -1044,24 +1279,27 @@ class MessageItem extends StatelessWidget {
 
   /// 根据消息类型构建对应的气泡
   Widget _buildMessageBubble(ChatMessage message, double maxBubbleWidth) {
+    Widget bubbleContent;
     switch (message.type) {
       // 基础文本类型
       case MessageType.words:
       case MessageType.action:
       case MessageType.thought:
-        return _ChatBubble(
+        bubbleContent = _ChatBubble(
           content: message.content,
           isMe: message.isMe,
           maxWidth: maxBubbleWidth,
           messageType: message.type,
         );
+        break;
 
       // 多媒体类型
       case MessageType.emoji:
-        return EmojiBubble(message: message, maxWidth: maxBubbleWidth);
+        bubbleContent = EmojiBubble(message: message, maxWidth: maxBubbleWidth);
+        break;
 
       case MessageType.image:
-        return Container(
+        bubbleContent = Container(
           constraints: BoxConstraints(maxWidth: maxBubbleWidth),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(4),
@@ -1077,29 +1315,42 @@ class MessageItem extends StatelessWidget {
             ),
           ),
         );
+        break;
 
       case MessageType.location:
-        return LocationBubble(message: message, maxWidth: maxBubbleWidth);
+        bubbleContent =
+            LocationBubble(message: message, maxWidth: maxBubbleWidth);
+        break;
 
       // 资金往来类型
       case MessageType.redpacket:
-        return RedpacketBubble(message: message, maxWidth: maxBubbleWidth);
+        bubbleContent =
+            RedpacketBubble(message: message, maxWidth: maxBubbleWidth);
+        break;
 
       case MessageType.transfer:
-        return TransferBubble(message: message, maxWidth: maxBubbleWidth);
+        bubbleContent =
+            TransferBubble(message: message, maxWidth: maxBubbleWidth);
+        break;
 
       // 分享类型
       case MessageType.product:
-        return ProductBubble(message: message, maxWidth: maxBubbleWidth);
+        bubbleContent =
+            ProductBubble(message: message, maxWidth: maxBubbleWidth);
+        break;
 
       case MessageType.link:
-        return LinkBubble(message: message, maxWidth: maxBubbleWidth);
+        bubbleContent = LinkBubble(message: message, maxWidth: maxBubbleWidth);
+        break;
 
       case MessageType.note:
-        return NoteBubble(message: message, maxWidth: maxBubbleWidth);
+        bubbleContent = NoteBubble(message: message, maxWidth: maxBubbleWidth);
+        break;
 
       case MessageType.anniversary:
-        return AnniversaryBubble(message: message, maxWidth: maxBubbleWidth);
+        bubbleContent =
+            AnniversaryBubble(message: message, maxWidth: maxBubbleWidth);
+        break;
 
       // 不应该显示的类型（已在外部过滤）
       case MessageType.memory:
@@ -1108,6 +1359,75 @@ class MessageItem extends StatelessWidget {
       case MessageType.state:
         return const SizedBox.shrink();
     }
+
+    // 检查是否有引用消息
+    if (message.metadata != null && message.metadata!.containsKey('quote')) {
+      try {
+        final quote = message.metadata!['quote'] as Map<String, dynamic>;
+        final quoteContent = quote['content'] as String;
+
+        // 解析引用数据
+        final bool isQuoteMe = quote['isMe'] == true;
+        final String? quoteSender = quote['sender'] as String?;
+        // 兼容旧数据 'name'
+        final String? legacyName = quote['name'] as String?;
+
+        // 如果有 legacyName 且没有 sender，暂时用 legacyName 作为 sender 传入
+        // 但 _resolveSenderName 会优先处理 isMe
+        final String quoteName = _resolveSenderName(
+          isMe: isQuoteMe,
+          sender: quoteSender ?? legacyName,
+          me: me,
+          role: role,
+        );
+
+        return Column(
+          crossAxisAlignment:
+              message.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            // 实际消息气泡
+            bubbleContent,
+            // 引用内容气泡
+            Container(
+              margin: const EdgeInsets.only(top: 4),
+              constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '$quoteName: ',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    TextSpan(
+                      text: quoteContent,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        );
+      } catch (e) {
+        // 忽略引用解析错误
+      }
+    }
+
+    return bubbleContent;
   }
 }
 
@@ -1127,34 +1447,38 @@ class _ChatBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 根据消息类型确定文字样式和气泡颜色
+    // 根据消息类型和主题模式确定文字样式和气泡颜色
     TextStyle textStyle;
     Color bubbleColor;
 
+    // 使用主题扩展方法获取气泡颜色
+    final myBubble = context.myMessageBubbleColor;
+    final otherBubble = context.otherMessageBubbleColor;
+    final myTextColor = context.myMessageTextColor;
+    final otherTextColor = context.otherMessageTextColor;
+
     switch (messageType) {
       case MessageType.words:
-        textStyle = const TextStyle(fontSize: 16, color: Colors.black);
-        bubbleColor = isMe ? const Color(0xFF95EC69) : Colors.white;
+        textStyle =
+            TextStyle(fontSize: 16, color: isMe ? myTextColor : otherTextColor);
+        bubbleColor = isMe ? myBubble : otherBubble;
         break;
       case MessageType.action:
-        textStyle = const TextStyle(
+        textStyle = TextStyle(
           fontSize: 15,
-          color: Colors.black87,
+          color: (isMe ? myTextColor : otherTextColor).withOpacity(0.87),
           fontStyle: FontStyle.italic,
         );
-        bubbleColor = isMe
-            ? const Color(0xFF95EC69).withOpacity(0.8)
-            : Colors.white.withOpacity(0.8);
+        bubbleColor = (isMe ? myBubble : otherBubble).withOpacity(0.8);
         break;
       case MessageType.thought:
-        textStyle = const TextStyle(fontSize: 15, color: Colors.grey);
-        bubbleColor = isMe
-            ? const Color(0xFF95EC69).withOpacity(0.6)
-            : Colors.grey.withOpacity(0.1);
+        textStyle = TextStyle(fontSize: 15, color: context.secondaryTextColor);
+        bubbleColor = (isMe ? myBubble : otherBubble).withOpacity(0.6);
         break;
       default:
-        textStyle = const TextStyle(fontSize: 16, color: Colors.black);
-        bubbleColor = isMe ? const Color(0xFF95EC69) : Colors.white;
+        textStyle =
+            TextStyle(fontSize: 16, color: isMe ? myTextColor : otherTextColor);
+        bubbleColor = isMe ? myBubble : otherBubble;
     }
 
     return ConstrainedBox(
@@ -1182,6 +1506,54 @@ class _ChatBubble extends StatelessWidget {
             child: Text(content, style: textStyle),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 时间戳气泡Widget
+class _TimestampBubble extends StatelessWidget {
+  final int timestamp;
+
+  const _TimestampBubble({required this.timestamp});
+
+  @override
+  Widget build(BuildContext context) {
+    final dateTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final messageDate = DateTime(dateTime.year, dateTime.month, dateTime.day);
+
+    String timeText;
+
+    if (messageDate == today) {
+      // 今天：显示 HH:mm
+      timeText =
+          '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+    } else if (messageDate == today.subtract(const Duration(days: 1))) {
+      // 昨天
+      timeText =
+          '昨天 ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+    } else if (messageDate == today.subtract(const Duration(days: 2))) {
+      // 前天
+      timeText =
+          '前天 ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+    } else {
+      // 更早的日期：显示 MM月dd日
+      timeText =
+          '${dateTime.month}月${dateTime.day}日 ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Center(
+        child: Text(
+          timeText,
+          style: TextStyle(
+            fontSize: 12,
+            color: context.secondaryTextColor,
+          ),
+        ),
       ),
     );
   }
@@ -1219,4 +1591,27 @@ class _BubbleTrianglePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// 统一解析发送者名称的逻辑
+///
+/// 逻辑优先级：
+/// 1. 如果 [isMe] 为 true，强制返回 [me.name]（当前用户名称）。
+///    这确保了即使历史数据中 sender 字段存储了错误的名字，
+///    只要消息是用户发的，就显示当前正确的用户名称。
+/// 2. 如果 [sender] 存在且不为空，返回 [sender]。
+/// 3. 否则返回 [role.name]（当前角色名称）。
+String _resolveSenderName({
+  required bool isMe,
+  required String? sender,
+  required ContactMe me,
+  required ContactRole role,
+}) {
+  if (isMe) {
+    return me.name;
+  }
+  if (sender != null && sender.isNotEmpty) {
+    return sender;
+  }
+  return role.name;
 }

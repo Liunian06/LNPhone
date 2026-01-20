@@ -8,6 +8,7 @@ import '../core/models/contact_model.dart';
 import '../core/database/database.dart';
 import '../core/models/world_info_model.dart';
 import '../core/models/text_preset_model.dart';
+import '../core/theme/app_theme.dart';
 import 'chat_detail_screen.dart';
 
 class WeChatScreen extends StatefulWidget {
@@ -21,15 +22,15 @@ class _WeChatScreenState extends State<WeChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEDEDED), // WeChat background grey
+      backgroundColor: context.chatBackground,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFEDEDED),
+        backgroundColor: context.appBarBackground,
         elevation: 0,
         automaticallyImplyLeading: false, // 移除返回按钮
-        title: const Text(
+        title: Text(
           '聊天',
           style: TextStyle(
-            color: Colors.black,
+            color: context.primaryTextColor,
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
@@ -37,11 +38,12 @@ class _WeChatScreenState extends State<WeChatScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.search, color: Colors.black),
+            icon: Icon(Icons.search, color: context.primaryTextColor),
             onPressed: () {},
           ),
           IconButton(
-            icon: const Icon(Icons.add_circle_outline, color: Colors.black),
+            icon:
+                Icon(Icons.add_circle_outline, color: context.primaryTextColor),
             onPressed: _showCreateChatDialog,
           ),
           const SizedBox(width: 8),
@@ -50,11 +52,11 @@ class _WeChatScreenState extends State<WeChatScreen> {
       body: Consumer2<ChatProvider, ContactProvider>(
         builder: (context, chatProvider, contactProvider, child) {
           if (chatProvider.chats.isEmpty) {
-            return const Center(
+            return Center(
               child: Text(
                 '暂无聊天\n点击右上角 + 号创建',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
+                style: TextStyle(color: context.secondaryTextColor),
               ),
             );
           }
@@ -87,7 +89,7 @@ class _WeChatScreenState extends State<WeChatScreen> {
     );
 
     return Container(
-      color: Colors.white, // Chat item background
+      color: context.surfaceColor, // Chat item background
       child: GestureDetector(
         onTap: () {
           Navigator.push(
@@ -112,7 +114,9 @@ class _WeChatScreenState extends State<WeChatScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: Colors.grey[300],
+                      color: context.isDarkMode
+                          ? Colors.grey[700]
+                          : Colors.grey[300],
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: role.avatarPath != null
@@ -122,8 +126,8 @@ class _WeChatScreenState extends State<WeChatScreen> {
                               File(role.avatarPath!),
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
-                                return const Icon(Icons.person,
-                                    color: Colors.grey);
+                                return Icon(Icons.person,
+                                    color: context.secondaryTextColor);
                               },
                             ),
                           )
@@ -157,7 +161,8 @@ class _WeChatScreenState extends State<WeChatScreen> {
                         decoration: BoxDecoration(
                           color: const Color(0xFFF43F3F),
                           borderRadius: BorderRadius.circular(9),
-                          border: Border.all(color: Colors.white, width: 1),
+                          border:
+                              Border.all(color: context.surfaceColor, width: 1),
                         ),
                         child: Center(
                           child: Text(
@@ -180,9 +185,9 @@ class _WeChatScreenState extends State<WeChatScreen> {
             Expanded(
               child: Container(
                 padding: const EdgeInsets.only(right: 12, top: 12, bottom: 12),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   border: Border(
-                    bottom: BorderSide(color: Color(0xFFEDEDED), width: 0.5),
+                    bottom: BorderSide(color: context.dividerColor, width: 0.5),
                   ),
                 ),
                 child: Column(
@@ -194,10 +199,10 @@ class _WeChatScreenState extends State<WeChatScreen> {
                         Expanded(
                           child: Text(
                             role.name,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: Colors.black,
+                              color: context.primaryTextColor,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -205,9 +210,9 @@ class _WeChatScreenState extends State<WeChatScreen> {
                         ),
                         Text(
                           _formatTime(chat.lastUpdated),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey,
+                            color: context.secondaryTextColor,
                           ),
                         ),
                       ],
@@ -215,7 +220,8 @@ class _WeChatScreenState extends State<WeChatScreen> {
                     const SizedBox(height: 4),
                     Text(
                       chat.lastMessagePreview,
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                      style: TextStyle(
+                          fontSize: 14, color: context.secondaryTextColor),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -255,7 +261,7 @@ class _WeChatScreenState extends State<WeChatScreen> {
         position.dx + 100, // 向右偏移
         0,
       ),
-      color: Colors.white,
+      color: context.surfaceColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
       ),
@@ -265,10 +271,10 @@ class _WeChatScreenState extends State<WeChatScreen> {
           enabled: false,
           child: Text(
             role.name,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: Colors.black87,
+              color: context.primaryTextColor,
             ),
           ),
         ),
@@ -279,12 +285,12 @@ class _WeChatScreenState extends State<WeChatScreen> {
               Icon(
                 chat.isPinned ? Icons.push_pin : Icons.push_pin_outlined,
                 size: 20,
-                color: Colors.black,
+                color: context.primaryTextColor,
               ),
               const SizedBox(width: 12),
               Text(
                 chat.isPinned ? '取消置顶' : '置顶该聊天',
-                style: const TextStyle(color: Colors.black),
+                style: TextStyle(color: context.primaryTextColor),
               ),
             ],
           ),

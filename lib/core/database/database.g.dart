@@ -40,6 +40,17 @@ class $ChatSessionsTable extends ChatSessions
       defaultConstraints: GeneratedColumn.constraintIsAlways(
           'CHECK ("enable_extended_chat" IN (0, 1))'),
       defaultValue: const Constant(true));
+  static const VerificationMeta _enableIndependentSendButtonMeta =
+      const VerificationMeta('enableIndependentSendButton');
+  @override
+  late final GeneratedColumn<bool> enableIndependentSendButton =
+      GeneratedColumn<bool>(
+          'enable_independent_send_button', aliasedName, false,
+          type: DriftSqlType.bool,
+          requiredDuringInsert: false,
+          defaultConstraints: GeneratedColumn.constraintIsAlways(
+              'CHECK ("enable_independent_send_button" IN (0, 1))'),
+          defaultValue: const Constant(false));
   static const VerificationMeta _currentStateMeta =
       const VerificationMeta('currentState');
   @override
@@ -93,6 +104,7 @@ class $ChatSessionsTable extends ChatSessions
         meId,
         lastUpdated,
         enableExtendedChat,
+        enableIndependentSendButton,
         currentState,
         isPinned,
         worldInfoIds,
@@ -141,6 +153,13 @@ class $ChatSessionsTable extends ChatSessions
           enableExtendedChat.isAcceptableOrUnknown(
               data['enable_extended_chat']!, _enableExtendedChatMeta));
     }
+    if (data.containsKey('enable_independent_send_button')) {
+      context.handle(
+          _enableIndependentSendButtonMeta,
+          enableIndependentSendButton.isAcceptableOrUnknown(
+              data['enable_independent_send_button']!,
+              _enableIndependentSendButtonMeta));
+    }
     if (data.containsKey('current_state')) {
       context.handle(
           _currentStateMeta,
@@ -182,6 +201,9 @@ class $ChatSessionsTable extends ChatSessions
           .read(DriftSqlType.int, data['${effectivePrefix}last_updated'])!,
       enableExtendedChat: attachedDatabase.typeMapping.read(
           DriftSqlType.bool, data['${effectivePrefix}enable_extended_chat'])!,
+      enableIndependentSendButton: attachedDatabase.typeMapping.read(
+          DriftSqlType.bool,
+          data['${effectivePrefix}enable_independent_send_button'])!,
       currentState: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}current_state']),
       isPinned: attachedDatabase.typeMapping
@@ -217,6 +239,7 @@ class ChatSessionEntity extends DataClass
   final String meId;
   final int lastUpdated;
   final bool enableExtendedChat;
+  final bool enableIndependentSendButton;
   final String? currentState;
   final bool isPinned;
   final List<String> worldInfoIds;
@@ -229,6 +252,7 @@ class ChatSessionEntity extends DataClass
       required this.meId,
       required this.lastUpdated,
       required this.enableExtendedChat,
+      required this.enableIndependentSendButton,
       this.currentState,
       required this.isPinned,
       required this.worldInfoIds,
@@ -243,6 +267,8 @@ class ChatSessionEntity extends DataClass
     map['me_id'] = Variable<String>(meId);
     map['last_updated'] = Variable<int>(lastUpdated);
     map['enable_extended_chat'] = Variable<bool>(enableExtendedChat);
+    map['enable_independent_send_button'] =
+        Variable<bool>(enableIndependentSendButton);
     if (!nullToAbsent || currentState != null) {
       map['current_state'] = Variable<String>(currentState);
     }
@@ -271,6 +297,7 @@ class ChatSessionEntity extends DataClass
       meId: Value(meId),
       lastUpdated: Value(lastUpdated),
       enableExtendedChat: Value(enableExtendedChat),
+      enableIndependentSendButton: Value(enableIndependentSendButton),
       currentState: currentState == null && nullToAbsent
           ? const Value.absent()
           : Value(currentState),
@@ -295,6 +322,8 @@ class ChatSessionEntity extends DataClass
       meId: serializer.fromJson<String>(json['meId']),
       lastUpdated: serializer.fromJson<int>(json['lastUpdated']),
       enableExtendedChat: serializer.fromJson<bool>(json['enableExtendedChat']),
+      enableIndependentSendButton:
+          serializer.fromJson<bool>(json['enableIndependentSendButton']),
       currentState: serializer.fromJson<String?>(json['currentState']),
       isPinned: serializer.fromJson<bool>(json['isPinned']),
       worldInfoIds: serializer.fromJson<List<String>>(json['worldInfoIds']),
@@ -312,6 +341,8 @@ class ChatSessionEntity extends DataClass
       'meId': serializer.toJson<String>(meId),
       'lastUpdated': serializer.toJson<int>(lastUpdated),
       'enableExtendedChat': serializer.toJson<bool>(enableExtendedChat),
+      'enableIndependentSendButton':
+          serializer.toJson<bool>(enableIndependentSendButton),
       'currentState': serializer.toJson<String?>(currentState),
       'isPinned': serializer.toJson<bool>(isPinned),
       'worldInfoIds': serializer.toJson<List<String>>(worldInfoIds),
@@ -327,6 +358,7 @@ class ChatSessionEntity extends DataClass
           String? meId,
           int? lastUpdated,
           bool? enableExtendedChat,
+          bool? enableIndependentSendButton,
           Value<String?> currentState = const Value.absent(),
           bool? isPinned,
           List<String>? worldInfoIds,
@@ -339,6 +371,8 @@ class ChatSessionEntity extends DataClass
         meId: meId ?? this.meId,
         lastUpdated: lastUpdated ?? this.lastUpdated,
         enableExtendedChat: enableExtendedChat ?? this.enableExtendedChat,
+        enableIndependentSendButton:
+            enableIndependentSendButton ?? this.enableIndependentSendButton,
         currentState:
             currentState.present ? currentState.value : this.currentState,
         isPinned: isPinned ?? this.isPinned,
@@ -359,6 +393,9 @@ class ChatSessionEntity extends DataClass
       enableExtendedChat: data.enableExtendedChat.present
           ? data.enableExtendedChat.value
           : this.enableExtendedChat,
+      enableIndependentSendButton: data.enableIndependentSendButton.present
+          ? data.enableIndependentSendButton.value
+          : this.enableIndependentSendButton,
       currentState: data.currentState.present
           ? data.currentState.value
           : this.currentState,
@@ -385,6 +422,7 @@ class ChatSessionEntity extends DataClass
           ..write('meId: $meId, ')
           ..write('lastUpdated: $lastUpdated, ')
           ..write('enableExtendedChat: $enableExtendedChat, ')
+          ..write('enableIndependentSendButton: $enableIndependentSendButton, ')
           ..write('currentState: $currentState, ')
           ..write('isPinned: $isPinned, ')
           ..write('worldInfoIds: $worldInfoIds, ')
@@ -402,6 +440,7 @@ class ChatSessionEntity extends DataClass
       meId,
       lastUpdated,
       enableExtendedChat,
+      enableIndependentSendButton,
       currentState,
       isPinned,
       worldInfoIds,
@@ -417,6 +456,8 @@ class ChatSessionEntity extends DataClass
           other.meId == this.meId &&
           other.lastUpdated == this.lastUpdated &&
           other.enableExtendedChat == this.enableExtendedChat &&
+          other.enableIndependentSendButton ==
+              this.enableIndependentSendButton &&
           other.currentState == this.currentState &&
           other.isPinned == this.isPinned &&
           other.worldInfoIds == this.worldInfoIds &&
@@ -431,6 +472,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
   final Value<String> meId;
   final Value<int> lastUpdated;
   final Value<bool> enableExtendedChat;
+  final Value<bool> enableIndependentSendButton;
   final Value<String?> currentState;
   final Value<bool> isPinned;
   final Value<List<String>> worldInfoIds;
@@ -444,6 +486,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     this.meId = const Value.absent(),
     this.lastUpdated = const Value.absent(),
     this.enableExtendedChat = const Value.absent(),
+    this.enableIndependentSendButton = const Value.absent(),
     this.currentState = const Value.absent(),
     this.isPinned = const Value.absent(),
     this.worldInfoIds = const Value.absent(),
@@ -458,6 +501,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     required String meId,
     required int lastUpdated,
     this.enableExtendedChat = const Value.absent(),
+    this.enableIndependentSendButton = const Value.absent(),
     this.currentState = const Value.absent(),
     this.isPinned = const Value.absent(),
     this.worldInfoIds = const Value.absent(),
@@ -475,6 +519,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     Expression<String>? meId,
     Expression<int>? lastUpdated,
     Expression<bool>? enableExtendedChat,
+    Expression<bool>? enableIndependentSendButton,
     Expression<String>? currentState,
     Expression<bool>? isPinned,
     Expression<String>? worldInfoIds,
@@ -490,6 +535,8 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       if (lastUpdated != null) 'last_updated': lastUpdated,
       if (enableExtendedChat != null)
         'enable_extended_chat': enableExtendedChat,
+      if (enableIndependentSendButton != null)
+        'enable_independent_send_button': enableIndependentSendButton,
       if (currentState != null) 'current_state': currentState,
       if (isPinned != null) 'is_pinned': isPinned,
       if (worldInfoIds != null) 'world_info_ids': worldInfoIds,
@@ -506,6 +553,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       Value<String>? meId,
       Value<int>? lastUpdated,
       Value<bool>? enableExtendedChat,
+      Value<bool>? enableIndependentSendButton,
       Value<String?>? currentState,
       Value<bool>? isPinned,
       Value<List<String>>? worldInfoIds,
@@ -519,6 +567,8 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       meId: meId ?? this.meId,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       enableExtendedChat: enableExtendedChat ?? this.enableExtendedChat,
+      enableIndependentSendButton:
+          enableIndependentSendButton ?? this.enableIndependentSendButton,
       currentState: currentState ?? this.currentState,
       isPinned: isPinned ?? this.isPinned,
       worldInfoIds: worldInfoIds ?? this.worldInfoIds,
@@ -546,6 +596,10 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     }
     if (enableExtendedChat.present) {
       map['enable_extended_chat'] = Variable<bool>(enableExtendedChat.value);
+    }
+    if (enableIndependentSendButton.present) {
+      map['enable_independent_send_button'] =
+          Variable<bool>(enableIndependentSendButton.value);
     }
     if (currentState.present) {
       map['current_state'] = Variable<String>(currentState.value);
@@ -582,6 +636,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
           ..write('meId: $meId, ')
           ..write('lastUpdated: $lastUpdated, ')
           ..write('enableExtendedChat: $enableExtendedChat, ')
+          ..write('enableIndependentSendButton: $enableIndependentSendButton, ')
           ..write('currentState: $currentState, ')
           ..write('isPinned: $isPinned, ')
           ..write('worldInfoIds: $worldInfoIds, ')
@@ -622,6 +677,11 @@ class $ChatMessagesTable extends ChatMessages
       requiredDuringInsert: true,
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('CHECK ("is_me" IN (0, 1))'));
+  static const VerificationMeta _senderMeta = const VerificationMeta('sender');
+  @override
+  late final GeneratedColumn<String> sender = GeneratedColumn<String>(
+      'sender', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   late final GeneratedColumnWithTypeConverter<MessageType, int> type =
       GeneratedColumn<int>('type', aliasedName, false,
@@ -656,7 +716,7 @@ class $ChatMessagesTable extends ChatMessages
       defaultValue: const Constant(true));
   @override
   List<GeneratedColumn> get $columns =>
-      [id, sessionId, isMe, type, content, timestamp, metadata, isRead];
+      [id, sessionId, isMe, sender, type, content, timestamp, metadata, isRead];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -683,6 +743,10 @@ class $ChatMessagesTable extends ChatMessages
           _isMeMeta, isMe.isAcceptableOrUnknown(data['is_me']!, _isMeMeta));
     } else if (isInserting) {
       context.missing(_isMeMeta);
+    }
+    if (data.containsKey('sender')) {
+      context.handle(_senderMeta,
+          sender.isAcceptableOrUnknown(data['sender']!, _senderMeta));
     }
     if (data.containsKey('content')) {
       context.handle(_contentMeta,
@@ -715,6 +779,8 @@ class $ChatMessagesTable extends ChatMessages
           .read(DriftSqlType.string, data['${effectivePrefix}session_id'])!,
       isMe: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}is_me'])!,
+      sender: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}sender']),
       type: $ChatMessagesTable.$convertertype.fromSql(attachedDatabase
           .typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}type'])!),
@@ -748,6 +814,7 @@ class ChatMessageEntity extends DataClass
   final String id;
   final String sessionId;
   final bool isMe;
+  final String? sender;
   final MessageType type;
   final String content;
   final int timestamp;
@@ -757,6 +824,7 @@ class ChatMessageEntity extends DataClass
       {required this.id,
       required this.sessionId,
       required this.isMe,
+      this.sender,
       required this.type,
       required this.content,
       required this.timestamp,
@@ -768,6 +836,9 @@ class ChatMessageEntity extends DataClass
     map['id'] = Variable<String>(id);
     map['session_id'] = Variable<String>(sessionId);
     map['is_me'] = Variable<bool>(isMe);
+    if (!nullToAbsent || sender != null) {
+      map['sender'] = Variable<String>(sender);
+    }
     {
       map['type'] =
           Variable<int>($ChatMessagesTable.$convertertype.toSql(type));
@@ -787,6 +858,8 @@ class ChatMessageEntity extends DataClass
       id: Value(id),
       sessionId: Value(sessionId),
       isMe: Value(isMe),
+      sender:
+          sender == null && nullToAbsent ? const Value.absent() : Value(sender),
       type: Value(type),
       content: Value(content),
       timestamp: Value(timestamp),
@@ -804,6 +877,7 @@ class ChatMessageEntity extends DataClass
       id: serializer.fromJson<String>(json['id']),
       sessionId: serializer.fromJson<String>(json['sessionId']),
       isMe: serializer.fromJson<bool>(json['isMe']),
+      sender: serializer.fromJson<String?>(json['sender']),
       type: serializer.fromJson<MessageType>(json['type']),
       content: serializer.fromJson<String>(json['content']),
       timestamp: serializer.fromJson<int>(json['timestamp']),
@@ -818,6 +892,7 @@ class ChatMessageEntity extends DataClass
       'id': serializer.toJson<String>(id),
       'sessionId': serializer.toJson<String>(sessionId),
       'isMe': serializer.toJson<bool>(isMe),
+      'sender': serializer.toJson<String?>(sender),
       'type': serializer.toJson<MessageType>(type),
       'content': serializer.toJson<String>(content),
       'timestamp': serializer.toJson<int>(timestamp),
@@ -830,6 +905,7 @@ class ChatMessageEntity extends DataClass
           {String? id,
           String? sessionId,
           bool? isMe,
+          Value<String?> sender = const Value.absent(),
           MessageType? type,
           String? content,
           int? timestamp,
@@ -839,6 +915,7 @@ class ChatMessageEntity extends DataClass
         id: id ?? this.id,
         sessionId: sessionId ?? this.sessionId,
         isMe: isMe ?? this.isMe,
+        sender: sender.present ? sender.value : this.sender,
         type: type ?? this.type,
         content: content ?? this.content,
         timestamp: timestamp ?? this.timestamp,
@@ -850,6 +927,7 @@ class ChatMessageEntity extends DataClass
       id: data.id.present ? data.id.value : this.id,
       sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
       isMe: data.isMe.present ? data.isMe.value : this.isMe,
+      sender: data.sender.present ? data.sender.value : this.sender,
       type: data.type.present ? data.type.value : this.type,
       content: data.content.present ? data.content.value : this.content,
       timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
@@ -864,6 +942,7 @@ class ChatMessageEntity extends DataClass
           ..write('id: $id, ')
           ..write('sessionId: $sessionId, ')
           ..write('isMe: $isMe, ')
+          ..write('sender: $sender, ')
           ..write('type: $type, ')
           ..write('content: $content, ')
           ..write('timestamp: $timestamp, ')
@@ -875,7 +954,7 @@ class ChatMessageEntity extends DataClass
 
   @override
   int get hashCode => Object.hash(
-      id, sessionId, isMe, type, content, timestamp, metadata, isRead);
+      id, sessionId, isMe, sender, type, content, timestamp, metadata, isRead);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -883,6 +962,7 @@ class ChatMessageEntity extends DataClass
           other.id == this.id &&
           other.sessionId == this.sessionId &&
           other.isMe == this.isMe &&
+          other.sender == this.sender &&
           other.type == this.type &&
           other.content == this.content &&
           other.timestamp == this.timestamp &&
@@ -894,6 +974,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
   final Value<String> id;
   final Value<String> sessionId;
   final Value<bool> isMe;
+  final Value<String?> sender;
   final Value<MessageType> type;
   final Value<String> content;
   final Value<int> timestamp;
@@ -904,6 +985,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
     this.id = const Value.absent(),
     this.sessionId = const Value.absent(),
     this.isMe = const Value.absent(),
+    this.sender = const Value.absent(),
     this.type = const Value.absent(),
     this.content = const Value.absent(),
     this.timestamp = const Value.absent(),
@@ -915,6 +997,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
     required String id,
     required String sessionId,
     required bool isMe,
+    this.sender = const Value.absent(),
     required MessageType type,
     required String content,
     required int timestamp,
@@ -931,6 +1014,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
     Expression<String>? id,
     Expression<String>? sessionId,
     Expression<bool>? isMe,
+    Expression<String>? sender,
     Expression<int>? type,
     Expression<String>? content,
     Expression<int>? timestamp,
@@ -942,6 +1026,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
       if (id != null) 'id': id,
       if (sessionId != null) 'session_id': sessionId,
       if (isMe != null) 'is_me': isMe,
+      if (sender != null) 'sender': sender,
       if (type != null) 'type': type,
       if (content != null) 'content': content,
       if (timestamp != null) 'timestamp': timestamp,
@@ -955,6 +1040,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
       {Value<String>? id,
       Value<String>? sessionId,
       Value<bool>? isMe,
+      Value<String?>? sender,
       Value<MessageType>? type,
       Value<String>? content,
       Value<int>? timestamp,
@@ -965,6 +1051,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
       id: id ?? this.id,
       sessionId: sessionId ?? this.sessionId,
       isMe: isMe ?? this.isMe,
+      sender: sender ?? this.sender,
       type: type ?? this.type,
       content: content ?? this.content,
       timestamp: timestamp ?? this.timestamp,
@@ -985,6 +1072,9 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
     }
     if (isMe.present) {
       map['is_me'] = Variable<bool>(isMe.value);
+    }
+    if (sender.present) {
+      map['sender'] = Variable<String>(sender.value);
     }
     if (type.present) {
       map['type'] =
@@ -1015,6 +1105,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
           ..write('id: $id, ')
           ..write('sessionId: $sessionId, ')
           ..write('isMe: $isMe, ')
+          ..write('sender: $sender, ')
           ..write('type: $type, ')
           ..write('content: $content, ')
           ..write('timestamp: $timestamp, ')
@@ -2106,6 +2197,7 @@ typedef $$ChatSessionsTableCreateCompanionBuilder = ChatSessionsCompanion
   required String meId,
   required int lastUpdated,
   Value<bool> enableExtendedChat,
+  Value<bool> enableIndependentSendButton,
   Value<String?> currentState,
   Value<bool> isPinned,
   Value<List<String>> worldInfoIds,
@@ -2121,6 +2213,7 @@ typedef $$ChatSessionsTableUpdateCompanionBuilder = ChatSessionsCompanion
   Value<String> meId,
   Value<int> lastUpdated,
   Value<bool> enableExtendedChat,
+  Value<bool> enableIndependentSendButton,
   Value<String?> currentState,
   Value<bool> isPinned,
   Value<List<String>> worldInfoIds,
@@ -2173,6 +2266,10 @@ class $$ChatSessionsTableFilterComposer
 
   ColumnFilters<bool> get enableExtendedChat => $composableBuilder(
       column: $table.enableExtendedChat,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get enableIndependentSendButton => $composableBuilder(
+      column: $table.enableIndependentSendButton,
       builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get currentState => $composableBuilder(
@@ -2245,6 +2342,10 @@ class $$ChatSessionsTableOrderingComposer
       column: $table.enableExtendedChat,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<bool> get enableIndependentSendButton => $composableBuilder(
+      column: $table.enableIndependentSendButton,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get currentState => $composableBuilder(
       column: $table.currentState,
       builder: (column) => ColumnOrderings(column));
@@ -2291,6 +2392,9 @@ class $$ChatSessionsTableAnnotationComposer
 
   GeneratedColumn<bool> get enableExtendedChat => $composableBuilder(
       column: $table.enableExtendedChat, builder: (column) => column);
+
+  GeneratedColumn<bool> get enableIndependentSendButton => $composableBuilder(
+      column: $table.enableIndependentSendButton, builder: (column) => column);
 
   GeneratedColumn<String> get currentState => $composableBuilder(
       column: $table.currentState, builder: (column) => column);
@@ -2362,6 +2466,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             Value<String> meId = const Value.absent(),
             Value<int> lastUpdated = const Value.absent(),
             Value<bool> enableExtendedChat = const Value.absent(),
+            Value<bool> enableIndependentSendButton = const Value.absent(),
             Value<String?> currentState = const Value.absent(),
             Value<bool> isPinned = const Value.absent(),
             Value<List<String>> worldInfoIds = const Value.absent(),
@@ -2376,6 +2481,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             meId: meId,
             lastUpdated: lastUpdated,
             enableExtendedChat: enableExtendedChat,
+            enableIndependentSendButton: enableIndependentSendButton,
             currentState: currentState,
             isPinned: isPinned,
             worldInfoIds: worldInfoIds,
@@ -2390,6 +2496,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             required String meId,
             required int lastUpdated,
             Value<bool> enableExtendedChat = const Value.absent(),
+            Value<bool> enableIndependentSendButton = const Value.absent(),
             Value<String?> currentState = const Value.absent(),
             Value<bool> isPinned = const Value.absent(),
             Value<List<String>> worldInfoIds = const Value.absent(),
@@ -2404,6 +2511,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             meId: meId,
             lastUpdated: lastUpdated,
             enableExtendedChat: enableExtendedChat,
+            enableIndependentSendButton: enableIndependentSendButton,
             currentState: currentState,
             isPinned: isPinned,
             worldInfoIds: worldInfoIds,
@@ -2462,6 +2570,7 @@ typedef $$ChatMessagesTableCreateCompanionBuilder = ChatMessagesCompanion
   required String id,
   required String sessionId,
   required bool isMe,
+  Value<String?> sender,
   required MessageType type,
   required String content,
   required int timestamp,
@@ -2474,6 +2583,7 @@ typedef $$ChatMessagesTableUpdateCompanionBuilder = ChatMessagesCompanion
   Value<String> id,
   Value<String> sessionId,
   Value<bool> isMe,
+  Value<String?> sender,
   Value<MessageType> type,
   Value<String> content,
   Value<int> timestamp,
@@ -2516,6 +2626,9 @@ class $$ChatMessagesTableFilterComposer
 
   ColumnFilters<bool> get isMe => $composableBuilder(
       column: $table.isMe, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sender => $composableBuilder(
+      column: $table.sender, builder: (column) => ColumnFilters(column));
 
   ColumnWithTypeConverterFilters<MessageType, MessageType, int> get type =>
       $composableBuilder(
@@ -2573,6 +2686,9 @@ class $$ChatMessagesTableOrderingComposer
   ColumnOrderings<bool> get isMe => $composableBuilder(
       column: $table.isMe, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get sender => $composableBuilder(
+      column: $table.sender, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get type => $composableBuilder(
       column: $table.type, builder: (column) => ColumnOrderings(column));
 
@@ -2623,6 +2739,9 @@ class $$ChatMessagesTableAnnotationComposer
 
   GeneratedColumn<bool> get isMe =>
       $composableBuilder(column: $table.isMe, builder: (column) => column);
+
+  GeneratedColumn<String> get sender =>
+      $composableBuilder(column: $table.sender, builder: (column) => column);
 
   GeneratedColumnWithTypeConverter<MessageType, int> get type =>
       $composableBuilder(column: $table.type, builder: (column) => column);
@@ -2687,6 +2806,7 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> sessionId = const Value.absent(),
             Value<bool> isMe = const Value.absent(),
+            Value<String?> sender = const Value.absent(),
             Value<MessageType> type = const Value.absent(),
             Value<String> content = const Value.absent(),
             Value<int> timestamp = const Value.absent(),
@@ -2698,6 +2818,7 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
             id: id,
             sessionId: sessionId,
             isMe: isMe,
+            sender: sender,
             type: type,
             content: content,
             timestamp: timestamp,
@@ -2709,6 +2830,7 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
             required String id,
             required String sessionId,
             required bool isMe,
+            Value<String?> sender = const Value.absent(),
             required MessageType type,
             required String content,
             required int timestamp,
@@ -2720,6 +2842,7 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
             id: id,
             sessionId: sessionId,
             isMe: isMe,
+            sender: sender,
             type: type,
             content: content,
             timestamp: timestamp,
