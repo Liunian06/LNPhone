@@ -29,6 +29,7 @@ class LlmService {
     required String messageIdPrefix,
     List<String> worldInfos = const [],
     List<String> textPresets = const [],
+    List<String> roleMemories = const [], // 角色记忆列表
   }) async {
     print('[LLM] ========== 开始生成回复 ==========');
     print('[LLM] API Provider: ${apiPreset.provider.name}');
@@ -44,6 +45,7 @@ class LlmService {
       worldInfos,
       textPresets,
       history,
+      roleMemories,
     );
     print('[LLM] 系统提示词长度: ${systemPrompt.length} 字符');
 
@@ -163,6 +165,7 @@ class LlmService {
     List<String> worldInfos,
     List<String> textPresets,
     List<ChatMessage> history,
+    List<String> roleMemories,
   ) {
     final buffer = StringBuffer();
 
@@ -209,6 +212,16 @@ class LlmService {
     buffer.writeln('Name: ${me.name}');
     if (me.info.isNotEmpty) {
       buffer.writeln('Info: ${me.info}');
+    }
+
+    // 7. Role Memories (角色记忆)
+    if (roleMemories.isNotEmpty) {
+      buffer.writeln('\n[Role Memories]');
+      buffer.writeln(
+          'The following are important memories that ${role.name} has accumulated. Use these to maintain consistency and reference past events when relevant:');
+      for (final memory in roleMemories) {
+        buffer.writeln('- $memory');
+      }
     }
 
     return buffer.toString();

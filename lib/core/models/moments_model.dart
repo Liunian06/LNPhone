@@ -4,12 +4,14 @@ class MomentsUser {
   final String name;
   final String avatarUrl;
   final String? coverImageUrl; // 个人封面图
+  final String? signature; // 个人签名
 
   MomentsUser({
     required this.id,
     required this.name,
     required this.avatarUrl,
     this.coverImageUrl,
+    this.signature,
   });
 
   factory MomentsUser.fromJson(Map<String, dynamic> json) {
@@ -18,6 +20,7 @@ class MomentsUser {
       name: json['name'],
       avatarUrl: json['avatarUrl'],
       coverImageUrl: json['coverImageUrl'],
+      signature: json['signature'],
     );
   }
 
@@ -27,7 +30,25 @@ class MomentsUser {
       'name': name,
       'avatarUrl': avatarUrl,
       'coverImageUrl': coverImageUrl,
+      'signature': signature,
     };
+  }
+
+  /// 复制并更新
+  MomentsUser copyWith({
+    String? id,
+    String? name,
+    String? avatarUrl,
+    String? coverImageUrl,
+    String? signature,
+  }) {
+    return MomentsUser(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      coverImageUrl: coverImageUrl ?? this.coverImageUrl,
+      signature: signature ?? this.signature,
+    );
   }
 }
 
@@ -125,19 +146,16 @@ class MomentsPost {
       id: json['id'],
       user: MomentsUser.fromJson(json['user']),
       content: json['content'],
-      mediaItems:
-          (json['mediaItems'] as List?)
+      mediaItems: (json['mediaItems'] as List?)
               ?.map((item) => MediaItem.fromJson(item))
               .toList() ??
           [],
       createdAt: DateTime.parse(json['createdAt']),
-      likes:
-          (json['likes'] as List?)
+      likes: (json['likes'] as List?)
               ?.map((user) => MomentsUser.fromJson(user))
               .toList() ??
           [],
-      comments:
-          (json['comments'] as List?)
+      comments: (json['comments'] as List?)
               ?.map((comment) => MomentsComment.fromJson(comment))
               .toList() ??
           [],

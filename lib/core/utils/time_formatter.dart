@@ -25,6 +25,13 @@ class TimeFormatter {
     }
   }
 
+  /// 将时间戳转换为相对时间格式
+  /// 例如: "刚刚"、"5分钟前"、"1小时前"、"昨天"、"2天前"
+  static String formatRelative(int timestamp) {
+    final time = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    return formatMomentsTime(time);
+  }
+
   /// 将时间转换为详细格式
   /// 例如: "2024-01-09 17:30"
   static String formatDetailTime(DateTime time) {

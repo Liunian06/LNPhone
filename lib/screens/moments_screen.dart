@@ -32,7 +32,10 @@ class _MomentsBody extends StatefulWidget {
 class _MomentsBodyState extends State<_MomentsBody> {
   final ScrollController _scrollController = ScrollController();
   double _scrollOffset = 0.0;
-  static const double _coverHeight = 300.0;
+  static const double _coverHeight = 300.0; // 封面图高度
+  static const double _avatarSize = 70.0;
+  static const double _avatarOnCoverHeight = 46.0; // 头像在封面上的高度（约2/3）
+  static const double _avatarUnderCoverHeight = 24.0; // 头像在封面下的高度（约1/3）
   static const double _collapsedHeight = 44.0;
 
   @override
@@ -54,11 +57,101 @@ class _MomentsBodyState extends State<_MomentsBody> {
     });
   }
 
+  /// 显示编辑昵称对话框
+  void _showEditNameDialog(BuildContext context, String currentName) {
+    final controller = TextEditingController(text: currentName);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+        title: Text(
+          '修改昵称',
+          style: TextStyle(color: isDark ? Colors.white : Colors.black),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black),
+          decoration: InputDecoration(
+            hintText: '请输入昵称',
+            hintStyle:
+                TextStyle(color: isDark ? Colors.grey[400] : Colors.grey),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              final name = controller.text.trim();
+              if (name.isNotEmpty) {
+                context.read<MomentsProvider>().updateCurrentUserName(name);
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 显示编辑签名对话框
+  void _showEditSignatureDialog(
+      BuildContext context, String? currentSignature) {
+    final controller = TextEditingController(text: currentSignature ?? '');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+        title: Text(
+          '修改签名',
+          style: TextStyle(color: isDark ? Colors.white : Colors.black),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 2,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black),
+          decoration: InputDecoration(
+            hintText: '请输入个性签名',
+            hintStyle:
+                TextStyle(color: isDark ? Colors.grey[400] : Colors.grey),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              final signature = controller.text.trim();
+              context
+                  .read<MomentsProvider>()
+                  .updateCurrentUserSignature(signature);
+              Navigator.pop(context);
+            },
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final appBarBgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
     final titleColor = isDark ? Colors.white : Colors.black;
+    final containerBgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final statusBarHeight = MediaQuery.of(context).padding.top;
 
     return Consumer<MomentsProvider>(
       builder: (context, momentsProvider, child) {
@@ -69,199 +162,283 @@ class _MomentsBodyState extends State<_MomentsBody> {
         final opacity = (_scrollOffset / 100).clamp(0.0, 1.0);
         final isCollapsed = opacity > 0.5;
 
+        // 头像初始位置：封面底部减去头像上半部分
+        // 封面展开时的总高度 = statusBarHeight + _coverHeight
+        // 头像应该在封面底部，且有约2/3在封面上
+        final avatarInitialTop =
+            statusBarHeight + _coverHeight - _avatarOnCoverHeight;
+        // 头像随滚动移动的位置
+        final avatarTop = (avatarInitialTop - _scrollOffset).clamp(
+          statusBarHeight + _collapsedHeight - 50.0, // 折叠后隐藏
+          double.infinity,
+        );
+        // 头像透明度（滚动到一定程度后隐藏）
+        final avatarOpacity =
+            (1.0 - (_scrollOffset / (_coverHeight - _collapsedHeight - 50)))
+                .clamp(0.0, 1.0);
+
         return GestureDetector(
           onTap: () {
             // 点击屏幕其他区域时关闭操作菜单
             momentsProvider.setActivePostId(null);
           },
-          child: CustomScrollView(
-            controller: _scrollController,
-            slivers: [
-              // 顶部封面区域
-              SliverAppBar(
-                expandedHeight: _coverHeight,
-                collapsedHeight: _collapsedHeight,
-                toolbarHeight: 44.0, // 显式设置工具栏高度
-                pinned: true,
-                backgroundColor: appBarBgColor.withOpacity(opacity),
-                automaticallyImplyLeading: false, // 移除返回按钮
-                title: isCollapsed
-                    ? Text(
-                        '朋友圈',
-                        style: TextStyle(
-                          color: titleColor,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
+          child: Stack(
+            children: [
+              // 主滚动区域
+              CustomScrollView(
+                controller: _scrollController,
+                slivers: [
+                  // 顶部封面区域
+                  SliverAppBar(
+                    expandedHeight: _coverHeight,
+                    collapsedHeight: _collapsedHeight,
+                    toolbarHeight: 44.0,
+                    pinned: true,
+                    backgroundColor: appBarBgColor.withOpacity(opacity),
+                    automaticallyImplyLeading: false,
+                    title: isCollapsed
+                        ? Text(
+                            '朋友圈',
+                            style: TextStyle(
+                              color: titleColor,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          )
+                        : null,
+                    centerTitle: true,
+                    actions: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.camera_alt,
+                          color: isCollapsed ? titleColor : Colors.white,
                         ),
-                      )
-                    : null,
-                centerTitle: true,
-                actions: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.camera_alt,
-                      color: isCollapsed ? titleColor : Colors.white,
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const EditMomentScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-                flexibleSpace: FlexibleSpaceBar(
-                  background: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // 封面图片
-                      GestureDetector(
-                        onTap: () async {
-                          final picker = ImagePicker();
-                          final XFile? image = await picker.pickImage(
-                            source: ImageSource.gallery,
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const EditMomentScreen(),
+                            ),
                           );
-                          if (image != null) {
-                            if (context.mounted) {
-                              context
-                                  .read<MomentsProvider>()
-                                  .updateCurrentUserCover(image.path);
-                            }
-                          }
                         },
-                        child: SizedBox.expand(
-                          child: currentUser.coverImageUrl != null
-                              ? (currentUser.coverImageUrl!.startsWith('http')
-                                  ? Image.network(
-                                      currentUser.coverImageUrl!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) {
-                                        return Container(
-                                          color: Colors.grey[300],
-                                          child: const Icon(
-                                            Icons.image,
-                                            size: 50,
-                                          ),
-                                        );
-                                      },
-                                    )
-                                  : Image.file(
-                                      File(currentUser.coverImageUrl!),
-                                      fit: BoxFit.cover,
-                                    ))
-                              : Container(color: Colors.grey[300]),
-                        ),
                       ),
-                      // 渐变遮罩
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: Container(
-                          height: 100,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.3),
-                              ],
+                    ],
+                    flexibleSpace: FlexibleSpaceBar(
+                      background: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // 封面图片
+                          GestureDetector(
+                            onTap: () async {
+                              final picker = ImagePicker();
+                              final XFile? image = await picker.pickImage(
+                                source: ImageSource.gallery,
+                              );
+                              if (image != null) {
+                                if (context.mounted) {
+                                  context
+                                      .read<MomentsProvider>()
+                                      .updateCurrentUserCover(image.path);
+                                }
+                              }
+                            },
+                            child: currentUser.coverImageUrl != null
+                                ? (currentUser.coverImageUrl!.startsWith('http')
+                                    ? Image.network(
+                                        currentUser.coverImageUrl!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                          return Container(
+                                            color: Colors.grey[300],
+                                            child: const Icon(
+                                              Icons.image,
+                                              size: 50,
+                                            ),
+                                          );
+                                        },
+                                      )
+                                    : Image.file(
+                                        File(currentUser.coverImageUrl!),
+                                        fit: BoxFit.cover,
+                                      ))
+                                : Container(color: Colors.grey[300]),
+                          ),
+                          // 渐变遮罩
+                          Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            height: 100,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withOpacity(0.3),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // 签名区域
+                  SliverToBoxAdapter(
+                    child: Container(
+                      color: containerBgColor,
+                      padding: EdgeInsets.only(
+                        top: _avatarUnderCoverHeight + 16,
+                        right: 16,
+                        bottom: 12,
+                        left: 16,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () => _showEditSignatureDialog(
+                            context,
+                            currentUser.signature,
+                          ),
+                          child: Text(
+                            currentUser.signature ?? '点击添加签名',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: currentUser.signature != null
+                                  ? (isDark
+                                      ? Colors.grey[400]
+                                      : Colors.grey[600])
+                                  : (isDark
+                                      ? Colors.grey[600]
+                                      : Colors.grey[400]),
+                              fontStyle: currentUser.signature == null
+                                  ? FontStyle.italic
+                                  : FontStyle.normal,
                             ),
                           ),
                         ),
                       ),
-                      // 用户信息
-                      Positioned(
-                        bottom: 20,
-                        right: 16,
-                        child: Row(
-                          children: [
-                            Text(
-                              currentUser.name,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w500,
-                                shadows: [
-                                  Shadow(
-                                    offset: Offset(0, 1),
-                                    blurRadius: 3,
-                                    color: Colors.black26,
-                                  ),
-                                ],
-                              ),
+                    ),
+                  ),
+                  // 朋友圈动态列表
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      if (index >= posts.length) return null;
+                      return MomentsPostItem(post: posts[index]);
+                    }, childCount: posts.length),
+                  ),
+                ],
+              ),
+              // 悬浮头像（在最上层，不会被 SliverAppBar 遮挡）
+              if (avatarOpacity > 0)
+                Positioned(
+                  top: avatarTop,
+                  right: 16,
+                  child: Opacity(
+                    opacity: avatarOpacity,
+                    child: GestureDetector(
+                      onTap: () async {
+                        final picker = ImagePicker();
+                        final XFile? image = await picker.pickImage(
+                          source: ImageSource.gallery,
+                        );
+                        if (image != null) {
+                          if (context.mounted) {
+                            context
+                                .read<MomentsProvider>()
+                                .updateCurrentUserAvatar(image.path);
+                          }
+                        }
+                      },
+                      child: Container(
+                        width: _avatarSize,
+                        height: _avatarSize,
+                        decoration: BoxDecoration(
+                          color: containerBgColor,
+                          border: Border.all(
+                            color: containerBgColor,
+                            width: 3,
+                          ),
+                          borderRadius: BorderRadius.circular(6),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
                             ),
-                            const SizedBox(width: 12),
-                            GestureDetector(
-                              onTap: () async {
-                                final picker = ImagePicker();
-                                final XFile? image = await picker.pickImage(
-                                  source: ImageSource.gallery,
-                                );
-                                if (image != null) {
-                                  if (context.mounted) {
-                                    context
-                                        .read<MomentsProvider>()
-                                        .updateCurrentUserAvatar(image.path);
-                                  }
-                                }
-                              },
-                              child: Container(
-                                width: 64,
-                                height: 64,
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 2,
-                                  ),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(2),
-                                  child:
-                                      currentUser.avatarUrl.startsWith('http')
-                                          ? Image.network(
-                                              currentUser.avatarUrl,
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (context, error, stackTrace) {
-                                                return Container(
-                                                  color: Colors.grey[300],
-                                                  child: const Icon(
-                                                    Icons.person,
-                                                  ),
-                                                );
-                                              },
-                                            )
-                                          : Image.file(
-                                              File(currentUser.avatarUrl),
-                                              fit: BoxFit.cover,
-                                            ),
-                                ),
-                              ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: _buildAvatar(currentUser.avatarUrl),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              // 悬浮昵称（跟随头像移动）
+              if (avatarOpacity > 0)
+                Positioned(
+                  top: avatarTop + 10, // 调整垂直位置以对齐头像（数值越小越靠上）
+                  right: 16 + _avatarSize + 12,
+                  child: Opacity(
+                    opacity: avatarOpacity,
+                    child: GestureDetector(
+                      onTap: () =>
+                          _showEditNameDialog(context, currentUser.name),
+                      child: Text(
+                        currentUser.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                          shadows: [
+                            Shadow(
+                              offset: Offset(0, 1),
+                              blurRadius: 3,
+                              color: Colors.black26,
                             ),
                           ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-              // 朋友圈动态列表
-              SliverList(
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  if (index >= posts.length) return null;
-                  return MomentsPostItem(post: posts[index]);
-                }, childCount: posts.length),
-              ),
             ],
           ),
         );
       },
     );
+  }
+
+  /// 构建头像
+  Widget _buildAvatar(String avatarUrl) {
+    if (avatarUrl.startsWith('http')) {
+      return Image.network(
+        avatarUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[300],
+            child: const Icon(Icons.person),
+          );
+        },
+      );
+    } else {
+      return Image.file(
+        File(avatarUrl),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[300],
+            child: const Icon(Icons.person),
+          );
+        },
+      );
+    }
   }
 }

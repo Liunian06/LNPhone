@@ -9,6 +9,7 @@ import '../core/providers/contact_provider.dart';
 import '../core/providers/api_settings_provider.dart';
 import '../core/providers/prompt_settings_provider.dart';
 import '../core/providers/moments_provider.dart';
+import '../core/providers/memory_provider.dart';
 import '../core/services/llm_service.dart';
 import '../core/services/notification_service.dart';
 import '../core/models/chat_model.dart';
@@ -671,6 +672,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final promptProvider = context.read<PromptSettingsProvider>();
     final contactProvider = context.read<ContactProvider>();
     final momentsProvider = context.read<MomentsProvider>();
+    final memoryProvider = context.read<MemoryProvider>();
     final chatId = widget.chatId;
 
     // 提前获取用户人设信息（用于发送消息和引用）
@@ -806,6 +808,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       enableExtendedChat: chat.enableExtendedChat,
       delayedReplySeconds:
           forceImmediate ? 0 : promptProvider.delayedReplySeconds,
+      roleMemories: memoryProvider
+          .getMemoriesForRole(role.id)
+          .map((m) => m.content)
+          .toList(),
+      onAddMemory: (content, categoryStr) {
+        memoryProvider.addMemoryFromAiResponse(
+          roleId: role.id,
+          content: content,
+          sourceSessionId: chatId,
+          categoryStr: categoryStr,
+        );
+      },
     );
   }
 
@@ -1006,6 +1020,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final promptProvider = context.read<PromptSettingsProvider>();
     final contactProvider = context.read<ContactProvider>();
     final momentsProvider = context.read<MomentsProvider>();
+    final memoryProvider = context.read<MemoryProvider>();
     final chatId = widget.chatId;
 
     await chatProvider.backtrack(chatId, message.timestamp);
@@ -1063,6 +1078,18 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       },
       enableExtendedChat: chat.enableExtendedChat,
       delayedReplySeconds: 0, // 回溯后通常立即回复
+      roleMemories: memoryProvider
+          .getMemoriesForRole(role.id)
+          .map((m) => m.content)
+          .toList(),
+      onAddMemory: (content, categoryStr) {
+        memoryProvider.addMemoryFromAiResponse(
+          roleId: role.id,
+          content: content,
+          sourceSessionId: chatId,
+          categoryStr: categoryStr,
+        );
+      },
     );
   }
 

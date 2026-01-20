@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/models/moments_model.dart';
 import '../core/providers/moments_provider.dart';
+import '../core/providers/contact_provider.dart';
 import '../core/utils/time_formatter.dart';
 
 /// 朋友圈动态项
@@ -45,16 +46,27 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 用户名
-                Text(
-                  widget.post.user.name,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: isDark
-                        ? const Color(0xFF7AA3E5)
-                        : const Color(0xFF576B95),
-                  ),
+                // 用户名（当前用户显示最新昵称）
+                Builder(
+                  builder: (context) {
+                    final momentsProvider = context.watch<MomentsProvider>();
+                    final currentUser = momentsProvider.currentUser;
+                    final isCurrentUser = widget.post.user.id == currentUser.id;
+                    // 如果是当前用户发的帖子，使用最新昵称；否则使用帖子中保存的名字
+                    final displayName = isCurrentUser
+                        ? currentUser.name
+                        : widget.post.user.name;
+                    return Text(
+                      displayName,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: isDark
+                            ? const Color(0xFF7AA3E5)
+                            : const Color(0xFF576B95),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 6),
                 // 文字内容
@@ -82,6 +94,29 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
 
   /// 构建头像
   Widget _buildAvatar() {
+    final momentsProvider = context.watch<MomentsProvider>();
+    final contactProvider = context.watch<ContactProvider>();
+    final currentUser = momentsProvider.currentUser;
+
+    // 判断是否是当前用户发的帖子
+    final isCurrentUser = widget.post.user.id == currentUser.id;
+
+    String avatarUrl;
+    if (isCurrentUser) {
+      // 当前用户发的帖子，使用最新头像
+      avatarUrl = currentUser.avatarUrl;
+    } else {
+      // 角色发的帖子，从 ContactProvider 获取角色的最新头像
+      final role = contactProvider.roles.firstWhere(
+        (r) => r.id == widget.post.user.id,
+        orElse: () => contactProvider.roles.isNotEmpty
+            ? contactProvider.roles.first
+            : throw StateError('No roles found'),
+      );
+      // 如果能找到角色，使用角色的最新头像；否则使用帖子中保存的头像
+      avatarUrl = role.avatarPath ?? widget.post.user.avatarUrl;
+    }
+
     return GestureDetector(
       onTap: () {
         // TODO: 跳转到个人主页
@@ -92,19 +127,37 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
         decoration: BoxDecoration(borderRadius: BorderRadius.circular(4)),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(4),
-          child: Image.network(
-            widget.post.user.avatarUrl,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                color: Colors.grey[300],
-                child: const Icon(Icons.person, size: 24),
-              );
-            },
-          ),
+          child: _buildAvatarImage(avatarUrl),
         ),
       ),
     );
+  }
+
+  /// 构建头像图片（支持本地和网络图片）
+  Widget _buildAvatarImage(String avatarUrl) {
+    if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+      return Image.network(
+        avatarUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[300],
+            child: const Icon(Icons.person, size: 24),
+          );
+        },
+      );
+    } else {
+      return Image.file(
+        File(avatarUrl),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[300],
+            child: const Icon(Icons.person, size: 24),
+          );
+        },
+      );
+    }
   }
 
   /// 构建文字内容
@@ -307,71 +360,236 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
     );
   }
 
-  /// 构建交互面板（点赞和评论）
+  /// 构建交互面板（点赞、评论、编辑、删除）
   Widget _buildInteractionPanel() {
     final momentsProvider = context.read<MomentsProvider>();
     final isLiked = momentsProvider.isLiked(widget.post.id);
+    final currentUser = momentsProvider.currentUser;
+    final isOwnPost = widget.post.user.id == currentUser.id;
 
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF4C4C4C),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Row(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 点赞按钮
-          GestureDetector(
-            onTap: () {
-              momentsProvider.toggleLike(widget.post.id);
-              momentsProvider.setActivePostId(null);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  Icon(
-                    isLiked ? Icons.favorite : Icons.favorite_border,
-                    size: 18,
-                    color: Colors.white,
+          // 第一行：点赞和评论
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 点赞按钮
+              GestureDetector(
+                onTap: () {
+                  momentsProvider.toggleLike(widget.post.id);
+                  momentsProvider.setActivePostId(null);
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isLiked ? Icons.favorite : Icons.favorite_border,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isLiked ? '取消' : '赞',
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    isLiked ? '取消' : '赞',
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                ),
+              ),
+              // 分隔线
+              Container(width: 1, height: 20, color: Colors.black26),
+              // 评论按钮
+              GestureDetector(
+                onTap: () {
+                  momentsProvider.setActivePostId(null);
+                  setState(() {
+                    _replyToUser = null;
+                  });
+                  _showCommentInput();
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: const Row(
+                    children: [
+                      Icon(
+                        Icons.chat_bubble_outline,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        '评论',
+                        style: TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    ],
                   ),
-                ],
+                ),
+              ),
+            ],
+          ),
+          // 第二行：编辑和删除（仅帖子作者可见）
+          if (isOwnPost) ...[
+            Container(height: 1, color: Colors.black26),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 编辑按钮
+                GestureDetector(
+                  onTap: () {
+                    momentsProvider.setActivePostId(null);
+                    _showEditPostDialog();
+                  },
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.edit_outlined,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          '编辑',
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // 分隔线
+                Container(width: 1, height: 20, color: Colors.black26),
+                // 删除按钮
+                GestureDetector(
+                  onTap: () {
+                    momentsProvider.setActivePostId(null);
+                    _showDeleteConfirmDialog();
+                  },
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.delete_outline,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          '删除',
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 显示编辑帖子对话框
+  void _showEditPostDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final controller = TextEditingController(text: widget.post.content ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+        title: Text(
+          '编辑朋友圈',
+          style: TextStyle(color: isDark ? Colors.white : Colors.black),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 5,
+          style: TextStyle(color: isDark ? Colors.white : Colors.black),
+          decoration: InputDecoration(
+            hintText: '编辑文案内容...',
+            hintStyle:
+                TextStyle(color: isDark ? Colors.grey[400] : Colors.grey),
+            border: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: isDark ? Colors.grey[600]! : Colors.grey[300]!,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: isDark ? Colors.grey[600]! : Colors.grey[300]!,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: isDark ? Colors.blue[300]! : Colors.blue,
               ),
             ),
           ),
-          // 分隔线
-          Container(width: 1, height: 20, color: Colors.black26),
-          // 评论按钮
-          GestureDetector(
-            onTap: () {
-              momentsProvider.setActivePostId(null);
-              setState(() {
-                _replyToUser = null;
-              });
-              _showCommentInput();
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              final newContent = controller.text.trim();
+              context
+                  .read<MomentsProvider>()
+                  .updatePostContent(widget.post.id, newContent);
+              Navigator.pop(context);
             },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.chat_bubble_outline,
-                    size: 18,
-                    color: Colors.white,
-                  ),
-                  SizedBox(width: 6),
-                  Text(
-                    '评论',
-                    style: TextStyle(color: Colors.white, fontSize: 14),
-                  ),
-                ],
-              ),
-            ),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 显示删除确认对话框
+  void _showDeleteConfirmDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+        title: Text(
+          '删除朋友圈',
+          style: TextStyle(color: isDark ? Colors.white : Colors.black),
+        ),
+        content: Text(
+          '确定要删除这条朋友圈吗？删除后无法恢复。',
+          style: TextStyle(color: isDark ? Colors.grey[300] : Colors.grey[700]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              context.read<MomentsProvider>().deletePost(widget.post.id);
+              Navigator.pop(context);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('删除'),
           ),
         ],
       ),

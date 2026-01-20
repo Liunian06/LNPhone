@@ -179,6 +179,17 @@ class MomentsProvider extends ChangeNotifier {
     await _loadPosts();
   }
 
+  /// 更新动态内容
+  Future<void> updatePostContent(String postId, String newContent) async {
+    final postIndex = _posts.indexWhere((post) => post.id == postId);
+    if (postIndex == -1) return;
+
+    final post = _posts[postIndex];
+    final updatedPost = post.copyWith(content: newContent);
+    await _database.insertMoment(updatedPost);
+    await _loadPosts();
+  }
+
   /// 更新用户信息
   void updateCurrentUser(MomentsUser user) {
     _currentUser = user;
@@ -188,24 +199,28 @@ class MomentsProvider extends ChangeNotifier {
 
   /// 更新当前用户封面
   void updateCurrentUserCover(String coverUrl) {
-    _currentUser = MomentsUser(
-      id: _currentUser.id,
-      name: _currentUser.name,
-      avatarUrl: _currentUser.avatarUrl,
-      coverImageUrl: coverUrl,
-    );
+    _currentUser = _currentUser.copyWith(coverImageUrl: coverUrl);
     _saveCurrentUser();
     notifyListeners();
   }
 
   /// 更新当前用户头像
   void updateCurrentUserAvatar(String avatarUrl) {
-    _currentUser = MomentsUser(
-      id: _currentUser.id,
-      name: _currentUser.name,
-      avatarUrl: avatarUrl,
-      coverImageUrl: _currentUser.coverImageUrl,
-    );
+    _currentUser = _currentUser.copyWith(avatarUrl: avatarUrl);
+    _saveCurrentUser();
+    notifyListeners();
+  }
+
+  /// 更新当前用户昵称
+  void updateCurrentUserName(String name) {
+    _currentUser = _currentUser.copyWith(name: name);
+    _saveCurrentUser();
+    notifyListeners();
+  }
+
+  /// 更新当前用户签名
+  void updateCurrentUserSignature(String signature) {
+    _currentUser = _currentUser.copyWith(signature: signature);
     _saveCurrentUser();
     notifyListeners();
   }

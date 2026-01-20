@@ -2162,6 +2162,399 @@ class TextPresetsCompanion extends UpdateCompanion<TextPresetEntity> {
   }
 }
 
+class $RoleMemoriesTable extends RoleMemories
+    with TableInfo<$RoleMemoriesTable, RoleMemoryEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RoleMemoriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _roleIdMeta = const VerificationMeta('roleId');
+  @override
+  late final GeneratedColumn<String> roleId = GeneratedColumn<String>(
+      'role_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _contentMeta =
+      const VerificationMeta('content');
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+      'content', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _sourceSessionIdMeta =
+      const VerificationMeta('sourceSessionId');
+  @override
+  late final GeneratedColumn<String> sourceSessionId = GeneratedColumn<String>(
+      'source_session_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  late final GeneratedColumnWithTypeConverter<MemoryCategory, int> category =
+      GeneratedColumn<int>('category', aliasedName, false,
+              type: DriftSqlType.int,
+              requiredDuringInsert: false,
+              defaultValue: const Constant(0))
+          .withConverter<MemoryCategory>($RoleMemoriesTable.$convertercategory);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, roleId, content, createdAt, updatedAt, sourceSessionId, category];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'role_memories';
+  @override
+  VerificationContext validateIntegrity(Insertable<RoleMemoryEntity> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('role_id')) {
+      context.handle(_roleIdMeta,
+          roleId.isAcceptableOrUnknown(data['role_id']!, _roleIdMeta));
+    } else if (isInserting) {
+      context.missing(_roleIdMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(_contentMeta,
+          content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('source_session_id')) {
+      context.handle(
+          _sourceSessionIdMeta,
+          sourceSessionId.isAcceptableOrUnknown(
+              data['source_session_id']!, _sourceSessionIdMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  RoleMemoryEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RoleMemoryEntity(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      roleId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}role_id'])!,
+      content: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}updated_at'])!,
+      sourceSessionId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}source_session_id']),
+      category: $RoleMemoriesTable.$convertercategory.fromSql(attachedDatabase
+          .typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}category'])!),
+    );
+  }
+
+  @override
+  $RoleMemoriesTable createAlias(String alias) {
+    return $RoleMemoriesTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<MemoryCategory, int> $convertercategory =
+      const MemoryCategoryConverter();
+}
+
+class RoleMemoryEntity extends DataClass
+    implements Insertable<RoleMemoryEntity> {
+  final String id;
+  final String roleId;
+  final String content;
+  final int createdAt;
+  final int updatedAt;
+  final String? sourceSessionId;
+  final MemoryCategory category;
+  const RoleMemoryEntity(
+      {required this.id,
+      required this.roleId,
+      required this.content,
+      required this.createdAt,
+      required this.updatedAt,
+      this.sourceSessionId,
+      required this.category});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['role_id'] = Variable<String>(roleId);
+    map['content'] = Variable<String>(content);
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || sourceSessionId != null) {
+      map['source_session_id'] = Variable<String>(sourceSessionId);
+    }
+    {
+      map['category'] =
+          Variable<int>($RoleMemoriesTable.$convertercategory.toSql(category));
+    }
+    return map;
+  }
+
+  RoleMemoriesCompanion toCompanion(bool nullToAbsent) {
+    return RoleMemoriesCompanion(
+      id: Value(id),
+      roleId: Value(roleId),
+      content: Value(content),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      sourceSessionId: sourceSessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceSessionId),
+      category: Value(category),
+    );
+  }
+
+  factory RoleMemoryEntity.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RoleMemoryEntity(
+      id: serializer.fromJson<String>(json['id']),
+      roleId: serializer.fromJson<String>(json['roleId']),
+      content: serializer.fromJson<String>(json['content']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      sourceSessionId: serializer.fromJson<String?>(json['sourceSessionId']),
+      category: serializer.fromJson<MemoryCategory>(json['category']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'roleId': serializer.toJson<String>(roleId),
+      'content': serializer.toJson<String>(content),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+      'sourceSessionId': serializer.toJson<String?>(sourceSessionId),
+      'category': serializer.toJson<MemoryCategory>(category),
+    };
+  }
+
+  RoleMemoryEntity copyWith(
+          {String? id,
+          String? roleId,
+          String? content,
+          int? createdAt,
+          int? updatedAt,
+          Value<String?> sourceSessionId = const Value.absent(),
+          MemoryCategory? category}) =>
+      RoleMemoryEntity(
+        id: id ?? this.id,
+        roleId: roleId ?? this.roleId,
+        content: content ?? this.content,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+        sourceSessionId: sourceSessionId.present
+            ? sourceSessionId.value
+            : this.sourceSessionId,
+        category: category ?? this.category,
+      );
+  RoleMemoryEntity copyWithCompanion(RoleMemoriesCompanion data) {
+    return RoleMemoryEntity(
+      id: data.id.present ? data.id.value : this.id,
+      roleId: data.roleId.present ? data.roleId.value : this.roleId,
+      content: data.content.present ? data.content.value : this.content,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      sourceSessionId: data.sourceSessionId.present
+          ? data.sourceSessionId.value
+          : this.sourceSessionId,
+      category: data.category.present ? data.category.value : this.category,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RoleMemoryEntity(')
+          ..write('id: $id, ')
+          ..write('roleId: $roleId, ')
+          ..write('content: $content, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('sourceSessionId: $sourceSessionId, ')
+          ..write('category: $category')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id, roleId, content, createdAt, updatedAt, sourceSessionId, category);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RoleMemoryEntity &&
+          other.id == this.id &&
+          other.roleId == this.roleId &&
+          other.content == this.content &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.sourceSessionId == this.sourceSessionId &&
+          other.category == this.category);
+}
+
+class RoleMemoriesCompanion extends UpdateCompanion<RoleMemoryEntity> {
+  final Value<String> id;
+  final Value<String> roleId;
+  final Value<String> content;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<String?> sourceSessionId;
+  final Value<MemoryCategory> category;
+  final Value<int> rowid;
+  const RoleMemoriesCompanion({
+    this.id = const Value.absent(),
+    this.roleId = const Value.absent(),
+    this.content = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.sourceSessionId = const Value.absent(),
+    this.category = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RoleMemoriesCompanion.insert({
+    required String id,
+    required String roleId,
+    required String content,
+    required int createdAt,
+    required int updatedAt,
+    this.sourceSessionId = const Value.absent(),
+    this.category = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        roleId = Value(roleId),
+        content = Value(content),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<RoleMemoryEntity> custom({
+    Expression<String>? id,
+    Expression<String>? roleId,
+    Expression<String>? content,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<String>? sourceSessionId,
+    Expression<int>? category,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (roleId != null) 'role_id': roleId,
+      if (content != null) 'content': content,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (sourceSessionId != null) 'source_session_id': sourceSessionId,
+      if (category != null) 'category': category,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RoleMemoriesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? roleId,
+      Value<String>? content,
+      Value<int>? createdAt,
+      Value<int>? updatedAt,
+      Value<String?>? sourceSessionId,
+      Value<MemoryCategory>? category,
+      Value<int>? rowid}) {
+    return RoleMemoriesCompanion(
+      id: id ?? this.id,
+      roleId: roleId ?? this.roleId,
+      content: content ?? this.content,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      sourceSessionId: sourceSessionId ?? this.sourceSessionId,
+      category: category ?? this.category,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (roleId.present) {
+      map['role_id'] = Variable<String>(roleId.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (sourceSessionId.present) {
+      map['source_session_id'] = Variable<String>(sourceSessionId.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<int>(
+          $RoleMemoriesTable.$convertercategory.toSql(category.value));
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RoleMemoriesCompanion(')
+          ..write('id: $id, ')
+          ..write('roleId: $roleId, ')
+          ..write('content: $content, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('sourceSessionId: $sourceSessionId, ')
+          ..write('category: $category, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2170,12 +2563,19 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $MomentsPostsTable momentsPosts = $MomentsPostsTable(this);
   late final $WorldInfosTable worldInfos = $WorldInfosTable(this);
   late final $TextPresetsTable textPresets = $TextPresetsTable(this);
+  late final $RoleMemoriesTable roleMemories = $RoleMemoriesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [chatSessions, chatMessages, momentsPosts, worldInfos, textPresets];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+        chatSessions,
+        chatMessages,
+        momentsPosts,
+        worldInfos,
+        textPresets,
+        roleMemories
+      ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
         [
@@ -3478,6 +3878,213 @@ typedef $$TextPresetsTableProcessedTableManager = ProcessedTableManager<
     ),
     TextPresetEntity,
     PrefetchHooks Function()>;
+typedef $$RoleMemoriesTableCreateCompanionBuilder = RoleMemoriesCompanion
+    Function({
+  required String id,
+  required String roleId,
+  required String content,
+  required int createdAt,
+  required int updatedAt,
+  Value<String?> sourceSessionId,
+  Value<MemoryCategory> category,
+  Value<int> rowid,
+});
+typedef $$RoleMemoriesTableUpdateCompanionBuilder = RoleMemoriesCompanion
+    Function({
+  Value<String> id,
+  Value<String> roleId,
+  Value<String> content,
+  Value<int> createdAt,
+  Value<int> updatedAt,
+  Value<String?> sourceSessionId,
+  Value<MemoryCategory> category,
+  Value<int> rowid,
+});
+
+class $$RoleMemoriesTableFilterComposer
+    extends Composer<_$AppDatabase, $RoleMemoriesTable> {
+  $$RoleMemoriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get roleId => $composableBuilder(
+      column: $table.roleId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sourceSessionId => $composableBuilder(
+      column: $table.sourceSessionId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<MemoryCategory, MemoryCategory, int>
+      get category => $composableBuilder(
+          column: $table.category,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+}
+
+class $$RoleMemoriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $RoleMemoriesTable> {
+  $$RoleMemoriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get roleId => $composableBuilder(
+      column: $table.roleId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get content => $composableBuilder(
+      column: $table.content, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sourceSessionId => $composableBuilder(
+      column: $table.sourceSessionId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get category => $composableBuilder(
+      column: $table.category, builder: (column) => ColumnOrderings(column));
+}
+
+class $$RoleMemoriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RoleMemoriesTable> {
+  $$RoleMemoriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get roleId =>
+      $composableBuilder(column: $table.roleId, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceSessionId => $composableBuilder(
+      column: $table.sourceSessionId, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<MemoryCategory, int> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+}
+
+class $$RoleMemoriesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $RoleMemoriesTable,
+    RoleMemoryEntity,
+    $$RoleMemoriesTableFilterComposer,
+    $$RoleMemoriesTableOrderingComposer,
+    $$RoleMemoriesTableAnnotationComposer,
+    $$RoleMemoriesTableCreateCompanionBuilder,
+    $$RoleMemoriesTableUpdateCompanionBuilder,
+    (
+      RoleMemoryEntity,
+      BaseReferences<_$AppDatabase, $RoleMemoriesTable, RoleMemoryEntity>
+    ),
+    RoleMemoryEntity,
+    PrefetchHooks Function()> {
+  $$RoleMemoriesTableTableManager(_$AppDatabase db, $RoleMemoriesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RoleMemoriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RoleMemoriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RoleMemoriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> roleId = const Value.absent(),
+            Value<String> content = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> updatedAt = const Value.absent(),
+            Value<String?> sourceSessionId = const Value.absent(),
+            Value<MemoryCategory> category = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              RoleMemoriesCompanion(
+            id: id,
+            roleId: roleId,
+            content: content,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            sourceSessionId: sourceSessionId,
+            category: category,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String roleId,
+            required String content,
+            required int createdAt,
+            required int updatedAt,
+            Value<String?> sourceSessionId = const Value.absent(),
+            Value<MemoryCategory> category = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              RoleMemoriesCompanion.insert(
+            id: id,
+            roleId: roleId,
+            content: content,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            sourceSessionId: sourceSessionId,
+            category: category,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$RoleMemoriesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $RoleMemoriesTable,
+    RoleMemoryEntity,
+    $$RoleMemoriesTableFilterComposer,
+    $$RoleMemoriesTableOrderingComposer,
+    $$RoleMemoriesTableAnnotationComposer,
+    $$RoleMemoriesTableCreateCompanionBuilder,
+    $$RoleMemoriesTableUpdateCompanionBuilder,
+    (
+      RoleMemoryEntity,
+      BaseReferences<_$AppDatabase, $RoleMemoriesTable, RoleMemoryEntity>
+    ),
+    RoleMemoryEntity,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3492,4 +4099,6 @@ class $AppDatabaseManager {
       $$WorldInfosTableTableManager(_db, _db.worldInfos);
   $$TextPresetsTableTableManager get textPresets =>
       $$TextPresetsTableTableManager(_db, _db.textPresets);
+  $$RoleMemoriesTableTableManager get roleMemories =>
+      $$RoleMemoriesTableTableManager(_db, _db.roleMemories);
 }

@@ -169,8 +169,9 @@
         <anniversary id="{纪念日ID}" title="{纪念日标题}" days="{天数}" label="{还有/已经}" date="{目标日期}" background="{背景图URL，可选}">{祝福语或感想}</anniversary>
         
         <!-- ========== 生活轨迹类型（不在聊天界面显示） ========== -->
-        <!-- 记忆：重要信息会自动存入记忆库 -->
-        <memory>{需要长期记住的关键信息}</memory>
+        <!-- 记忆：重要信息会自动存入记忆库，可指定分类 -->
+        <!-- category可选值: general(一般), important(重要事件), preference(偏好喜好), relationship(人际关系), promise(承诺约定), secret(秘密心事) -->
+        <memory category="{分类，可选}">{需要长期记住的关键信息}</memory>
         
         <!-- 日记：角色的私人日记，存入日记本应用 -->
         <diary>{日记内容，记录今天发生的事情和感受}</diary>
@@ -198,7 +199,7 @@
     | link | 链接 | 链接卡片 | 聊天记录 |
     | note | 备忘 | 备忘卡片 | 聊天记录+备忘录 |
     | anniversary | 纪念日 | 纪念日卡片 | 聊天记录 |
-    | memory | 记忆 | 不显示 | 记忆库 |
+    | memory | 记忆 | 不显示 | 记忆库（支持category属性分类） |
     | diary | 日记 | 不显示 | 日记本 |
     | moment | 朋友圈 | 不显示 | 朋友圈 |
 
@@ -289,7 +290,7 @@
         	<words>晚上带你去吃大餐</words>
         	<location>公司办公室</location>
         	<state>摸鱼发红包</state>
-        	<memory>七夕节发了520红包，晚上有约会。</memory>
+        	<memory category="important">七夕节发了520红包，晚上有约会。</memory>
         </output>
         ===AI理想输出示例1结束===
 
@@ -382,7 +383,7 @@
         	<words>已经记下来啦</words>
         	<words>到时候我们一起去给阿姨买个蛋糕好不好</words>
         	<emoji>emoji-id-002</emoji>
-        	<memory>下周三是女朋友妈妈的生日，需要准备礼物。</memory>
+        	<memory category="important">下周三是女朋友妈妈的生日，需要准备礼物。</memory>
         </output>
         ===AI理想输出示例6结束===
 

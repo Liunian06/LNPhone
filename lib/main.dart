@@ -9,6 +9,7 @@ import 'core/providers/api_settings_provider.dart';
 import 'core/providers/chat_provider.dart';
 import 'core/providers/prompt_settings_provider.dart';
 import 'core/providers/moments_provider.dart';
+import 'core/providers/memory_provider.dart';
 import 'core/services/background_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/theme/app_theme.dart';
@@ -117,6 +118,7 @@ class LnPhoneApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ChatProvider()),
         ChangeNotifierProvider(create: (_) => PromptSettingsProvider()),
         ChangeNotifierProvider(create: (_) => MomentsProvider()),
+        ChangeNotifierProvider(create: (_) => MemoryProvider()),
       ],
       child: MaterialApp(
         title: 'LnPhone',

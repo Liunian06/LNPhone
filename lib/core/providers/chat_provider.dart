@@ -391,6 +391,8 @@ class ChatProvider extends ChangeNotifier {
     Function(String error)? onError,
     bool enableExtendedChat = true,
     int delayedReplySeconds = 0,
+    List<String> roleMemories = const [], // 角色记忆列表
+    Function(String content, String? categoryStr)? onAddMemory, // 添加记忆的回调（带分类）
   }) async {
     // 取消该会话之前的延迟任务（防抖）
     _debounceTimers[chatId]?.cancel();
@@ -452,6 +454,7 @@ class ChatProvider extends ChangeNotifier {
           messageIdPrefix: 'ai-$timestamp',
           worldInfos: worldInfos,
           textPresets: textPresets,
+          roleMemories: roleMemories, // 传入角色记忆
         );
 
         _typingStates[chatId] = false;
@@ -576,6 +579,21 @@ class ChatProvider extends ChangeNotifier {
                 avatarUrl: role.avatarPath ?? '',
               );
               onAddMoment(momentMsg.content, momentUser);
+            }
+          }
+
+          // 处理记忆消息 - 自动添加到记忆库
+          final memoryMessages = aiMessages
+              .where((msg) => msg.type == MessageType.memory)
+              .toList();
+
+          if (memoryMessages.isNotEmpty && onAddMemory != null) {
+            for (final memoryMsg in memoryMessages) {
+              // 从 metadata 中获取 AI 指定的分类
+              final categoryStr = memoryMsg.metadata?['category'] as String?;
+              debugPrint(
+                  '[ChatProvider] 检测到记忆消息: ${memoryMsg.content}, 分类: $categoryStr');
+              onAddMemory(memoryMsg.content, categoryStr);
             }
           }
         }

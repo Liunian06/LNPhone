@@ -11,12 +11,19 @@ import '../models/contact_model.dart';
 import '../models/api_preset.dart';
 import '../models/world_info_model.dart';
 import '../models/text_preset_model.dart';
+import '../models/memory_model.dart';
 import 'tables.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(
-    tables: [ChatSessions, ChatMessages, MomentsPosts, WorldInfos, TextPresets])
+@DriftDatabase(tables: [
+  ChatSessions,
+  ChatMessages,
+  MomentsPosts,
+  WorldInfos,
+  TextPresets,
+  RoleMemories
+])
 class AppDatabase extends _$AppDatabase {
   // Singleton instance
   static AppDatabase? _instance;
@@ -63,7 +70,7 @@ class AppDatabase extends _$AppDatabase {
   static bool get hasActiveConnection => _instance != null;
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   // Migration Strategy
   @override
@@ -106,6 +113,10 @@ class AppDatabase extends _$AppDatabase {
         if (from < 9) {
           // 添加 sender 字段用于存储发送者名称
           await m.addColumn(chatMessages, chatMessages.sender);
+        }
+        if (from < 10) {
+          // 添加角色记忆表
+          await m.createTable(roleMemories);
         }
       },
     );
@@ -521,6 +532,107 @@ class AppDatabase extends _$AppDatabase {
       content: e.content,
       createdAt: e.createdAt,
       updatedAt: e.updatedAt,
+    );
+  }
+
+  // --- Role Memory Queries ---
+
+  /// 获取指定角色的所有记忆
+  Future<List<RoleMemory>> getMemoriesByRoleId(String roleId) async {
+    final query = select(roleMemories)
+      ..where((t) => t.roleId.equals(roleId))
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
+      ]);
+    final entities = await query.get();
+    return entities
+        .map(
+          (e) => RoleMemory(
+            id: e.id,
+            roleId: e.roleId,
+            content: e.content,
+            createdAt: e.createdAt,
+            updatedAt: e.updatedAt,
+            sourceSessionId: e.sourceSessionId,
+            category: e.category,
+          ),
+        )
+        .toList();
+  }
+
+  /// 获取所有记忆
+  Future<List<RoleMemory>> getAllMemories() async {
+    final query = select(roleMemories)
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.updatedAt, mode: OrderingMode.desc),
+      ]);
+    final entities = await query.get();
+    return entities
+        .map(
+          (e) => RoleMemory(
+            id: e.id,
+            roleId: e.roleId,
+            content: e.content,
+            createdAt: e.createdAt,
+            updatedAt: e.updatedAt,
+            sourceSessionId: e.sourceSessionId,
+            category: e.category,
+          ),
+        )
+        .toList();
+  }
+
+  /// 插入或更新记忆
+  Future<void> insertMemory(RoleMemory memory) {
+    return into(roleMemories).insert(
+      RoleMemoriesCompanion(
+        id: Value(memory.id),
+        roleId: Value(memory.roleId),
+        content: Value(memory.content),
+        createdAt: Value(memory.createdAt),
+        updatedAt: Value(memory.updatedAt),
+        sourceSessionId: Value(memory.sourceSessionId),
+        category: Value(memory.category),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  /// 更新记忆内容
+  Future<void> updateMemoryContent(
+      String id, String content, MemoryCategory category) {
+    return (update(roleMemories)..where((t) => t.id.equals(id))).write(
+      RoleMemoriesCompanion(
+        content: Value(content),
+        category: Value(category),
+        updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
+  }
+
+  /// 删除记忆
+  Future<void> deleteMemory(String id) {
+    return (delete(roleMemories)..where((t) => t.id.equals(id))).go();
+  }
+
+  /// 删除指定角色的所有记忆
+  Future<void> deleteMemoriesByRoleId(String roleId) {
+    return (delete(roleMemories)..where((t) => t.roleId.equals(roleId))).go();
+  }
+
+  /// 获取单条记忆
+  Future<RoleMemory?> getMemory(String id) async {
+    final e = await (select(roleMemories)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (e == null) return null;
+    return RoleMemory(
+      id: e.id,
+      roleId: e.roleId,
+      content: e.content,
+      createdAt: e.createdAt,
+      updatedAt: e.updatedAt,
+      sourceSessionId: e.sourceSessionId,
+      category: e.category,
     );
   }
 

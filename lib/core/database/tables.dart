@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import '../models/chat_model.dart';
 import '../models/moments_model.dart';
+import '../models/memory_model.dart';
 
 /// List<String> 的转换器
 class StringListConverter extends TypeConverter<List<String>, String> {
@@ -121,6 +122,41 @@ class CommentsConverter extends TypeConverter<List<MomentsComment>, String> {
   String toSql(List<MomentsComment> value) {
     return json.encode(value.map((e) => e.toJson()).toList());
   }
+}
+
+/// 记忆分类转换器
+class MemoryCategoryConverter extends TypeConverter<MemoryCategory, int> {
+  const MemoryCategoryConverter();
+
+  @override
+  MemoryCategory fromSql(int fromDb) {
+    if (fromDb >= 0 && fromDb < MemoryCategory.values.length) {
+      return MemoryCategory.values[fromDb];
+    }
+    return MemoryCategory.general;
+  }
+
+  @override
+  int toSql(MemoryCategory value) {
+    return value.index;
+  }
+}
+
+/// 角色记忆表
+@DataClassName('RoleMemoryEntity')
+class RoleMemories extends Table {
+  TextColumn get id => text()();
+  TextColumn get roleId => text()(); // 关联的角色 ID
+  TextColumn get content => text()(); // 记忆内容
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+  TextColumn get sourceSessionId => text().nullable()(); // 来源会话 ID
+  IntColumn get category => integer()
+      .map(const MemoryCategoryConverter())
+      .withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
 }
 
 /// 聊天会话表
