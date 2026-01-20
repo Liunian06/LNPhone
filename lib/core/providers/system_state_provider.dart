@@ -7,11 +7,18 @@ import 'package:path/path.dart' as path;
 import 'package:http/http.dart' as http;
 import '../services/zip_backup_service.dart';
 import '../models/app_model.dart';
+import '../models/contact_model.dart';
 import '../data/default_apps.dart';
 import '../database/database.dart';
+import '../models/api_preset.dart';
+import '../models/moments_model.dart';
+import '../models/chat_model.dart';
 
 /// 系统状态Provider
+/// 注意：所有设置现在存储在数据库中
+/// SharedPreferences 已被弃用，仅用于兼容迁移
 class SystemStateProvider extends ChangeNotifier {
+  final AppDatabase _db;
   // 主屏幕应用
   List<List<AppModel>> _homePages = [];
   List<AppModel> _dockApps = [];
@@ -55,7 +62,7 @@ class SystemStateProvider extends ChangeNotifier {
   String? _lastWallpaperUpdateDate; // 上次更新壁纸的日期 (格式: yyyy-MM-dd)
   bool _isDownloadingWallpapers = false; // 是否正在下载壁纸
 
-  SystemStateProvider() {
+  SystemStateProvider(this._db) {
     _loadDefaultData();
     _init();
   }
@@ -371,98 +378,70 @@ class SystemStateProvider extends ChangeNotifier {
   }
 
   // 持久化存储 - 保存设置
+  // 注意：所有设置现在存储在数据库中，SharedPreferences 已被弃用
   Future<void> _saveSettings() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-
       // 保存桌面壁纸
-      await prefs.setInt('wallpaper_index', _currentWallpaperIndex);
+      await _db.setSettingInt('wallpaper_index', _currentWallpaperIndex);
       if (_customWallpaperPath != null) {
-        await prefs.setString('custom_wallpaper_path', _customWallpaperPath!);
+        await _db.setSetting('custom_wallpaper_path', _customWallpaperPath!);
       } else {
-        await prefs.remove('custom_wallpaper_path');
+        await _db.deleteSetting('custom_wallpaper_path');
       }
 
       // 保存锁屏壁纸
-      await prefs.setInt(
+      await _db.setSettingInt(
         'lockscreen_wallpaper_index',
         _lockScreenWallpaperIndex,
       );
       if (_customLockScreenWallpaperPath != null) {
-        await prefs.setString(
+        await _db.setSetting(
           'custom_lockscreen_wallpaper_path',
           _customLockScreenWallpaperPath!,
         );
       } else {
-        await prefs.remove('custom_lockscreen_wallpaper_path');
+        await _db.deleteSetting('custom_lockscreen_wallpaper_path');
       }
 
       // 保存自定义图标
-      await prefs.setString('custom_app_icons', jsonEncode(_customAppIcons));
+      await _db.setSetting('custom_app_icons', jsonEncode(_customAppIcons));
 
       // 保存网格布局
       if (_gridPages.isNotEmpty) {
-        await prefs.setString('grid_pages', jsonEncode(_gridPages));
+        await _db.setSetting('grid_pages', jsonEncode(_gridPages));
       }
 
       // 保存系统设置
-      await prefs.setDouble('brightness', _brightness);
-      await prefs.setDouble('volume', _volume);
-      await prefs.setBool('airplane_mode', _isAirplaneMode);
-      await prefs.setBool('wifi_enabled', _isWifiEnabled);
-      await prefs.setBool('bluetooth_enabled', _isBluetoothEnabled);
-      await prefs.setBool('cellular_enabled', _isCellularEnabled);
-      await prefs.setBool('rotation_locked', _isRotationLocked);
-      await prefs.setBool('focus_mode', _isFocusMode);
+      await _db.setSettingDouble('brightness', _brightness);
+      await _db.setSettingDouble('volume', _volume);
+      await _db.setSettingBool('airplane_mode', _isAirplaneMode);
+      await _db.setSettingBool('wifi_enabled', _isWifiEnabled);
+      await _db.setSettingBool('bluetooth_enabled', _isBluetoothEnabled);
+      await _db.setSettingBool('cellular_enabled', _isCellularEnabled);
+      await _db.setSettingBool('rotation_locked', _isRotationLocked);
+      await _db.setSettingBool('focus_mode', _isFocusMode);
     } catch (e) {
       debugPrint('保存设置失败: $e');
     }
   }
 
   // 持久化存储 - 加载设置
+  // 注意：先检查数据库，如果没有则从 SharedPreferences 迁移
   Future<void> _loadSettings() async {
     try {
+      // [已弃用] SharedPreferences 仅用于兼容迁移
       final prefs = await SharedPreferences.getInstance();
 
-      // 加载桌面壁纸
-      _currentWallpaperIndex = prefs.getInt('wallpaper_index') ?? 0;
-      // 确保索引在有效范围内（0-6），移除任何强制修正逻辑
-      _currentWallpaperIndex = _currentWallpaperIndex.clamp(0, 6);
-      _customWallpaperPath = prefs.getString('custom_wallpaper_path');
+      // 检查是否需要迁移（如果数据库中没有 wallpaper_index，则尝试迁移）
+      final needsMigration = !(await _db.hasSetting('wallpaper_index'));
 
-      // 加载锁屏壁纸
-      _lockScreenWallpaperIndex =
-          prefs.getInt('lockscreen_wallpaper_index') ?? 0;
-      // 确保索引在有效范围内（0-6）
-      _lockScreenWallpaperIndex = _lockScreenWallpaperIndex.clamp(0, 6);
-      _customLockScreenWallpaperPath = prefs.getString(
-        'custom_lockscreen_wallpaper_path',
-      );
-
-      // 加载自定义图标
-      final iconsJson = prefs.getString('custom_app_icons');
-      if (iconsJson != null) {
-        _customAppIcons = Map<String, String>.from(jsonDecode(iconsJson));
+      if (needsMigration) {
+        debugPrint('[SystemState] 开始从 SharedPreferences 迁移数据到数据库...');
+        await _migrateFromSharedPreferences(prefs);
       }
 
-      // 加载网格布局
-      final gridJson = prefs.getString('grid_pages');
-      if (gridJson != null) {
-        final decoded = jsonDecode(gridJson) as List;
-        _gridPages = decoded.map((page) {
-          return (page as List).map((item) => item as String?).toList();
-        }).toList();
-      }
-
-      // 加载系统设置
-      _brightness = prefs.getDouble('brightness') ?? 0.7;
-      _volume = prefs.getDouble('volume') ?? 0.5;
-      _isAirplaneMode = prefs.getBool('airplane_mode') ?? false;
-      _isWifiEnabled = prefs.getBool('wifi_enabled') ?? true;
-      _isBluetoothEnabled = prefs.getBool('bluetooth_enabled') ?? true;
-      _isCellularEnabled = prefs.getBool('cellular_enabled') ?? true;
-      _isRotationLocked = prefs.getBool('rotation_locked') ?? false;
-      _isFocusMode = prefs.getBool('focus_mode') ?? false;
+      // 从数据库加载设置
+      await _loadFromDatabase();
 
       _isLoaded = true;
       notifyListeners();
@@ -471,6 +450,106 @@ class SystemStateProvider extends ChangeNotifier {
       _isLoaded = true;
       notifyListeners();
     }
+  }
+
+  /// 从 SharedPreferences 迁移数据到数据库
+  /// [已弃用] 此方法仅用于兼容旧版本数据
+  Future<void> _migrateFromSharedPreferences(SharedPreferences prefs) async {
+    try {
+      // 迁移桌面壁纸
+      final wallpaperIndex = prefs.getInt('wallpaper_index') ?? 0;
+      await _db.setSettingInt('wallpaper_index', wallpaperIndex.clamp(0, 6));
+
+      final customWallpaperPath = prefs.getString('custom_wallpaper_path');
+      if (customWallpaperPath != null) {
+        await _db.setSetting('custom_wallpaper_path', customWallpaperPath);
+      }
+
+      // 迁移锁屏壁纸
+      final lockScreenIndex = prefs.getInt('lockscreen_wallpaper_index') ?? 0;
+      await _db.setSettingInt(
+          'lockscreen_wallpaper_index', lockScreenIndex.clamp(0, 6));
+
+      final customLockPath =
+          prefs.getString('custom_lockscreen_wallpaper_path');
+      if (customLockPath != null) {
+        await _db.setSetting(
+            'custom_lockscreen_wallpaper_path', customLockPath);
+      }
+
+      // 迁移自定义图标
+      final iconsJson = prefs.getString('custom_app_icons');
+      if (iconsJson != null) {
+        await _db.setSetting('custom_app_icons', iconsJson);
+      }
+
+      // 迁移网格布局
+      final gridJson = prefs.getString('grid_pages');
+      if (gridJson != null) {
+        await _db.setSetting('grid_pages', gridJson);
+      }
+
+      // 迁移系统设置
+      await _db.setSettingDouble(
+          'brightness', prefs.getDouble('brightness') ?? 0.7);
+      await _db.setSettingDouble('volume', prefs.getDouble('volume') ?? 0.5);
+      await _db.setSettingBool(
+          'airplane_mode', prefs.getBool('airplane_mode') ?? false);
+      await _db.setSettingBool(
+          'wifi_enabled', prefs.getBool('wifi_enabled') ?? true);
+      await _db.setSettingBool(
+          'bluetooth_enabled', prefs.getBool('bluetooth_enabled') ?? true);
+      await _db.setSettingBool(
+          'cellular_enabled', prefs.getBool('cellular_enabled') ?? true);
+      await _db.setSettingBool(
+          'rotation_locked', prefs.getBool('rotation_locked') ?? false);
+      await _db.setSettingBool(
+          'focus_mode', prefs.getBool('focus_mode') ?? false);
+
+      debugPrint('[SystemState] 数据迁移完成');
+    } catch (e) {
+      debugPrint('[SystemState] 数据迁移失败: $e');
+    }
+  }
+
+  /// 从数据库加载设置
+  Future<void> _loadFromDatabase() async {
+    // 加载桌面壁纸
+    _currentWallpaperIndex = await _db.getSettingInt('wallpaper_index') ?? 0;
+    _currentWallpaperIndex = _currentWallpaperIndex.clamp(0, 6);
+    _customWallpaperPath = await _db.getSetting('custom_wallpaper_path');
+
+    // 加载锁屏壁纸
+    _lockScreenWallpaperIndex =
+        await _db.getSettingInt('lockscreen_wallpaper_index') ?? 0;
+    _lockScreenWallpaperIndex = _lockScreenWallpaperIndex.clamp(0, 6);
+    _customLockScreenWallpaperPath =
+        await _db.getSetting('custom_lockscreen_wallpaper_path');
+
+    // 加载自定义图标
+    final iconsJson = await _db.getSetting('custom_app_icons');
+    if (iconsJson != null) {
+      _customAppIcons = Map<String, String>.from(jsonDecode(iconsJson));
+    }
+
+    // 加载网格布局
+    final gridJson = await _db.getSetting('grid_pages');
+    if (gridJson != null) {
+      final decoded = jsonDecode(gridJson) as List;
+      _gridPages = decoded.map((page) {
+        return (page as List).map((item) => item as String?).toList();
+      }).toList();
+    }
+
+    // 加载系统设置
+    _brightness = await _db.getSettingDouble('brightness') ?? 0.7;
+    _volume = await _db.getSettingDouble('volume') ?? 0.5;
+    _isAirplaneMode = await _db.getSettingBool('airplane_mode') ?? false;
+    _isWifiEnabled = await _db.getSettingBool('wifi_enabled') ?? true;
+    _isBluetoothEnabled = await _db.getSettingBool('bluetooth_enabled') ?? true;
+    _isCellularEnabled = await _db.getSettingBool('cellular_enabled') ?? true;
+    _isRotationLocked = await _db.getSettingBool('rotation_locked') ?? false;
+    _isFocusMode = await _db.getSettingBool('focus_mode') ?? false;
   }
 
   // 辅助方法：读取文件为Base64
@@ -546,6 +625,10 @@ class SystemStateProvider extends ChangeNotifier {
   // 导出设置到ZIP
   Future<String> exportSettingsToZip() async {
     final files = <String, String>{}; // zipFileName -> localPath
+    final db = _db;
+
+    // 确保所有数据都已迁移到数据库（兼容旧版本数据）
+    await _ensureDataMigratedToDatabase(db);
 
     // 1. 收集自定义图标
     for (final entry in _customAppIcons.entries) {
@@ -569,14 +652,151 @@ class SystemStateProvider extends ChangeNotifier {
     }
 
     // 2.5 收集聊天背景图文件
-    // 聊天背景图路径存储在数据库中，我们需要扫描 Documents 目录下的 chat_bg_* 文件
-    final docDir = await getApplicationDocumentsDirectory();
-    final docDirList = await docDir.list().toList();
-    for (final entity in docDirList) {
-      if (entity is File) {
-        final fileName = path.basename(entity.path);
-        if (fileName.startsWith('chat_bg_')) {
-          files[fileName] = entity.path;
+    // 聊天背景图路径存储在数据库中，需要从会话中读取
+    final sessions = await db.getAllSessions();
+    for (final session in sessions) {
+      if (session.backgroundImage != null &&
+          session.backgroundImage!.isNotEmpty &&
+          !session.backgroundImage!.startsWith('http')) {
+        final bgFile = File(session.backgroundImage!);
+        if (await bgFile.exists()) {
+          final ext = path.extension(session.backgroundImage!);
+          // 使用 session.id 作为唯一标识
+          final zipFileName = 'chat_bg_${session.id}$ext';
+          files[zipFileName] = session.backgroundImage!;
+        }
+      }
+    }
+
+    // 2.6 收集角色人设头像
+    final roles = await db.getAllContactRoles();
+    for (final role in roles) {
+      if (role.avatarPath != null && role.avatarPath!.isNotEmpty) {
+        final avatarFile = File(role.avatarPath!);
+        if (await avatarFile.exists()) {
+          final ext = path.extension(role.avatarPath!);
+          final zipFileName = 'role_avatar_${role.id}$ext';
+          files[zipFileName] = role.avatarPath!;
+        }
+      }
+    }
+
+    // 2.7 收集用户人设头像
+    final meList = await db.getAllContactMes();
+    for (final me in meList) {
+      if (me.avatarPath != null && me.avatarPath!.isNotEmpty) {
+        final avatarFile = File(me.avatarPath!);
+        if (await avatarFile.exists()) {
+          final ext = path.extension(me.avatarPath!);
+          final zipFileName = 'me_avatar_${me.id}$ext';
+          files[zipFileName] = me.avatarPath!;
+        }
+      }
+    }
+
+    // 2.8 收集朋友圈用户设置中的头像和封面
+    final momentsSettings = await db.getMomentsUserSettings();
+    if (momentsSettings != null) {
+      // 收集朋友圈头像
+      if (momentsSettings.avatarUrl != null &&
+          momentsSettings.avatarUrl!.isNotEmpty &&
+          !momentsSettings.avatarUrl!.startsWith('http')) {
+        final avatarFile = File(momentsSettings.avatarUrl!);
+        if (await avatarFile.exists()) {
+          final ext = path.extension(momentsSettings.avatarUrl!);
+          final zipFileName = 'moments_avatar$ext';
+          files[zipFileName] = momentsSettings.avatarUrl!;
+        }
+      }
+      // 收集朋友圈封面
+      if (momentsSettings.coverImageUrl != null &&
+          momentsSettings.coverImageUrl!.isNotEmpty &&
+          !momentsSettings.coverImageUrl!.startsWith('http')) {
+        final coverFile = File(momentsSettings.coverImageUrl!);
+        if (await coverFile.exists()) {
+          final ext = path.extension(momentsSettings.coverImageUrl!);
+          final zipFileName = 'moments_cover$ext';
+          files[zipFileName] = momentsSettings.coverImageUrl!;
+        }
+      }
+    }
+
+    // 2.9 收集朋友圈动态中的图片
+    final momentsPosts = await db.getAllMoments();
+    for (final post in momentsPosts) {
+      // 收集动态媒体图片
+      for (int i = 0; i < post.mediaItems.length; i++) {
+        final mediaItem = post.mediaItems[i];
+        if (mediaItem.url.isNotEmpty && !mediaItem.url.startsWith('http')) {
+          final mediaFile = File(mediaItem.url);
+          if (await mediaFile.exists()) {
+            final ext = path.extension(mediaItem.url);
+            final zipFileName = 'moment_media_${post.id}_$i$ext';
+            files[zipFileName] = mediaItem.url;
+          }
+        }
+        // 收集视频缩略图
+        if (mediaItem.thumbnailUrl != null &&
+            mediaItem.thumbnailUrl!.isNotEmpty &&
+            !mediaItem.thumbnailUrl!.startsWith('http')) {
+          final thumbFile = File(mediaItem.thumbnailUrl!);
+          if (await thumbFile.exists()) {
+            final ext = path.extension(mediaItem.thumbnailUrl!);
+            final zipFileName = 'moment_thumb_${post.id}_$i$ext';
+            files[zipFileName] = mediaItem.thumbnailUrl!;
+          }
+        }
+      }
+
+      // 收集动态发布者头像
+      if (post.user.avatarUrl.isNotEmpty &&
+          !post.user.avatarUrl.startsWith('http')) {
+        final avatarFile = File(post.user.avatarUrl);
+        if (await avatarFile.exists()) {
+          final ext = path.extension(post.user.avatarUrl);
+          final zipFileName = 'moment_user_avatar_${post.id}$ext';
+          files[zipFileName] = post.user.avatarUrl;
+        }
+      }
+
+      // 收集评论者头像
+      for (int i = 0; i < post.comments.length; i++) {
+        final comment = post.comments[i];
+        if (comment.user.avatarUrl.isNotEmpty &&
+            !comment.user.avatarUrl.startsWith('http')) {
+          final avatarFile = File(comment.user.avatarUrl);
+          if (await avatarFile.exists()) {
+            final ext = path.extension(comment.user.avatarUrl);
+            final zipFileName =
+                'moment_comment_avatar_${post.id}_${comment.id}$ext';
+            files[zipFileName] = comment.user.avatarUrl;
+          }
+        }
+        // 收集被回复者头像
+        if (comment.replyTo != null &&
+            comment.replyTo!.avatarUrl.isNotEmpty &&
+            !comment.replyTo!.avatarUrl.startsWith('http')) {
+          final replyAvatarFile = File(comment.replyTo!.avatarUrl);
+          if (await replyAvatarFile.exists()) {
+            final ext = path.extension(comment.replyTo!.avatarUrl);
+            final zipFileName =
+                'moment_reply_avatar_${post.id}_${comment.id}$ext';
+            files[zipFileName] = comment.replyTo!.avatarUrl;
+          }
+        }
+      }
+
+      // 收集点赞用户头像
+      for (int i = 0; i < post.likes.length; i++) {
+        final likeUser = post.likes[i];
+        if (likeUser.avatarUrl.isNotEmpty &&
+            !likeUser.avatarUrl.startsWith('http')) {
+          final avatarFile = File(likeUser.avatarUrl);
+          if (await avatarFile.exists()) {
+            final ext = path.extension(likeUser.avatarUrl);
+            final zipFileName = 'moment_like_avatar_${post.id}_$i$ext';
+            files[zipFileName] = likeUser.avatarUrl;
+          }
         }
       }
     }
@@ -746,13 +966,20 @@ class SystemStateProvider extends ChangeNotifier {
       // 数据库文件已经就位，现在需要重新连接数据库以使用新文件
 
       // 重新连接数据库，这会关闭旧连接并打开新文件，同时触发必要的迁移
+      // 注意：reconnect 后 _db 仍指向旧实例，必须使用返回的新实例
+      AppDatabase? newDb;
       try {
-        await AppDatabase.reconnect();
+        newDb = await AppDatabase.reconnect();
         debugPrint('数据库重连成功，导入的数据已生效');
       } catch (e) {
         debugPrint('数据库重连失败: $e');
         // 即使重连失败，我们仍然继续处理其他设置
         // 用户可能需要重启应用才能看到数据库变化
+      }
+
+      // 更新数据库中的头像路径（因为文件被恢复到新位置）
+      if (newDb != null) {
+        await _updateAvatarPathsAfterImport(newDb, restoredImages);
       }
 
       // 导入桌面壁纸设置
@@ -762,8 +989,14 @@ class SystemStateProvider extends ChangeNotifier {
 
         final customPathInZip = wallpaper['customPath'] as String?;
         if (customPathInZip != null) {
+          // 尝试多种 key 格式来查找恢复的文件
           if (restoredImages.containsKey(customPathInZip)) {
             _customWallpaperPath = restoredImages[customPathInZip];
+          } else if (restoredImages.containsKey('images/$customPathInZip')) {
+            _customWallpaperPath = restoredImages['images/$customPathInZip'];
+          } else {
+            debugPrint('警告：无法找到壁纸文件 $customPathInZip');
+            _customWallpaperPath = null;
           }
         } else {
           _customWallpaperPath = null;
@@ -777,9 +1010,16 @@ class SystemStateProvider extends ChangeNotifier {
         _lockScreenWallpaperIndex = wallpaper['index'] ?? 0;
 
         final customPathInZip = wallpaper['customPath'] as String?;
-        if (customPathInZip != null &&
-            restoredImages.containsKey(customPathInZip)) {
-          _customLockScreenWallpaperPath = restoredImages[customPathInZip];
+        if (customPathInZip != null) {
+          if (restoredImages.containsKey(customPathInZip)) {
+            _customLockScreenWallpaperPath = restoredImages[customPathInZip];
+          } else if (restoredImages.containsKey('images/$customPathInZip')) {
+            _customLockScreenWallpaperPath =
+                restoredImages['images/$customPathInZip'];
+          } else {
+            debugPrint('警告：无法找到锁屏壁纸文件 $customPathInZip');
+            _customLockScreenWallpaperPath = null;
+          }
         } else {
           _customLockScreenWallpaperPath = null;
         }
@@ -796,6 +1036,10 @@ class SystemStateProvider extends ChangeNotifier {
 
           if (restoredImages.containsKey(pathInZip)) {
             _customAppIcons[appId] = restoredImages[pathInZip]!;
+          } else if (restoredImages.containsKey('images/$pathInZip')) {
+            _customAppIcons[appId] = restoredImages['images/$pathInZip']!;
+          } else {
+            debugPrint('警告：无法找到图标文件 $pathInZip (appId: $appId)');
           }
         }
       }
@@ -821,12 +1065,395 @@ class SystemStateProvider extends ChangeNotifier {
         _isFocusMode = system['isFocusMode'] ?? false;
       }
 
-      await _saveSettings();
+      // 重要：使用新的数据库实例保存设置
+      // _db 在 reconnect 后已经失效，必须使用新实例
+      if (newDb != null) {
+        await _saveSettingsToDb(newDb);
+      }
+
       notifyListeners();
       return true;
     } catch (e) {
       debugPrint('Import settings from zip failed: $e');
       return false;
+    }
+  }
+
+  /// 使用指定的数据库实例保存设置（用于导入后保存到新数据库）
+  Future<void> _saveSettingsToDb(AppDatabase db) async {
+    try {
+      // 保存桌面壁纸
+      await db.setSettingInt('wallpaper_index', _currentWallpaperIndex);
+      if (_customWallpaperPath != null) {
+        await db.setSetting('custom_wallpaper_path', _customWallpaperPath!);
+      } else {
+        await db.deleteSetting('custom_wallpaper_path');
+      }
+
+      // 保存锁屏壁纸
+      await db.setSettingInt(
+        'lockscreen_wallpaper_index',
+        _lockScreenWallpaperIndex,
+      );
+      if (_customLockScreenWallpaperPath != null) {
+        await db.setSetting(
+          'custom_lockscreen_wallpaper_path',
+          _customLockScreenWallpaperPath!,
+        );
+      } else {
+        await db.deleteSetting('custom_lockscreen_wallpaper_path');
+      }
+
+      // 保存自定义图标
+      await db.setSetting('custom_app_icons', jsonEncode(_customAppIcons));
+
+      // 保存网格布局
+      if (_gridPages.isNotEmpty) {
+        await db.setSetting('grid_pages', jsonEncode(_gridPages));
+      }
+
+      // 保存系统设置
+      await db.setSettingDouble('brightness', _brightness);
+      await db.setSettingDouble('volume', _volume);
+      await db.setSettingBool('airplane_mode', _isAirplaneMode);
+      await db.setSettingBool('wifi_enabled', _isWifiEnabled);
+      await db.setSettingBool('bluetooth_enabled', _isBluetoothEnabled);
+      await db.setSettingBool('cellular_enabled', _isCellularEnabled);
+      await db.setSettingBool('rotation_locked', _isRotationLocked);
+      await db.setSettingBool('focus_mode', _isFocusMode);
+
+      debugPrint('设置已成功保存到新数据库');
+    } catch (e) {
+      debugPrint('保存设置到新数据库失败: $e');
+    }
+  }
+
+  /// 确保所有旧数据都已迁移到数据库（导出前调用）
+  Future<void> _ensureDataMigratedToDatabase(AppDatabase db) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 1. 迁移角色人设数据
+    final rolesJson = prefs.getString('contact_roles');
+    if (rolesJson != null) {
+      try {
+        final List<dynamic> decoded = jsonDecode(rolesJson);
+        final roles =
+            decoded.map((item) => ContactRole.fromJson(item)).toList();
+
+        for (final role in roles) {
+          await db.insertContactRole(role);
+        }
+
+        // 迁移成功后清除旧数据
+        await prefs.remove('contact_roles');
+        debugPrint('[导出] 已迁移 ${roles.length} 个角色人设到数据库');
+      } catch (e) {
+        debugPrint('[导出] 迁移角色人设失败: $e');
+      }
+    }
+
+    // 2. 迁移用户人设数据
+    final meListJson = prefs.getString('contact_me_list');
+    if (meListJson != null) {
+      try {
+        final List<dynamic> decoded = jsonDecode(meListJson);
+        final meList = decoded.map((item) => ContactMe.fromJson(item)).toList();
+
+        for (final me in meList) {
+          await db.insertContactMe(me);
+        }
+
+        // 迁移成功后清除旧数据
+        await prefs.remove('contact_me_list');
+        debugPrint('[导出] 已迁移 ${meList.length} 个用户人设到数据库');
+      } catch (e) {
+        debugPrint('[导出] 迁移用户人设失败: $e');
+      }
+    }
+
+    // 3. 迁移 API 预设数据
+    final presetsJson = prefs.getStringList('api_presets');
+    if (presetsJson != null && presetsJson.isNotEmpty) {
+      try {
+        final presets = presetsJson
+            .map((json) => ApiPreset.fromJson(jsonDecode(json)))
+            .toList();
+
+        for (final preset in presets) {
+          await db.insertApiPreset(preset);
+        }
+
+        // 迁移成功后清除旧数据
+        await prefs.remove('api_presets');
+        debugPrint('[导出] 已迁移 ${presets.length} 个 API 预设到数据库');
+      } catch (e) {
+        debugPrint('[导出] 迁移 API 预设失败: $e');
+      }
+    }
+
+    // 4. 迁移朋友圈用户设置
+    final momentsUserJson = prefs.getString('moments_current_user');
+    if (momentsUserJson != null) {
+      try {
+        final userData = jsonDecode(momentsUserJson) as Map<String, dynamic>;
+        await db.saveMomentsUserSettings(
+          name: userData['name'] ?? '我',
+          avatarUrl: userData['avatarUrl'],
+          coverImageUrl: userData['coverImageUrl'],
+          signature: userData['signature'],
+        );
+
+        // 迁移成功后清除旧数据
+        await prefs.remove('moments_current_user');
+        debugPrint('[导出] 已迁移朋友圈用户设置到数据库');
+      } catch (e) {
+        debugPrint('[导出] 迁移朋友圈用户设置失败: $e');
+      }
+    }
+  }
+
+  /// 导入后更新数据库中的图片路径（头像、背景图、朋友圈图片等）
+  Future<void> _updateAvatarPathsAfterImport(
+    AppDatabase db,
+    Map<String, String> restoredImages,
+  ) async {
+    try {
+      // 1. 更新角色头像路径
+      final roles = await db.getAllContactRoles();
+      for (final role in roles) {
+        String? newAvatarPath;
+        for (final entry in restoredImages.entries) {
+          if (entry.key.contains('role_avatar_${role.id}') ||
+              entry.value.contains('role_avatar_${role.id}')) {
+            newAvatarPath = entry.value;
+            break;
+          }
+        }
+
+        if (newAvatarPath != null && newAvatarPath != role.avatarPath) {
+          final updatedRole = ContactRole(
+            id: role.id,
+            name: role.name,
+            avatarPath: newAvatarPath,
+            description: role.description,
+          );
+          await db.insertContactRole(updatedRole);
+          debugPrint('已更新角色 ${role.name} 的头像路径');
+        }
+      }
+
+      // 2. 更新用户头像路径
+      final meList = await db.getAllContactMes();
+      for (final me in meList) {
+        String? newAvatarPath;
+        for (final entry in restoredImages.entries) {
+          if (entry.key.contains('me_avatar_${me.id}') ||
+              entry.value.contains('me_avatar_${me.id}')) {
+            newAvatarPath = entry.value;
+            break;
+          }
+        }
+
+        if (newAvatarPath != null && newAvatarPath != me.avatarPath) {
+          final updatedMe = ContactMe(
+            id: me.id,
+            name: me.name,
+            avatarPath: newAvatarPath,
+            info: me.info,
+          );
+          await db.insertContactMe(updatedMe);
+          debugPrint('已更新用户 ${me.name} 的头像路径');
+        }
+      }
+
+      // 3. 更新朋友圈头像和封面路径
+      final momentsSettings = await db.getMomentsUserSettings();
+      if (momentsSettings != null) {
+        String? newAvatarUrl;
+        String? newCoverUrl;
+
+        for (final entry in restoredImages.entries) {
+          if (entry.key.contains('moments_avatar') ||
+              entry.value.contains('moments_avatar')) {
+            newAvatarUrl = entry.value;
+            break;
+          }
+        }
+
+        for (final entry in restoredImages.entries) {
+          if (entry.key.contains('moments_cover') ||
+              entry.value.contains('moments_cover')) {
+            newCoverUrl = entry.value;
+            break;
+          }
+        }
+
+        if (newAvatarUrl != null || newCoverUrl != null) {
+          await db.saveMomentsUserSettings(
+            name: momentsSettings.name,
+            avatarUrl: newAvatarUrl ?? momentsSettings.avatarUrl,
+            coverImageUrl: newCoverUrl ?? momentsSettings.coverImageUrl,
+            signature: momentsSettings.signature,
+          );
+          debugPrint('已更新朋友圈用户的头像/封面路径');
+        }
+      }
+
+      // 4. 更新聊天背景图路径
+      final sessions = await db.getAllSessions();
+      for (final session in sessions) {
+        if (session.backgroundImage != null &&
+            session.backgroundImage!.isNotEmpty) {
+          String? newBgPath;
+          for (final entry in restoredImages.entries) {
+            if (entry.key.contains('chat_bg_${session.id}') ||
+                entry.value.contains('chat_bg_${session.id}')) {
+              newBgPath = entry.value;
+              break;
+            }
+          }
+
+          if (newBgPath != null && newBgPath != session.backgroundImage) {
+            await db.updateSessionBackgroundImage(session.id, newBgPath);
+            debugPrint('已更新会话 ${session.id} 的背景图路径');
+          }
+        }
+      }
+
+      // 5. 更新朋友圈动态中的图片路径
+      final moments = await db.getAllMoments();
+      for (final post in moments) {
+        bool needsUpdate = false;
+
+        // 5.1 更新媒体项路径
+        final updatedMediaItems = <MediaItem>[];
+        for (int i = 0; i < post.mediaItems.length; i++) {
+          final item = post.mediaItems[i];
+          String newUrl = item.url;
+          String? newThumbUrl = item.thumbnailUrl;
+
+          // 查找媒体文件
+          for (final entry in restoredImages.entries) {
+            if (entry.key.contains('moment_media_${post.id}_$i') ||
+                entry.value.contains('moment_media_${post.id}_$i')) {
+              newUrl = entry.value;
+              needsUpdate = true;
+              break;
+            }
+          }
+
+          // 查找缩略图
+          if (item.thumbnailUrl != null) {
+            for (final entry in restoredImages.entries) {
+              if (entry.key.contains('moment_thumb_${post.id}_$i') ||
+                  entry.value.contains('moment_thumb_${post.id}_$i')) {
+                newThumbUrl = entry.value;
+                needsUpdate = true;
+                break;
+              }
+            }
+          }
+
+          updatedMediaItems.add(MediaItem(
+            url: newUrl,
+            type: item.type,
+            thumbnailUrl: newThumbUrl,
+          ));
+        }
+
+        // 5.2 更新发布者头像
+        String newUserAvatarUrl = post.user.avatarUrl;
+        for (final entry in restoredImages.entries) {
+          if (entry.key.contains('moment_user_avatar_${post.id}') ||
+              entry.value.contains('moment_user_avatar_${post.id}')) {
+            newUserAvatarUrl = entry.value;
+            needsUpdate = true;
+            break;
+          }
+        }
+        final updatedUser = post.user.copyWith(avatarUrl: newUserAvatarUrl);
+
+        // 5.3 更新评论者头像
+        final updatedComments = <MomentsComment>[];
+        for (int i = 0; i < post.comments.length; i++) {
+          final comment = post.comments[i];
+
+          // 评论者头像
+          String newCommentAvatarUrl = comment.user.avatarUrl;
+          for (final entry in restoredImages.entries) {
+            if (entry.key.contains(
+                    'moment_comment_avatar_${post.id}_${comment.id}') ||
+                entry.value.contains(
+                    'moment_comment_avatar_${post.id}_${comment.id}')) {
+              newCommentAvatarUrl = entry.value;
+              needsUpdate = true;
+              break;
+            }
+          }
+
+          // 被回复者头像
+          MomentsUser? updatedReplyTo = comment.replyTo;
+          if (comment.replyTo != null) {
+            String newReplyAvatarUrl = comment.replyTo!.avatarUrl;
+            for (final entry in restoredImages.entries) {
+              if (entry.key.contains(
+                      'moment_reply_avatar_${post.id}_${comment.id}') ||
+                  entry.value.contains(
+                      'moment_reply_avatar_${post.id}_${comment.id}')) {
+                newReplyAvatarUrl = entry.value;
+                needsUpdate = true;
+                break;
+              }
+            }
+            updatedReplyTo =
+                comment.replyTo!.copyWith(avatarUrl: newReplyAvatarUrl);
+          }
+
+          updatedComments.add(MomentsComment(
+            id: comment.id,
+            user: comment.user.copyWith(avatarUrl: newCommentAvatarUrl),
+            content: comment.content,
+            createdAt: comment.createdAt,
+            replyTo: updatedReplyTo,
+          ));
+        }
+
+        // 5.4 更新点赞用户头像
+        final updatedLikes = <MomentsUser>[];
+        for (int i = 0; i < post.likes.length; i++) {
+          final likeUser = post.likes[i];
+          String newLikeAvatarUrl = likeUser.avatarUrl;
+          for (final entry in restoredImages.entries) {
+            if (entry.key.contains('moment_like_avatar_${post.id}_$i') ||
+                entry.value.contains('moment_like_avatar_${post.id}_$i')) {
+              newLikeAvatarUrl = entry.value;
+              needsUpdate = true;
+              break;
+            }
+          }
+          updatedLikes.add(likeUser.copyWith(avatarUrl: newLikeAvatarUrl));
+        }
+
+        // 如果有更新，保存到数据库
+        if (needsUpdate) {
+          final updatedPost = MomentsPost(
+            id: post.id,
+            user: updatedUser,
+            content: post.content,
+            mediaItems: updatedMediaItems,
+            createdAt: post.createdAt,
+            likes: updatedLikes,
+            comments: updatedComments,
+            location: post.location,
+          );
+          await db.insertMoment(updatedPost);
+          debugPrint('已更新朋友圈动态 ${post.id} 的图片路径');
+        }
+      }
+
+      debugPrint('所有图片路径更新完成');
+    } catch (e) {
+      debugPrint('更新图片路径失败: $e');
     }
   }
 
@@ -862,23 +1489,45 @@ class SystemStateProvider extends ChangeNotifier {
   }
 
   /// 加载壁纸相关设置
+  /// 注意：所有设置现在存储在数据库中，SharedPreferences 已被弃用
   Future<void> _loadWallpaperSettings() async {
     try {
+      // [已弃用] SharedPreferences 仅用于兼容迁移
       final prefs = await SharedPreferences.getInstance();
 
-      // 加载壁纸池路径列表
-      final poolJson = prefs.getString('wallpaper_pool');
+      // 检查是否需要迁移壁纸池设置
+      final needsMigration = !(await _db.hasSetting('wallpaper_pool'));
+
+      if (needsMigration) {
+        // 从 SharedPreferences 迁移壁纸池设置
+        final poolJson = prefs.getString('wallpaper_pool');
+        if (poolJson != null) {
+          await _db.setSetting('wallpaper_pool', poolJson);
+        }
+
+        final poolIndex = prefs.getInt('current_wallpaper_pool_index');
+        if (poolIndex != null) {
+          await _db.setSettingInt('current_wallpaper_pool_index', poolIndex);
+        }
+
+        final lastUpdate = prefs.getString('last_wallpaper_update_date');
+        if (lastUpdate != null) {
+          await _db.setSetting('last_wallpaper_update_date', lastUpdate);
+        }
+      }
+
+      // 从数据库加载壁纸池设置
+      final poolJson = await _db.getSetting('wallpaper_pool');
       if (poolJson != null) {
         final decoded = jsonDecode(poolJson) as List;
         _wallpaperPool = decoded.map((e) => e as String).toList();
       }
 
-      // 加载当前壁纸索引
       _currentWallpaperPoolIndex =
-          prefs.getInt('current_wallpaper_pool_index') ?? 0;
+          await _db.getSettingInt('current_wallpaper_pool_index') ?? 0;
 
-      // 加载上次更新日期
-      _lastWallpaperUpdateDate = prefs.getString('last_wallpaper_update_date');
+      _lastWallpaperUpdateDate =
+          await _db.getSetting('last_wallpaper_update_date');
 
       debugPrint(
           '壁纸设置加载完成: 池大小=${_wallpaperPool.length}, 当前索引=$_currentWallpaperPoolIndex, 上次更新=$_lastWallpaperUpdateDate');
@@ -888,20 +1537,19 @@ class SystemStateProvider extends ChangeNotifier {
   }
 
   /// 保存壁纸相关设置
+  /// 注意：所有设置现在存储在数据库中
   Future<void> _saveWallpaperSettings() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-
       // 保存壁纸池
-      await prefs.setString('wallpaper_pool', jsonEncode(_wallpaperPool));
+      await _db.setSetting('wallpaper_pool', jsonEncode(_wallpaperPool));
 
       // 保存当前索引
-      await prefs.setInt(
+      await _db.setSettingInt(
           'current_wallpaper_pool_index', _currentWallpaperPoolIndex);
 
       // 保存上次更新日期
       if (_lastWallpaperUpdateDate != null) {
-        await prefs.setString(
+        await _db.setSetting(
             'last_wallpaper_update_date', _lastWallpaperUpdateDate!);
       }
 

@@ -401,7 +401,7 @@ class XmlResponseParser {
       // ========== 生活轨迹类型 ==========
       case 'memory':
         // 支持通过 category 属性指定记忆分类
-        // 有效值: general, important, preference, relationship, promise, secret
+        // 有效值: general, important, preference, relationship, promise, secret, time, location, task, item
         final category = element.getAttribute('category');
         if (category != null && category.isNotEmpty) {
           metadata['category'] = category;

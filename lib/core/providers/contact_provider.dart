@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/contact_model.dart';
+import '../database/database.dart';
 
 class ContactProvider extends ChangeNotifier {
   List<ContactRole> _roles = [];
   List<ContactMe> _meList = [];
   bool _isLoaded = false;
+  final AppDatabase _db = AppDatabase();
 
   List<ContactRole> get roles => _roles;
   List<ContactMe> get meList => _meList;
@@ -19,37 +21,91 @@ class ContactProvider extends ChangeNotifier {
     _loadData();
   }
 
+  /// 重新从数据库加载数据（用于数据导入后刷新）
+  Future<void> reload() async {
+    _roles = await _db.getAllContactRoles();
+    _meList = await _db.getAllContactMes();
+    notifyListeners();
+  }
+
   Future<void> _loadData() async {
-    final prefs = await SharedPreferences.getInstance();
+    // 先从数据库加载
+    _roles = await _db.getAllContactRoles();
+    _meList = await _db.getAllContactMes();
 
-    // Load Roles
-    final rolesJson = prefs.getString('contact_roles');
-    if (rolesJson != null) {
-      final List<dynamic> decoded = jsonDecode(rolesJson);
-      _roles = decoded.map((item) => ContactRole.fromJson(item)).toList();
-    }
-
-    // Load Me List
-    final meListJson = prefs.getString('contact_me_list');
-    if (meListJson != null) {
-      final List<dynamic> decoded = jsonDecode(meListJson);
-      _meList = decoded.map((item) => ContactMe.fromJson(item)).toList();
+    // 如果数据库为空，尝试从 SharedPreferences 迁移
+    if (_roles.isEmpty && _meList.isEmpty) {
+      await _migrateFromSharedPreferences();
     }
 
     _isLoaded = true;
     notifyListeners();
   }
 
-  Future<void> _saveRoles() async {
+  /// 从 SharedPreferences 迁移数据到数据库（兼容旧版本）
+  Future<void> _migrateFromSharedPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    final String encoded = jsonEncode(_roles.map((e) => e.toJson()).toList());
-    await prefs.setString('contact_roles', encoded);
+    bool hasMigrated = false;
+
+    // 迁移角色数据
+    final rolesJson = prefs.getString('contact_roles');
+    if (rolesJson != null) {
+      final List<dynamic> decoded = jsonDecode(rolesJson);
+      _roles = decoded.map((item) => ContactRole.fromJson(item)).toList();
+
+      // 保存到数据库
+      for (final role in _roles) {
+        await _db.insertContactRole(role);
+      }
+
+      // 清除旧数据
+      await prefs.remove('contact_roles');
+      hasMigrated = true;
+      debugPrint(
+          '[ContactProvider] 已从 SharedPreferences 迁移 ${_roles.length} 个角色');
+    }
+
+    // 迁移用户数据
+    final meListJson = prefs.getString('contact_me_list');
+    if (meListJson != null) {
+      final List<dynamic> decoded = jsonDecode(meListJson);
+      _meList = decoded.map((item) => ContactMe.fromJson(item)).toList();
+
+      // 保存到数据库
+      for (final me in _meList) {
+        await _db.insertContactMe(me);
+      }
+
+      // 清除旧数据
+      await prefs.remove('contact_me_list');
+      hasMigrated = true;
+      debugPrint(
+          '[ContactProvider] 已从 SharedPreferences 迁移 ${_meList.length} 个用户人设');
+    }
+
+    if (hasMigrated) {
+      debugPrint('[ContactProvider] 数据迁移完成');
+    }
   }
 
-  Future<void> _saveMeList() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String encoded = jsonEncode(_meList.map((e) => e.toJson()).toList());
-    await prefs.setString('contact_me_list', encoded);
+  Future<void> _saveRole(ContactRole role) async {
+    try {
+      await _db.insertContactRole(role);
+      debugPrint('[ContactProvider] 角色保存成功: ${role.name}');
+    } catch (e) {
+      debugPrint('[ContactProvider] 保存角色失败: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _saveMe(ContactMe me) async {
+    try {
+      await _db.insertContactMe(me);
+      debugPrint('[ContactProvider] 用户人设保存成功: ${me.name}');
+    } catch (e) {
+      debugPrint('[ContactProvider] 保存用户人设失败: $e');
+      rethrow;
+    }
   }
 
   Future<void> addRole(
@@ -57,27 +113,39 @@ class ContactProvider extends ChangeNotifier {
     String? avatarPath,
     String description,
   ) async {
-    final newRole = ContactRole(
-      id: _generateId(),
-      name: name,
-      avatarPath: avatarPath,
-      description: description,
-    );
-    _roles.add(newRole);
-    await _saveRoles();
-    notifyListeners();
+    try {
+      final newRole = ContactRole(
+        id: _generateId(),
+        name: name,
+        avatarPath: avatarPath,
+        description: description,
+      );
+      _roles.add(newRole);
+      await _saveRole(newRole);
+      notifyListeners();
+      debugPrint('[ContactProvider] 添加角色成功，当前角色数: ${_roles.length}');
+    } catch (e) {
+      debugPrint('[ContactProvider] 添加角色失败: $e');
+      rethrow;
+    }
   }
 
   Future<void> addMe(String name, String? avatarPath, String info) async {
-    final newMe = ContactMe(
-      id: _generateId(),
-      name: name,
-      avatarPath: avatarPath,
-      info: info,
-    );
-    _meList.add(newMe);
-    await _saveMeList();
-    notifyListeners();
+    try {
+      final newMe = ContactMe(
+        id: _generateId(),
+        name: name,
+        avatarPath: avatarPath,
+        info: info,
+      );
+      _meList.add(newMe);
+      await _saveMe(newMe);
+      notifyListeners();
+      debugPrint('[ContactProvider] 添加用户人设成功，当前用户人设数: ${_meList.length}');
+    } catch (e) {
+      debugPrint('[ContactProvider] 添加用户人设失败: $e');
+      rethrow;
+    }
   }
 
   Future<void> updateRole(
@@ -86,23 +154,38 @@ class ContactProvider extends ChangeNotifier {
     String? avatarPath,
     String description,
   ) async {
-    final index = _roles.indexWhere((role) => role.id == id);
-    if (index != -1) {
-      _roles[index] = ContactRole(
-        id: id,
-        name: name,
-        avatarPath: avatarPath,
-        description: description,
-      );
-      await _saveRoles();
-      notifyListeners();
+    try {
+      final index = _roles.indexWhere((role) => role.id == id);
+      if (index != -1) {
+        final updatedRole = ContactRole(
+          id: id,
+          name: name,
+          avatarPath: avatarPath,
+          description: description,
+        );
+        _roles[index] = updatedRole;
+        await _saveRole(updatedRole);
+        notifyListeners();
+        debugPrint('[ContactProvider] 更新角色成功: $name');
+      } else {
+        debugPrint('[ContactProvider] 未找到角色ID: $id');
+      }
+    } catch (e) {
+      debugPrint('[ContactProvider] 更新角色失败: $e');
+      rethrow;
     }
   }
 
   Future<void> deleteRole(String id) async {
-    _roles.removeWhere((role) => role.id == id);
-    await _saveRoles();
-    notifyListeners();
+    try {
+      _roles.removeWhere((role) => role.id == id);
+      await _db.deleteContactRole(id);
+      notifyListeners();
+      debugPrint('[ContactProvider] 删除角色成功: $id');
+    } catch (e) {
+      debugPrint('[ContactProvider] 删除角色失败: $e');
+      rethrow;
+    }
   }
 
   Future<void> updateMe(
@@ -111,23 +194,38 @@ class ContactProvider extends ChangeNotifier {
     String? avatarPath,
     String info,
   ) async {
-    final index = _meList.indexWhere((me) => me.id == id);
-    if (index != -1) {
-      _meList[index] = ContactMe(
-        id: id,
-        name: name,
-        avatarPath: avatarPath,
-        info: info,
-      );
-      await _saveMeList();
-      notifyListeners();
+    try {
+      final index = _meList.indexWhere((me) => me.id == id);
+      if (index != -1) {
+        final updatedMe = ContactMe(
+          id: id,
+          name: name,
+          avatarPath: avatarPath,
+          info: info,
+        );
+        _meList[index] = updatedMe;
+        await _saveMe(updatedMe);
+        notifyListeners();
+        debugPrint('[ContactProvider] 更新用户人设成功: $name');
+      } else {
+        debugPrint('[ContactProvider] 未找到用户人设ID: $id');
+      }
+    } catch (e) {
+      debugPrint('[ContactProvider] 更新用户人设失败: $e');
+      rethrow;
     }
   }
 
   Future<void> deleteMe(String id) async {
-    _meList.removeWhere((me) => me.id == id);
-    await _saveMeList();
-    notifyListeners();
+    try {
+      _meList.removeWhere((me) => me.id == id);
+      await _db.deleteContactMe(id);
+      notifyListeners();
+      debugPrint('[ContactProvider] 删除用户人设成功: $id');
+    } catch (e) {
+      debugPrint('[ContactProvider] 删除用户人设失败: $e');
+      rethrow;
+    }
   }
 
   String _generateId() {
@@ -263,8 +361,13 @@ class ContactProvider extends ChangeNotifier {
         }
       }
 
-      await _saveRoles();
-      await _saveMeList();
+      // 保存到数据库
+      for (final role in _roles) {
+        await _db.insertContactRole(role);
+      }
+      for (final me in _meList) {
+        await _db.insertContactMe(me);
+      }
       notifyListeners();
       return true;
     } catch (e) {

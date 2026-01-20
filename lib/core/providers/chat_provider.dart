@@ -317,6 +317,13 @@ class ChatProvider extends ChangeNotifier {
     await _refreshChats();
   }
 
+  /// 更新消息元数据
+  Future<void> updateMessageMetadata(
+      String messageId, Map<String, dynamic> newMetadata) async {
+    await _database.updateMessageMetadata(messageId, newMetadata);
+    await _refreshChats();
+  }
+
   /// 删除单条消息
   Future<void> deleteMessage(String messageId) async {
     await _database.deleteMessage(messageId);

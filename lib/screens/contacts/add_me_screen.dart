@@ -276,14 +276,24 @@ class _AddMeScreenState extends State<AddMeScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   if (_formKey.currentState!.validate()) {
-                    context.read<ContactProvider>().addMe(
-                          _nameController.text,
-                          _avatarPath,
-                          _infoController.text,
+                    try {
+                      await context.read<ContactProvider>().addMe(
+                            _nameController.text,
+                            _avatarPath,
+                            _infoController.text,
+                          );
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('保存失败: $e')),
                         );
-                    Navigator.pop(context);
+                      }
+                    }
                   }
                 },
                 style: ElevatedButton.styleFrom(

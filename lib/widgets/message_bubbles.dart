@@ -15,65 +15,84 @@ class RedpacketBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final amount = message.content;
     final messageText = message.metadata?['message'] ?? '恭喜发财，大吉大利';
+    final status =
+        message.metadata?['status'] ?? 'unclaimed'; // unclaimed, opened
+    final isOpened = status == 'opened';
 
     return Container(
-      constraints: BoxConstraints(maxWidth: maxWidth * 0.6),
-      padding: const EdgeInsets.all(12),
+      constraints: BoxConstraints(maxWidth: maxWidth * 0.8),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(8),
+        color: isOpened
+            ? const Color(0xFFF7E2B8) // 领取后的浅色背景
+            : const Color(0xFFFA9D3B), // 未领取的橙色背景
+        borderRadius: BorderRadius.circular(4),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
-                  shape: BoxShape.circle,
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Center(
+                    child: isOpened
+                        ? const Icon(
+                            Icons.check_circle_outline,
+                            color: Color(0xFFFBD98D),
+                            size: 24,
+                          )
+                        : const Text(
+                            '🧧',
+                            style: TextStyle(fontSize: 28),
+                          ),
+                  ),
                 ),
-                child: const Icon(
-                  Icons.card_giftcard,
-                  color: Colors.white,
-                  size: 24,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        messageText,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (isOpened)
+                        const Text(
+                          '已领取',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      messageText,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      '微信红包',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              '¥$amount',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius:
+                  const BorderRadius.vertical(bottom: Radius.circular(4)),
+            ),
+            child: const Text(
+              '红包',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 11,
               ),
             ),
           ),
@@ -97,55 +116,87 @@ class TransferBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final amount = message.content;
-    final messageText = message.metadata?['message'] ?? '转账';
+    final messageText = message.metadata?['message'] ?? '转账给朋友';
+    final status =
+        message.metadata?['status'] ?? 'pending'; // pending, accepted
+    final isAccepted = status == 'accepted';
 
     return Container(
-      constraints: BoxConstraints(maxWidth: maxWidth * 0.6),
-      padding: const EdgeInsets.all(12),
+      constraints: BoxConstraints(maxWidth: maxWidth * 0.8),
       decoration: BoxDecoration(
-        color: context.surfaceColor,
+        color: const Color(0xFFFA9D3B), // 橙色背景
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: context.dividerColor),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(context.isDarkMode ? 0.2 : 0.1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: const Icon(
-              Icons.account_balance_wallet,
-              color: Colors.orange,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
               children: [
-                Text(
-                  messageText,
-                  style:
-                      TextStyle(fontSize: 14, color: context.primaryTextColor),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white, // 白色圆圈背景
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFFFA9D3B),
+                      width: 2,
+                    ),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      isAccepted ? Icons.check : Icons.compare_arrows,
+                      color: const Color(0xFFFA9D3B),
+                      size: 24,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '¥$amount',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: context.primaryTextColor,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '¥$amount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        isAccepted ? '已收款' : messageText,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          Icon(Icons.arrow_forward_ios,
-              size: 16, color: context.secondaryTextColor),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius:
+                  const BorderRadius.vertical(bottom: Radius.circular(4)),
+            ),
+            child: const Text(
+              '转账',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 11,
+              ),
+            ),
+          ),
         ],
       ),
     );

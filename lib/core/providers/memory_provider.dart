@@ -203,6 +203,14 @@ class MemoryProvider extends ChangeNotifier {
         return MemoryCategory.promise;
       case 'secret':
         return MemoryCategory.secret;
+      case 'time':
+        return MemoryCategory.time;
+      case 'location':
+        return MemoryCategory.location;
+      case 'task':
+        return MemoryCategory.task;
+      case 'item':
+        return MemoryCategory.item;
       default:
         debugPrint('[MemoryProvider] 未知的记忆分类: $categoryStr，将自动分类');
         return null;
@@ -212,6 +220,46 @@ class MemoryProvider extends ChangeNotifier {
   /// 自动分类记忆内容
   MemoryCategory _autoClassifyMemory(String content) {
     final lowerContent = content.toLowerCase();
+
+    // 重要时间
+    if (lowerContent.contains('生日') ||
+        lowerContent.contains('纪念日') ||
+        lowerContent.contains('周年') ||
+        lowerContent.contains('几月') ||
+        lowerContent.contains('几号') ||
+        lowerContent.contains('日期') ||
+        lowerContent.contains('时间是')) {
+      return MemoryCategory.time;
+    }
+
+    // 重要地点
+    if (lowerContent.contains('住在') ||
+        lowerContent.contains('地址') ||
+        lowerContent.contains('在哪') ||
+        lowerContent.contains('位于') ||
+        lowerContent.contains('公司在') ||
+        lowerContent.contains('家在')) {
+      return MemoryCategory.location;
+    }
+
+    // 待办任务
+    if (lowerContent.contains('要去') ||
+        lowerContent.contains('需要') ||
+        lowerContent.contains('待办') ||
+        lowerContent.contains('别忘了') ||
+        lowerContent.contains('记得') ||
+        lowerContent.contains('提醒')) {
+      return MemoryCategory.task;
+    }
+
+    // 重要物品
+    if (lowerContent.contains('最喜欢的') ||
+        lowerContent.contains('想要') ||
+        lowerContent.contains('想买') ||
+        lowerContent.contains('礼物') ||
+        lowerContent.contains('收藏')) {
+      return MemoryCategory.item;
+    }
 
     // 承诺约定
     if (lowerContent.contains('约定') ||
@@ -231,10 +279,7 @@ class MemoryProvider extends ChangeNotifier {
     }
 
     // 重要事件
-    if (lowerContent.contains('生日') ||
-        lowerContent.contains('纪念日') ||
-        lowerContent.contains('重要') ||
-        lowerContent.contains('第一次')) {
+    if (lowerContent.contains('重要') || lowerContent.contains('第一次')) {
       return MemoryCategory.important;
     }
 

@@ -22,7 +22,12 @@ part 'database.g.dart';
   MomentsPosts,
   WorldInfos,
   TextPresets,
-  RoleMemories
+  RoleMemories,
+  ContactRoles,
+  ContactMes,
+  ApiPresets,
+  MomentsUserSettings,
+  AppSettings,
 ])
 class AppDatabase extends _$AppDatabase {
   // Singleton instance
@@ -70,7 +75,7 @@ class AppDatabase extends _$AppDatabase {
   static bool get hasActiveConnection => _instance != null;
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 13;
 
   // Migration Strategy
   @override
@@ -117,6 +122,20 @@ class AppDatabase extends _$AppDatabase {
         if (from < 10) {
           // 添加角色记忆表
           await m.createTable(roleMemories);
+        }
+        if (from < 11) {
+          // 添加角色人设表、用户人设表、API预设表
+          await m.createTable(contactRoles);
+          await m.createTable(contactMes);
+          await m.createTable(apiPresets);
+        }
+        if (from < 12) {
+          // 添加朋友圈用户设置表
+          await m.createTable(momentsUserSettings);
+        }
+        if (from < 13) {
+          // 添加通用应用设置表（替代 SharedPreferences）
+          await m.createTable(appSettings);
         }
       },
     );
@@ -274,6 +293,14 @@ class AppDatabase extends _$AppDatabase {
   Future<void> updateMessageContent(String id, String newContent) {
     return (update(chatMessages)..where((t) => t.id.equals(id))).write(
       ChatMessagesCompanion(content: Value(newContent)),
+    );
+  }
+
+  /// 更新消息元数据
+  Future<void> updateMessageMetadata(
+      String id, Map<String, dynamic> newMetadata) {
+    return (update(chatMessages)..where((t) => t.id.equals(id))).write(
+      ChatMessagesCompanion(metadata: Value(newMetadata)),
     );
   }
 
@@ -636,6 +663,168 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  // --- ContactRole Queries ---
+
+  /// 获取所有角色人设
+  Future<List<ContactRole>> getAllContactRoles() async {
+    final entities = await select(contactRoles).get();
+    return entities
+        .map(
+          (e) => ContactRole(
+            id: e.id,
+            name: e.name,
+            avatarPath: e.avatarPath,
+            description: e.description,
+          ),
+        )
+        .toList();
+  }
+
+  /// 插入或更新角色人设
+  Future<void> insertContactRole(ContactRole role) {
+    return into(contactRoles).insert(
+      ContactRolesCompanion(
+        id: Value(role.id),
+        name: Value(role.name),
+        avatarPath: Value(role.avatarPath),
+        description: Value(role.description),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  /// 删除角色人设
+  Future<void> deleteContactRole(String id) {
+    return (delete(contactRoles)..where((t) => t.id.equals(id))).go();
+  }
+
+  /// 获取单个角色人设
+  Future<ContactRole?> getContactRole(String id) async {
+    final e = await (select(contactRoles)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (e == null) return null;
+    return ContactRole(
+      id: e.id,
+      name: e.name,
+      avatarPath: e.avatarPath,
+      description: e.description,
+    );
+  }
+
+  // --- ContactMe Queries ---
+
+  /// 获取所有用户人设
+  Future<List<ContactMe>> getAllContactMes() async {
+    final entities = await select(contactMes).get();
+    return entities
+        .map(
+          (e) => ContactMe(
+            id: e.id,
+            name: e.name,
+            avatarPath: e.avatarPath,
+            info: e.info,
+          ),
+        )
+        .toList();
+  }
+
+  /// 插入或更新用户人设
+  Future<void> insertContactMe(ContactMe me) {
+    return into(contactMes).insert(
+      ContactMesCompanion(
+        id: Value(me.id),
+        name: Value(me.name),
+        avatarPath: Value(me.avatarPath),
+        info: Value(me.info),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  /// 删除用户人设
+  Future<void> deleteContactMe(String id) {
+    return (delete(contactMes)..where((t) => t.id.equals(id))).go();
+  }
+
+  /// 获取单个用户人设
+  Future<ContactMe?> getContactMe(String id) async {
+    final e = await (select(contactMes)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (e == null) return null;
+    return ContactMe(
+      id: e.id,
+      name: e.name,
+      avatarPath: e.avatarPath,
+      info: e.info,
+    );
+  }
+
+  // --- ApiPreset Queries ---
+
+  /// 获取所有API预设（从数据库）
+  Future<List<ApiPreset>> getAllApiPresetsFromDb() async {
+    final entities = await select(apiPresets).get();
+    return entities
+        .map(
+          (e) => ApiPreset(
+            id: e.id,
+            name: e.name,
+            provider: e.provider,
+            baseUrl: e.baseUrl,
+            apiKey: e.apiKey,
+            model: e.model,
+            temperature: e.temperature,
+            topP: e.topP,
+            isStream: e.isStream,
+            enableThinking: e.enableThinking,
+          ),
+        )
+        .toList();
+  }
+
+  /// 插入或更新API预设
+  Future<void> insertApiPreset(ApiPreset preset) {
+    return into(apiPresets).insert(
+      ApiPresetsCompanion(
+        id: Value(preset.id),
+        name: Value(preset.name),
+        provider: Value(preset.provider),
+        baseUrl: Value(preset.baseUrl),
+        apiKey: Value(preset.apiKey),
+        model: Value(preset.model),
+        temperature: Value(preset.temperature),
+        topP: Value(preset.topP),
+        isStream: Value(preset.isStream),
+        enableThinking: Value(preset.enableThinking),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  /// 删除API预设
+  Future<void> deleteApiPreset(String id) {
+    return (delete(apiPresets)..where((t) => t.id.equals(id))).go();
+  }
+
+  /// 获取单个API预设（从数据库）
+  Future<ApiPreset?> getApiPresetFromDb(String id) async {
+    final e = await (select(apiPresets)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+    if (e == null) return null;
+    return ApiPreset(
+      id: e.id,
+      name: e.name,
+      provider: e.provider,
+      baseUrl: e.baseUrl,
+      apiKey: e.apiKey,
+      model: e.model,
+      temperature: e.temperature,
+      topP: e.topP,
+      isStream: e.isStream,
+      enableThinking: e.enableThinking,
+    );
+  }
+
   // --- Helper Methods for Background Service ---
 
   Future<ChatMessage?> getLastMessage(String sessionId) async {
@@ -661,61 +850,32 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// [已弃用] 请使用 getContactRole(id) 代替
+  /// 此方法保留仅用于兼容后台服务
   Future<ContactRole?> getContactById(String id) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final rolesJson = prefs.getString('contact_roles');
-      if (rolesJson != null) {
-        final List<dynamic> decoded = jsonDecode(rolesJson);
-        final roles =
-            decoded.map((item) => ContactRole.fromJson(item)).toList();
-        return roles.firstWhere((r) => r.id == id);
-      }
-    } catch (e) {
-      // ignore
-    }
-    return null;
+    // 直接从数据库读取
+    return getContactRole(id);
   }
 
+  /// [已弃用] 请使用 getContactMe(id) 代替
+  /// 此方法保留仅用于兼容后台服务
   Future<ContactMe?> getMeById(String id) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final meListJson = prefs.getString('contact_me_list');
-      if (meListJson != null) {
-        final List<dynamic> decoded = jsonDecode(meListJson);
-        final meList = decoded.map((item) => ContactMe.fromJson(item)).toList();
-        return meList.firstWhere((m) => m.id == id);
-      }
-    } catch (e) {
-      // ignore
-    }
-    return null;
+    // 直接从数据库读取
+    return getContactMe(id);
   }
 
+  /// [已弃用] 请使用 getApiPresetFromDb(id) 代替
+  /// 此方法保留仅用于兼容后台服务
   Future<ApiPreset?> getApiPreset(String id) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final presetsJson = prefs.getStringList('api_presets') ?? [];
-      final presets = presetsJson
-          .map((json) => ApiPreset.fromJson(jsonDecode(json)))
-          .toList();
-      return presets.firstWhere((p) => p.id == id);
-    } catch (e) {
-      // ignore
-    }
-    return null;
+    // 直接从数据库读取
+    return getApiPresetFromDb(id);
   }
 
+  /// [已弃用] 请使用 getAllApiPresetsFromDb() 代替
+  /// 此方法保留仅用于兼容旧代码
   Future<List<ApiPreset>> getAllApiPresets() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final presetsJson = prefs.getStringList('api_presets') ?? [];
-      return presetsJson
-          .map((json) => ApiPreset.fromJson(jsonDecode(json)))
-          .toList();
-    } catch (e) {
-      return [];
-    }
+    // 直接从数据库读取
+    return getAllApiPresetsFromDb();
   }
 
   Future<List<ChatMessage>> getMessages(String sessionId) async {
@@ -743,6 +903,190 @@ class AppDatabase extends _$AppDatabase {
           ),
         )
         .toList();
+  }
+
+  // --- MomentsUserSettings Queries ---
+
+  /// 获取朋友圈用户设置
+  Future<MomentsUserSettingsEntity?> getMomentsUserSettings() async {
+    final e = await (select(momentsUserSettings)
+          ..where((t) => t.id.equals('current_user')))
+        .getSingleOrNull();
+    return e;
+  }
+
+  /// 保存朋友圈用户设置
+  Future<void> saveMomentsUserSettings({
+    required String name,
+    String? avatarUrl,
+    String? coverImageUrl,
+    String? signature,
+  }) async {
+    await into(momentsUserSettings).insert(
+      MomentsUserSettingsCompanion(
+        id: const Value('current_user'),
+        name: Value(name),
+        avatarUrl: Value(avatarUrl),
+        coverImageUrl: Value(coverImageUrl),
+        signature: Value(signature),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  /// 更新朋友圈用户名称
+  Future<void> updateMomentsUserName(String name) async {
+    await (update(momentsUserSettings)
+          ..where((t) => t.id.equals('current_user')))
+        .write(MomentsUserSettingsCompanion(name: Value(name)));
+  }
+
+  /// 更新朋友圈用户头像
+  Future<void> updateMomentsUserAvatar(String? avatarUrl) async {
+    await (update(momentsUserSettings)
+          ..where((t) => t.id.equals('current_user')))
+        .write(MomentsUserSettingsCompanion(avatarUrl: Value(avatarUrl)));
+  }
+
+  /// 更新朋友圈用户封面
+  Future<void> updateMomentsUserCover(String? coverImageUrl) async {
+    await (update(momentsUserSettings)
+          ..where((t) => t.id.equals('current_user')))
+        .write(
+            MomentsUserSettingsCompanion(coverImageUrl: Value(coverImageUrl)));
+  }
+
+  /// 更新朋友圈用户签名
+  Future<void> updateMomentsUserSignature(String? signature) async {
+    await (update(momentsUserSettings)
+          ..where((t) => t.id.equals('current_user')))
+        .write(MomentsUserSettingsCompanion(signature: Value(signature)));
+  }
+
+  // --- AppSettings Queries (Key-Value 设置存储) ---
+  // 注意：所有应用设置应该存储在数据库中
+  // SharedPreferences 已被弃用，请勿在其中读写数据
+
+  /// 获取设置值（字符串）
+  Future<String?> getSetting(String key) async {
+    final e = await (select(appSettings)..where((t) => t.key.equals(key)))
+        .getSingleOrNull();
+    return e?.value;
+  }
+
+  /// 获取设置值（整数）
+  Future<int?> getSettingInt(String key) async {
+    final e = await (select(appSettings)..where((t) => t.key.equals(key)))
+        .getSingleOrNull();
+    if (e == null) return null;
+    return int.tryParse(e.value);
+  }
+
+  /// 获取设置值（浮点数）
+  Future<double?> getSettingDouble(String key) async {
+    final e = await (select(appSettings)..where((t) => t.key.equals(key)))
+        .getSingleOrNull();
+    if (e == null) return null;
+    return double.tryParse(e.value);
+  }
+
+  /// 获取设置值（布尔值）
+  Future<bool?> getSettingBool(String key) async {
+    final e = await (select(appSettings)..where((t) => t.key.equals(key)))
+        .getSingleOrNull();
+    if (e == null) return null;
+    return e.value == 'true';
+  }
+
+  /// 获取设置值（字符串列表）
+  Future<List<String>?> getSettingStringList(String key) async {
+    final e = await (select(appSettings)..where((t) => t.key.equals(key)))
+        .getSingleOrNull();
+    if (e == null) return null;
+    try {
+      final List<dynamic> decoded = json.decode(e.value);
+      return decoded.map((e) => e.toString()).toList();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// 设置值（字符串）
+  Future<void> setSetting(String key, String value) async {
+    await into(appSettings).insert(
+      AppSettingsCompanion(
+        key: Value(key),
+        value: Value(value),
+        type: const Value('string'),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  /// 设置值（整数）
+  Future<void> setSettingInt(String key, int value) async {
+    await into(appSettings).insert(
+      AppSettingsCompanion(
+        key: Value(key),
+        value: Value(value.toString()),
+        type: const Value('int'),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  /// 设置值（浮点数）
+  Future<void> setSettingDouble(String key, double value) async {
+    await into(appSettings).insert(
+      AppSettingsCompanion(
+        key: Value(key),
+        value: Value(value.toString()),
+        type: const Value('double'),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  /// 设置值（布尔值）
+  Future<void> setSettingBool(String key, bool value) async {
+    await into(appSettings).insert(
+      AppSettingsCompanion(
+        key: Value(key),
+        value: Value(value.toString()),
+        type: const Value('bool'),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  /// 设置值（字符串列表）
+  Future<void> setSettingStringList(String key, List<String> value) async {
+    await into(appSettings).insert(
+      AppSettingsCompanion(
+        key: Value(key),
+        value: Value(json.encode(value)),
+        type: const Value('json'),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  /// 删除设置
+  Future<void> deleteSetting(String key) async {
+    await (delete(appSettings)..where((t) => t.key.equals(key))).go();
+  }
+
+  /// 检查设置是否存在
+  Future<bool> hasSetting(String key) async {
+    final e = await (select(appSettings)..where((t) => t.key.equals(key)))
+        .getSingleOrNull();
+    return e != null;
+  }
+
+  /// 获取所有设置
+  Future<Map<String, String>> getAllSettings() async {
+    final entities = await select(appSettings).get();
+    return {for (final e in entities) e.key: e.value};
   }
 }
 

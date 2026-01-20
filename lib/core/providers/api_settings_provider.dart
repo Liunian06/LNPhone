@@ -3,12 +3,17 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../models/api_preset.dart';
+import '../database/database.dart';
 
+/// API 设置提供者
+/// 注意：所有设置现在存储在数据库中
+/// SharedPreferences 已被弃用，仅用于兼容迁移
 class ApiSettingsProvider extends ChangeNotifier {
   List<ApiPreset> _presets = [];
   String? _activePresetId;
   bool _isLoading = false;
   bool _isInitialized = false;
+  final AppDatabase _db = AppDatabase();
 
   List<ApiPreset> get presets => _presets;
   String? get activePresetId => _activePresetId;
@@ -28,21 +33,46 @@ class ApiSettingsProvider extends ChangeNotifier {
     _loadPresets();
   }
 
+  /// 重新从数据库加载数据（用于数据导入后刷新）
+  Future<void> reload() async {
+    _presets = await _db.getAllApiPresetsFromDb();
+
+    // 验证 activePresetId 是否仍然有效
+    if (_activePresetId != null) {
+      final presetExists = _presets.any((p) => p.id == _activePresetId);
+      if (!presetExists) {
+        _activePresetId = null;
+        await _saveActivePresetId();
+      }
+    }
+
+    notifyListeners();
+  }
+
   Future<void> _loadPresets() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final presetsJson = prefs.getStringList('api_presets') ?? [];
-      _presets = presetsJson
-          .map((json) => ApiPreset.fromJson(jsonDecode(json)))
-          .toList();
-      _activePresetId = prefs.getString('active_preset_id');
+      // 先从数据库加载
+      _presets = await _db.getAllApiPresetsFromDb();
+
+      // 如果数据库为空，尝试从 SharedPreferences 迁移预设
+      if (_presets.isEmpty) {
+        await _migratePresetsFromSharedPreferences();
+      }
+
+      // 加载活动预设 ID（从数据库读取）
+      _activePresetId = await _db.getSetting('active_preset_id');
+
+      // 如果数据库中没有，尝试从 SharedPreferences 迁移
+      if (_activePresetId == null) {
+        await _migrateActivePresetIdFromSharedPreferences();
+      }
 
       // 验证 activePresetId 是否仍然有效
       if (_activePresetId != null) {
         final presetExists = _presets.any((p) => p.id == _activePresetId);
         if (!presetExists) {
           _activePresetId = null;
-          await prefs.remove('active_preset_id');
+          await _db.deleteSetting('active_preset_id');
         }
       }
 
@@ -55,18 +85,51 @@ class ApiSettingsProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _savePresets() async {
+  /// 从 SharedPreferences 迁移预设数据到数据库（兼容旧版本）
+  /// [已弃用] 此方法仅用于兼容旧版本数据
+  Future<void> _migratePresetsFromSharedPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    final presetsJson = _presets
-        .map((preset) => jsonEncode(preset.toJson()))
-        .toList();
-    await prefs.setStringList('api_presets', presetsJson);
-    if (_activePresetId != null) {
-      await prefs.setString('active_preset_id', _activePresetId!);
-    } else {
-      await prefs.remove('active_preset_id');
+    final presetsJson = prefs.getStringList('api_presets') ?? [];
+
+    if (presetsJson.isNotEmpty) {
+      _presets = presetsJson
+          .map((json) => ApiPreset.fromJson(jsonDecode(json)))
+          .toList();
+
+      // 保存到数据库
+      for (final preset in _presets) {
+        await _db.insertApiPreset(preset);
+      }
+
+      // 清除旧数据
+      await prefs.remove('api_presets');
+      debugPrint(
+          '[ApiSettingsProvider] 已从 SharedPreferences 迁移 ${_presets.length} 个 API 预设');
     }
-    notifyListeners();
+  }
+
+  /// 从 SharedPreferences 迁移活动预设ID到数据库
+  /// [已弃用] 此方法仅用于兼容旧版本数据
+  Future<void> _migrateActivePresetIdFromSharedPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    final activeId = prefs.getString('active_preset_id');
+
+    if (activeId != null) {
+      _activePresetId = activeId;
+      await _db.setSetting('active_preset_id', activeId);
+      await prefs.remove('active_preset_id');
+      debugPrint(
+          '[ApiSettingsProvider] 已从 SharedPreferences 迁移 active_preset_id');
+    }
+  }
+
+  /// 保存活动预设ID到数据库
+  Future<void> _saveActivePresetId() async {
+    if (_activePresetId != null) {
+      await _db.setSetting('active_preset_id', _activePresetId!);
+    } else {
+      await _db.deleteSetting('active_preset_id');
+    }
   }
 
   Future<void> addPreset(ApiPreset preset) async {
@@ -74,28 +137,33 @@ class ApiSettingsProvider extends ChangeNotifier {
       throw Exception('最多只能存储50个预设');
     }
     _presets.add(preset);
-    await _savePresets();
+    await _db.insertApiPreset(preset);
+    notifyListeners();
   }
 
   Future<void> updatePreset(ApiPreset preset) async {
     final index = _presets.indexWhere((p) => p.id == preset.id);
     if (index != -1) {
       _presets[index] = preset;
-      await _savePresets();
+      await _db.insertApiPreset(preset);
+      notifyListeners();
     }
   }
 
   Future<void> deletePreset(String id) async {
     _presets.removeWhere((p) => p.id == id);
+    await _db.deleteApiPreset(id);
     if (_activePresetId == id) {
       _activePresetId = null;
+      await _saveActivePresetId();
     }
-    await _savePresets();
+    notifyListeners();
   }
 
   Future<void> setActivePreset(String? id) async {
     _activePresetId = id;
-    await _savePresets();
+    await _saveActivePresetId();
+    notifyListeners();
   }
 
   Future<List<String>> fetchModels(ApiPreset preset) async {

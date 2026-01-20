@@ -33,6 +33,12 @@ class MomentsProvider extends ChangeNotifier {
     _loadCurrentUser();
   }
 
+  /// 重新从数据库加载数据（用于数据导入后刷新）
+  Future<void> reload() async {
+    await _loadPosts();
+    await _loadCurrentUser();
+  }
+
   /// 从数据库加载动态
   Future<void> _loadPosts() async {
     _posts = await _database.getAllMoments();
@@ -42,27 +48,67 @@ class MomentsProvider extends ChangeNotifier {
   /// 加载当前用户信息
   Future<void> _loadCurrentUser() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final userJson = prefs.getString('moments_current_user');
-      if (userJson != null) {
-        _currentUser = MomentsUser.fromJson(jsonDecode(userJson));
+      // 先从数据库加载
+      final settings = await _database.getMomentsUserSettings();
+      if (settings != null) {
+        _currentUser = MomentsUser(
+          id: 'current_user',
+          name: settings.name,
+          avatarUrl:
+              settings.avatarUrl ?? 'https://picsum.photos/200/200?random=1',
+          coverImageUrl: settings.coverImageUrl,
+          signature: settings.signature,
+        );
         notifyListeners();
+        return;
       }
+
+      // 如果数据库为空，尝试从 SharedPreferences 迁移
+      await _migrateFromSharedPreferences();
     } catch (e) {
       debugPrint('加载朋友圈用户信息失败: $e');
     }
   }
 
-  /// 保存当前用户信息
-  Future<void> _saveCurrentUser() async {
+  /// 从 SharedPreferences 迁移数据到数据库（兼容旧版本）
+  Future<void> _migrateFromSharedPreferences() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        'moments_current_user',
-        jsonEncode(_currentUser.toJson()),
-      );
+      final userJson = prefs.getString('moments_current_user');
+      if (userJson != null) {
+        final user = MomentsUser.fromJson(jsonDecode(userJson));
+        _currentUser = user;
+
+        // 保存到数据库
+        await _database.saveMomentsUserSettings(
+          name: user.name,
+          avatarUrl: user.avatarUrl,
+          coverImageUrl: user.coverImageUrl,
+          signature: user.signature,
+        );
+
+        // 清除旧数据
+        await prefs.remove('moments_current_user');
+        debugPrint('[MomentsProvider] 已从 SharedPreferences 迁移朋友圈用户设置');
+        notifyListeners();
+      }
     } catch (e) {
-      debugPrint('保存朋友圈用户信息失败: $e');
+      debugPrint('[MomentsProvider] 迁移朋友圈用户设置失败: $e');
+    }
+  }
+
+  /// 保存当前用户信息到数据库
+  Future<void> _saveCurrentUser() async {
+    try {
+      await _database.saveMomentsUserSettings(
+        name: _currentUser.name,
+        avatarUrl: _currentUser.avatarUrl,
+        coverImageUrl: _currentUser.coverImageUrl,
+        signature: _currentUser.signature,
+      );
+      debugPrint('[MomentsProvider] 保存朋友圈用户设置成功');
+    } catch (e) {
+      debugPrint('[MomentsProvider] 保存朋友圈用户设置失败: $e');
     }
   }
 

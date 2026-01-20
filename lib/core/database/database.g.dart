@@ -2555,6 +2555,1615 @@ class RoleMemoriesCompanion extends UpdateCompanion<RoleMemoryEntity> {
   }
 }
 
+class $ContactRolesTable extends ContactRoles
+    with TableInfo<$ContactRolesTable, ContactRoleEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ContactRolesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _avatarPathMeta =
+      const VerificationMeta('avatarPath');
+  @override
+  late final GeneratedColumn<String> avatarPath = GeneratedColumn<String>(
+      'avatar_path', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _descriptionMeta =
+      const VerificationMeta('description');
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+      'description', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [id, name, avatarPath, description];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'contact_roles';
+  @override
+  VerificationContext validateIntegrity(Insertable<ContactRoleEntity> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('avatar_path')) {
+      context.handle(
+          _avatarPathMeta,
+          avatarPath.isAcceptableOrUnknown(
+              data['avatar_path']!, _avatarPathMeta));
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+          _descriptionMeta,
+          description.isAcceptableOrUnknown(
+              data['description']!, _descriptionMeta));
+    } else if (isInserting) {
+      context.missing(_descriptionMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ContactRoleEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ContactRoleEntity(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      avatarPath: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}avatar_path']),
+      description: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}description'])!,
+    );
+  }
+
+  @override
+  $ContactRolesTable createAlias(String alias) {
+    return $ContactRolesTable(attachedDatabase, alias);
+  }
+}
+
+class ContactRoleEntity extends DataClass
+    implements Insertable<ContactRoleEntity> {
+  final String id;
+  final String name;
+  final String? avatarPath;
+  final String description;
+  const ContactRoleEntity(
+      {required this.id,
+      required this.name,
+      this.avatarPath,
+      required this.description});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || avatarPath != null) {
+      map['avatar_path'] = Variable<String>(avatarPath);
+    }
+    map['description'] = Variable<String>(description);
+    return map;
+  }
+
+  ContactRolesCompanion toCompanion(bool nullToAbsent) {
+    return ContactRolesCompanion(
+      id: Value(id),
+      name: Value(name),
+      avatarPath: avatarPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avatarPath),
+      description: Value(description),
+    );
+  }
+
+  factory ContactRoleEntity.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ContactRoleEntity(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      avatarPath: serializer.fromJson<String?>(json['avatarPath']),
+      description: serializer.fromJson<String>(json['description']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'avatarPath': serializer.toJson<String?>(avatarPath),
+      'description': serializer.toJson<String>(description),
+    };
+  }
+
+  ContactRoleEntity copyWith(
+          {String? id,
+          String? name,
+          Value<String?> avatarPath = const Value.absent(),
+          String? description}) =>
+      ContactRoleEntity(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
+        description: description ?? this.description,
+      );
+  ContactRoleEntity copyWithCompanion(ContactRolesCompanion data) {
+    return ContactRoleEntity(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      avatarPath:
+          data.avatarPath.present ? data.avatarPath.value : this.avatarPath,
+      description:
+          data.description.present ? data.description.value : this.description,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ContactRoleEntity(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('avatarPath: $avatarPath, ')
+          ..write('description: $description')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, avatarPath, description);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ContactRoleEntity &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.avatarPath == this.avatarPath &&
+          other.description == this.description);
+}
+
+class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String?> avatarPath;
+  final Value<String> description;
+  final Value<int> rowid;
+  const ContactRolesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.avatarPath = const Value.absent(),
+    this.description = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ContactRolesCompanion.insert({
+    required String id,
+    required String name,
+    this.avatarPath = const Value.absent(),
+    required String description,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        name = Value(name),
+        description = Value(description);
+  static Insertable<ContactRoleEntity> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? avatarPath,
+    Expression<String>? description,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (avatarPath != null) 'avatar_path': avatarPath,
+      if (description != null) 'description': description,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ContactRolesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? name,
+      Value<String?>? avatarPath,
+      Value<String>? description,
+      Value<int>? rowid}) {
+    return ContactRolesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      avatarPath: avatarPath ?? this.avatarPath,
+      description: description ?? this.description,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (avatarPath.present) {
+      map['avatar_path'] = Variable<String>(avatarPath.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ContactRolesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('avatarPath: $avatarPath, ')
+          ..write('description: $description, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ContactMesTable extends ContactMes
+    with TableInfo<$ContactMesTable, ContactMeEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ContactMesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _avatarPathMeta =
+      const VerificationMeta('avatarPath');
+  @override
+  late final GeneratedColumn<String> avatarPath = GeneratedColumn<String>(
+      'avatar_path', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _infoMeta = const VerificationMeta('info');
+  @override
+  late final GeneratedColumn<String> info = GeneratedColumn<String>(
+      'info', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [id, name, avatarPath, info];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'contact_mes';
+  @override
+  VerificationContext validateIntegrity(Insertable<ContactMeEntity> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('avatar_path')) {
+      context.handle(
+          _avatarPathMeta,
+          avatarPath.isAcceptableOrUnknown(
+              data['avatar_path']!, _avatarPathMeta));
+    }
+    if (data.containsKey('info')) {
+      context.handle(
+          _infoMeta, info.isAcceptableOrUnknown(data['info']!, _infoMeta));
+    } else if (isInserting) {
+      context.missing(_infoMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ContactMeEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ContactMeEntity(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      avatarPath: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}avatar_path']),
+      info: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}info'])!,
+    );
+  }
+
+  @override
+  $ContactMesTable createAlias(String alias) {
+    return $ContactMesTable(attachedDatabase, alias);
+  }
+}
+
+class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
+  final String id;
+  final String name;
+  final String? avatarPath;
+  final String info;
+  const ContactMeEntity(
+      {required this.id,
+      required this.name,
+      this.avatarPath,
+      required this.info});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || avatarPath != null) {
+      map['avatar_path'] = Variable<String>(avatarPath);
+    }
+    map['info'] = Variable<String>(info);
+    return map;
+  }
+
+  ContactMesCompanion toCompanion(bool nullToAbsent) {
+    return ContactMesCompanion(
+      id: Value(id),
+      name: Value(name),
+      avatarPath: avatarPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avatarPath),
+      info: Value(info),
+    );
+  }
+
+  factory ContactMeEntity.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ContactMeEntity(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      avatarPath: serializer.fromJson<String?>(json['avatarPath']),
+      info: serializer.fromJson<String>(json['info']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'avatarPath': serializer.toJson<String?>(avatarPath),
+      'info': serializer.toJson<String>(info),
+    };
+  }
+
+  ContactMeEntity copyWith(
+          {String? id,
+          String? name,
+          Value<String?> avatarPath = const Value.absent(),
+          String? info}) =>
+      ContactMeEntity(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
+        info: info ?? this.info,
+      );
+  ContactMeEntity copyWithCompanion(ContactMesCompanion data) {
+    return ContactMeEntity(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      avatarPath:
+          data.avatarPath.present ? data.avatarPath.value : this.avatarPath,
+      info: data.info.present ? data.info.value : this.info,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ContactMeEntity(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('avatarPath: $avatarPath, ')
+          ..write('info: $info')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, avatarPath, info);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ContactMeEntity &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.avatarPath == this.avatarPath &&
+          other.info == this.info);
+}
+
+class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String?> avatarPath;
+  final Value<String> info;
+  final Value<int> rowid;
+  const ContactMesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.avatarPath = const Value.absent(),
+    this.info = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ContactMesCompanion.insert({
+    required String id,
+    required String name,
+    this.avatarPath = const Value.absent(),
+    required String info,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        name = Value(name),
+        info = Value(info);
+  static Insertable<ContactMeEntity> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? avatarPath,
+    Expression<String>? info,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (avatarPath != null) 'avatar_path': avatarPath,
+      if (info != null) 'info': info,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ContactMesCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? name,
+      Value<String?>? avatarPath,
+      Value<String>? info,
+      Value<int>? rowid}) {
+    return ContactMesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      avatarPath: avatarPath ?? this.avatarPath,
+      info: info ?? this.info,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (avatarPath.present) {
+      map['avatar_path'] = Variable<String>(avatarPath.value);
+    }
+    if (info.present) {
+      map['info'] = Variable<String>(info.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ContactMesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('avatarPath: $avatarPath, ')
+          ..write('info: $info, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ApiPresetsTable extends ApiPresets
+    with TableInfo<$ApiPresetsTable, ApiPresetEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ApiPresetsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  late final GeneratedColumnWithTypeConverter<ApiProvider, int> provider =
+      GeneratedColumn<int>('provider', aliasedName, false,
+              type: DriftSqlType.int, requiredDuringInsert: true)
+          .withConverter<ApiProvider>($ApiPresetsTable.$converterprovider);
+  static const VerificationMeta _baseUrlMeta =
+      const VerificationMeta('baseUrl');
+  @override
+  late final GeneratedColumn<String> baseUrl = GeneratedColumn<String>(
+      'base_url', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _apiKeyMeta = const VerificationMeta('apiKey');
+  @override
+  late final GeneratedColumn<String> apiKey = GeneratedColumn<String>(
+      'api_key', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _modelMeta = const VerificationMeta('model');
+  @override
+  late final GeneratedColumn<String> model = GeneratedColumn<String>(
+      'model', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _temperatureMeta =
+      const VerificationMeta('temperature');
+  @override
+  late final GeneratedColumn<double> temperature = GeneratedColumn<double>(
+      'temperature', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.7));
+  static const VerificationMeta _topPMeta = const VerificationMeta('topP');
+  @override
+  late final GeneratedColumn<double> topP = GeneratedColumn<double>(
+      'top_p', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.9));
+  static const VerificationMeta _isStreamMeta =
+      const VerificationMeta('isStream');
+  @override
+  late final GeneratedColumn<bool> isStream = GeneratedColumn<bool>(
+      'is_stream', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_stream" IN (0, 1))'),
+      defaultValue: const Constant(true));
+  static const VerificationMeta _enableThinkingMeta =
+      const VerificationMeta('enableThinking');
+  @override
+  late final GeneratedColumn<bool> enableThinking = GeneratedColumn<bool>(
+      'enable_thinking', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("enable_thinking" IN (0, 1))'),
+      defaultValue: const Constant(true));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        name,
+        provider,
+        baseUrl,
+        apiKey,
+        model,
+        temperature,
+        topP,
+        isStream,
+        enableThinking
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'api_presets';
+  @override
+  VerificationContext validateIntegrity(Insertable<ApiPresetEntity> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('base_url')) {
+      context.handle(_baseUrlMeta,
+          baseUrl.isAcceptableOrUnknown(data['base_url']!, _baseUrlMeta));
+    } else if (isInserting) {
+      context.missing(_baseUrlMeta);
+    }
+    if (data.containsKey('api_key')) {
+      context.handle(_apiKeyMeta,
+          apiKey.isAcceptableOrUnknown(data['api_key']!, _apiKeyMeta));
+    } else if (isInserting) {
+      context.missing(_apiKeyMeta);
+    }
+    if (data.containsKey('model')) {
+      context.handle(
+          _modelMeta, model.isAcceptableOrUnknown(data['model']!, _modelMeta));
+    } else if (isInserting) {
+      context.missing(_modelMeta);
+    }
+    if (data.containsKey('temperature')) {
+      context.handle(
+          _temperatureMeta,
+          temperature.isAcceptableOrUnknown(
+              data['temperature']!, _temperatureMeta));
+    }
+    if (data.containsKey('top_p')) {
+      context.handle(
+          _topPMeta, topP.isAcceptableOrUnknown(data['top_p']!, _topPMeta));
+    }
+    if (data.containsKey('is_stream')) {
+      context.handle(_isStreamMeta,
+          isStream.isAcceptableOrUnknown(data['is_stream']!, _isStreamMeta));
+    }
+    if (data.containsKey('enable_thinking')) {
+      context.handle(
+          _enableThinkingMeta,
+          enableThinking.isAcceptableOrUnknown(
+              data['enable_thinking']!, _enableThinkingMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ApiPresetEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ApiPresetEntity(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      provider: $ApiPresetsTable.$converterprovider.fromSql(attachedDatabase
+          .typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}provider'])!),
+      baseUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}base_url'])!,
+      apiKey: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}api_key'])!,
+      model: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}model'])!,
+      temperature: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}temperature'])!,
+      topP: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}top_p'])!,
+      isStream: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_stream'])!,
+      enableThinking: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}enable_thinking'])!,
+    );
+  }
+
+  @override
+  $ApiPresetsTable createAlias(String alias) {
+    return $ApiPresetsTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<ApiProvider, int> $converterprovider =
+      const ApiProviderConverter();
+}
+
+class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
+  final String id;
+  final String name;
+  final ApiProvider provider;
+  final String baseUrl;
+  final String apiKey;
+  final String model;
+  final double temperature;
+  final double topP;
+  final bool isStream;
+  final bool enableThinking;
+  const ApiPresetEntity(
+      {required this.id,
+      required this.name,
+      required this.provider,
+      required this.baseUrl,
+      required this.apiKey,
+      required this.model,
+      required this.temperature,
+      required this.topP,
+      required this.isStream,
+      required this.enableThinking});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    {
+      map['provider'] =
+          Variable<int>($ApiPresetsTable.$converterprovider.toSql(provider));
+    }
+    map['base_url'] = Variable<String>(baseUrl);
+    map['api_key'] = Variable<String>(apiKey);
+    map['model'] = Variable<String>(model);
+    map['temperature'] = Variable<double>(temperature);
+    map['top_p'] = Variable<double>(topP);
+    map['is_stream'] = Variable<bool>(isStream);
+    map['enable_thinking'] = Variable<bool>(enableThinking);
+    return map;
+  }
+
+  ApiPresetsCompanion toCompanion(bool nullToAbsent) {
+    return ApiPresetsCompanion(
+      id: Value(id),
+      name: Value(name),
+      provider: Value(provider),
+      baseUrl: Value(baseUrl),
+      apiKey: Value(apiKey),
+      model: Value(model),
+      temperature: Value(temperature),
+      topP: Value(topP),
+      isStream: Value(isStream),
+      enableThinking: Value(enableThinking),
+    );
+  }
+
+  factory ApiPresetEntity.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ApiPresetEntity(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      provider: serializer.fromJson<ApiProvider>(json['provider']),
+      baseUrl: serializer.fromJson<String>(json['baseUrl']),
+      apiKey: serializer.fromJson<String>(json['apiKey']),
+      model: serializer.fromJson<String>(json['model']),
+      temperature: serializer.fromJson<double>(json['temperature']),
+      topP: serializer.fromJson<double>(json['topP']),
+      isStream: serializer.fromJson<bool>(json['isStream']),
+      enableThinking: serializer.fromJson<bool>(json['enableThinking']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'provider': serializer.toJson<ApiProvider>(provider),
+      'baseUrl': serializer.toJson<String>(baseUrl),
+      'apiKey': serializer.toJson<String>(apiKey),
+      'model': serializer.toJson<String>(model),
+      'temperature': serializer.toJson<double>(temperature),
+      'topP': serializer.toJson<double>(topP),
+      'isStream': serializer.toJson<bool>(isStream),
+      'enableThinking': serializer.toJson<bool>(enableThinking),
+    };
+  }
+
+  ApiPresetEntity copyWith(
+          {String? id,
+          String? name,
+          ApiProvider? provider,
+          String? baseUrl,
+          String? apiKey,
+          String? model,
+          double? temperature,
+          double? topP,
+          bool? isStream,
+          bool? enableThinking}) =>
+      ApiPresetEntity(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        provider: provider ?? this.provider,
+        baseUrl: baseUrl ?? this.baseUrl,
+        apiKey: apiKey ?? this.apiKey,
+        model: model ?? this.model,
+        temperature: temperature ?? this.temperature,
+        topP: topP ?? this.topP,
+        isStream: isStream ?? this.isStream,
+        enableThinking: enableThinking ?? this.enableThinking,
+      );
+  ApiPresetEntity copyWithCompanion(ApiPresetsCompanion data) {
+    return ApiPresetEntity(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      provider: data.provider.present ? data.provider.value : this.provider,
+      baseUrl: data.baseUrl.present ? data.baseUrl.value : this.baseUrl,
+      apiKey: data.apiKey.present ? data.apiKey.value : this.apiKey,
+      model: data.model.present ? data.model.value : this.model,
+      temperature:
+          data.temperature.present ? data.temperature.value : this.temperature,
+      topP: data.topP.present ? data.topP.value : this.topP,
+      isStream: data.isStream.present ? data.isStream.value : this.isStream,
+      enableThinking: data.enableThinking.present
+          ? data.enableThinking.value
+          : this.enableThinking,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ApiPresetEntity(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('provider: $provider, ')
+          ..write('baseUrl: $baseUrl, ')
+          ..write('apiKey: $apiKey, ')
+          ..write('model: $model, ')
+          ..write('temperature: $temperature, ')
+          ..write('topP: $topP, ')
+          ..write('isStream: $isStream, ')
+          ..write('enableThinking: $enableThinking')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, provider, baseUrl, apiKey, model,
+      temperature, topP, isStream, enableThinking);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ApiPresetEntity &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.provider == this.provider &&
+          other.baseUrl == this.baseUrl &&
+          other.apiKey == this.apiKey &&
+          other.model == this.model &&
+          other.temperature == this.temperature &&
+          other.topP == this.topP &&
+          other.isStream == this.isStream &&
+          other.enableThinking == this.enableThinking);
+}
+
+class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<ApiProvider> provider;
+  final Value<String> baseUrl;
+  final Value<String> apiKey;
+  final Value<String> model;
+  final Value<double> temperature;
+  final Value<double> topP;
+  final Value<bool> isStream;
+  final Value<bool> enableThinking;
+  final Value<int> rowid;
+  const ApiPresetsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.provider = const Value.absent(),
+    this.baseUrl = const Value.absent(),
+    this.apiKey = const Value.absent(),
+    this.model = const Value.absent(),
+    this.temperature = const Value.absent(),
+    this.topP = const Value.absent(),
+    this.isStream = const Value.absent(),
+    this.enableThinking = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ApiPresetsCompanion.insert({
+    required String id,
+    required String name,
+    required ApiProvider provider,
+    required String baseUrl,
+    required String apiKey,
+    required String model,
+    this.temperature = const Value.absent(),
+    this.topP = const Value.absent(),
+    this.isStream = const Value.absent(),
+    this.enableThinking = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        name = Value(name),
+        provider = Value(provider),
+        baseUrl = Value(baseUrl),
+        apiKey = Value(apiKey),
+        model = Value(model);
+  static Insertable<ApiPresetEntity> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<int>? provider,
+    Expression<String>? baseUrl,
+    Expression<String>? apiKey,
+    Expression<String>? model,
+    Expression<double>? temperature,
+    Expression<double>? topP,
+    Expression<bool>? isStream,
+    Expression<bool>? enableThinking,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (provider != null) 'provider': provider,
+      if (baseUrl != null) 'base_url': baseUrl,
+      if (apiKey != null) 'api_key': apiKey,
+      if (model != null) 'model': model,
+      if (temperature != null) 'temperature': temperature,
+      if (topP != null) 'top_p': topP,
+      if (isStream != null) 'is_stream': isStream,
+      if (enableThinking != null) 'enable_thinking': enableThinking,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ApiPresetsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? name,
+      Value<ApiProvider>? provider,
+      Value<String>? baseUrl,
+      Value<String>? apiKey,
+      Value<String>? model,
+      Value<double>? temperature,
+      Value<double>? topP,
+      Value<bool>? isStream,
+      Value<bool>? enableThinking,
+      Value<int>? rowid}) {
+    return ApiPresetsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      provider: provider ?? this.provider,
+      baseUrl: baseUrl ?? this.baseUrl,
+      apiKey: apiKey ?? this.apiKey,
+      model: model ?? this.model,
+      temperature: temperature ?? this.temperature,
+      topP: topP ?? this.topP,
+      isStream: isStream ?? this.isStream,
+      enableThinking: enableThinking ?? this.enableThinking,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (provider.present) {
+      map['provider'] = Variable<int>(
+          $ApiPresetsTable.$converterprovider.toSql(provider.value));
+    }
+    if (baseUrl.present) {
+      map['base_url'] = Variable<String>(baseUrl.value);
+    }
+    if (apiKey.present) {
+      map['api_key'] = Variable<String>(apiKey.value);
+    }
+    if (model.present) {
+      map['model'] = Variable<String>(model.value);
+    }
+    if (temperature.present) {
+      map['temperature'] = Variable<double>(temperature.value);
+    }
+    if (topP.present) {
+      map['top_p'] = Variable<double>(topP.value);
+    }
+    if (isStream.present) {
+      map['is_stream'] = Variable<bool>(isStream.value);
+    }
+    if (enableThinking.present) {
+      map['enable_thinking'] = Variable<bool>(enableThinking.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ApiPresetsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('provider: $provider, ')
+          ..write('baseUrl: $baseUrl, ')
+          ..write('apiKey: $apiKey, ')
+          ..write('model: $model, ')
+          ..write('temperature: $temperature, ')
+          ..write('topP: $topP, ')
+          ..write('isStream: $isStream, ')
+          ..write('enableThinking: $enableThinking, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $MomentsUserSettingsTable extends MomentsUserSettings
+    with TableInfo<$MomentsUserSettingsTable, MomentsUserSettingsEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MomentsUserSettingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('我'));
+  static const VerificationMeta _avatarUrlMeta =
+      const VerificationMeta('avatarUrl');
+  @override
+  late final GeneratedColumn<String> avatarUrl = GeneratedColumn<String>(
+      'avatar_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _coverImageUrlMeta =
+      const VerificationMeta('coverImageUrl');
+  @override
+  late final GeneratedColumn<String> coverImageUrl = GeneratedColumn<String>(
+      'cover_image_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _signatureMeta =
+      const VerificationMeta('signature');
+  @override
+  late final GeneratedColumn<String> signature = GeneratedColumn<String>(
+      'signature', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, name, avatarUrl, coverImageUrl, signature];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'moments_user_settings';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<MomentsUserSettingsEntity> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    }
+    if (data.containsKey('avatar_url')) {
+      context.handle(_avatarUrlMeta,
+          avatarUrl.isAcceptableOrUnknown(data['avatar_url']!, _avatarUrlMeta));
+    }
+    if (data.containsKey('cover_image_url')) {
+      context.handle(
+          _coverImageUrlMeta,
+          coverImageUrl.isAcceptableOrUnknown(
+              data['cover_image_url']!, _coverImageUrlMeta));
+    }
+    if (data.containsKey('signature')) {
+      context.handle(_signatureMeta,
+          signature.isAcceptableOrUnknown(data['signature']!, _signatureMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MomentsUserSettingsEntity map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MomentsUserSettingsEntity(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      avatarUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}avatar_url']),
+      coverImageUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}cover_image_url']),
+      signature: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}signature']),
+    );
+  }
+
+  @override
+  $MomentsUserSettingsTable createAlias(String alias) {
+    return $MomentsUserSettingsTable(attachedDatabase, alias);
+  }
+}
+
+class MomentsUserSettingsEntity extends DataClass
+    implements Insertable<MomentsUserSettingsEntity> {
+  final String id;
+  final String name;
+  final String? avatarUrl;
+  final String? coverImageUrl;
+  final String? signature;
+  const MomentsUserSettingsEntity(
+      {required this.id,
+      required this.name,
+      this.avatarUrl,
+      this.coverImageUrl,
+      this.signature});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || avatarUrl != null) {
+      map['avatar_url'] = Variable<String>(avatarUrl);
+    }
+    if (!nullToAbsent || coverImageUrl != null) {
+      map['cover_image_url'] = Variable<String>(coverImageUrl);
+    }
+    if (!nullToAbsent || signature != null) {
+      map['signature'] = Variable<String>(signature);
+    }
+    return map;
+  }
+
+  MomentsUserSettingsCompanion toCompanion(bool nullToAbsent) {
+    return MomentsUserSettingsCompanion(
+      id: Value(id),
+      name: Value(name),
+      avatarUrl: avatarUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avatarUrl),
+      coverImageUrl: coverImageUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverImageUrl),
+      signature: signature == null && nullToAbsent
+          ? const Value.absent()
+          : Value(signature),
+    );
+  }
+
+  factory MomentsUserSettingsEntity.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MomentsUserSettingsEntity(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      avatarUrl: serializer.fromJson<String?>(json['avatarUrl']),
+      coverImageUrl: serializer.fromJson<String?>(json['coverImageUrl']),
+      signature: serializer.fromJson<String?>(json['signature']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'avatarUrl': serializer.toJson<String?>(avatarUrl),
+      'coverImageUrl': serializer.toJson<String?>(coverImageUrl),
+      'signature': serializer.toJson<String?>(signature),
+    };
+  }
+
+  MomentsUserSettingsEntity copyWith(
+          {String? id,
+          String? name,
+          Value<String?> avatarUrl = const Value.absent(),
+          Value<String?> coverImageUrl = const Value.absent(),
+          Value<String?> signature = const Value.absent()}) =>
+      MomentsUserSettingsEntity(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        avatarUrl: avatarUrl.present ? avatarUrl.value : this.avatarUrl,
+        coverImageUrl:
+            coverImageUrl.present ? coverImageUrl.value : this.coverImageUrl,
+        signature: signature.present ? signature.value : this.signature,
+      );
+  MomentsUserSettingsEntity copyWithCompanion(
+      MomentsUserSettingsCompanion data) {
+    return MomentsUserSettingsEntity(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      avatarUrl: data.avatarUrl.present ? data.avatarUrl.value : this.avatarUrl,
+      coverImageUrl: data.coverImageUrl.present
+          ? data.coverImageUrl.value
+          : this.coverImageUrl,
+      signature: data.signature.present ? data.signature.value : this.signature,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MomentsUserSettingsEntity(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('avatarUrl: $avatarUrl, ')
+          ..write('coverImageUrl: $coverImageUrl, ')
+          ..write('signature: $signature')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, avatarUrl, coverImageUrl, signature);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MomentsUserSettingsEntity &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.avatarUrl == this.avatarUrl &&
+          other.coverImageUrl == this.coverImageUrl &&
+          other.signature == this.signature);
+}
+
+class MomentsUserSettingsCompanion
+    extends UpdateCompanion<MomentsUserSettingsEntity> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String?> avatarUrl;
+  final Value<String?> coverImageUrl;
+  final Value<String?> signature;
+  final Value<int> rowid;
+  const MomentsUserSettingsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.avatarUrl = const Value.absent(),
+    this.coverImageUrl = const Value.absent(),
+    this.signature = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MomentsUserSettingsCompanion.insert({
+    required String id,
+    this.name = const Value.absent(),
+    this.avatarUrl = const Value.absent(),
+    this.coverImageUrl = const Value.absent(),
+    this.signature = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id);
+  static Insertable<MomentsUserSettingsEntity> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? avatarUrl,
+    Expression<String>? coverImageUrl,
+    Expression<String>? signature,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (avatarUrl != null) 'avatar_url': avatarUrl,
+      if (coverImageUrl != null) 'cover_image_url': coverImageUrl,
+      if (signature != null) 'signature': signature,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MomentsUserSettingsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? name,
+      Value<String?>? avatarUrl,
+      Value<String?>? coverImageUrl,
+      Value<String?>? signature,
+      Value<int>? rowid}) {
+    return MomentsUserSettingsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      coverImageUrl: coverImageUrl ?? this.coverImageUrl,
+      signature: signature ?? this.signature,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (avatarUrl.present) {
+      map['avatar_url'] = Variable<String>(avatarUrl.value);
+    }
+    if (coverImageUrl.present) {
+      map['cover_image_url'] = Variable<String>(coverImageUrl.value);
+    }
+    if (signature.present) {
+      map['signature'] = Variable<String>(signature.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MomentsUserSettingsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('avatarUrl: $avatarUrl, ')
+          ..write('coverImageUrl: $coverImageUrl, ')
+          ..write('signature: $signature, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AppSettingsTable extends AppSettings
+    with TableInfo<$AppSettingsTable, AppSettingEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AppSettingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+      'key', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+      'value', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+      'type', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('string'));
+  @override
+  List<GeneratedColumn> get $columns => [key, value, type];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'app_settings';
+  @override
+  VerificationContext validateIntegrity(Insertable<AppSettingEntity> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('key')) {
+      context.handle(
+          _keyMeta, key.isAcceptableOrUnknown(data['key']!, _keyMeta));
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+          _valueMeta, value.isAcceptableOrUnknown(data['value']!, _valueMeta));
+    } else if (isInserting) {
+      context.missing(_valueMeta);
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+          _typeMeta, type.isAcceptableOrUnknown(data['type']!, _typeMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {key};
+  @override
+  AppSettingEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AppSettingEntity(
+      key: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}key'])!,
+      value: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}value'])!,
+      type: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}type'])!,
+    );
+  }
+
+  @override
+  $AppSettingsTable createAlias(String alias) {
+    return $AppSettingsTable(attachedDatabase, alias);
+  }
+}
+
+class AppSettingEntity extends DataClass
+    implements Insertable<AppSettingEntity> {
+  final String key;
+  final String value;
+  final String type;
+  const AppSettingEntity(
+      {required this.key, required this.value, required this.type});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['key'] = Variable<String>(key);
+    map['value'] = Variable<String>(value);
+    map['type'] = Variable<String>(type);
+    return map;
+  }
+
+  AppSettingsCompanion toCompanion(bool nullToAbsent) {
+    return AppSettingsCompanion(
+      key: Value(key),
+      value: Value(value),
+      type: Value(type),
+    );
+  }
+
+  factory AppSettingEntity.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AppSettingEntity(
+      key: serializer.fromJson<String>(json['key']),
+      value: serializer.fromJson<String>(json['value']),
+      type: serializer.fromJson<String>(json['type']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'key': serializer.toJson<String>(key),
+      'value': serializer.toJson<String>(value),
+      'type': serializer.toJson<String>(type),
+    };
+  }
+
+  AppSettingEntity copyWith({String? key, String? value, String? type}) =>
+      AppSettingEntity(
+        key: key ?? this.key,
+        value: value ?? this.value,
+        type: type ?? this.type,
+      );
+  AppSettingEntity copyWithCompanion(AppSettingsCompanion data) {
+    return AppSettingEntity(
+      key: data.key.present ? data.key.value : this.key,
+      value: data.value.present ? data.value.value : this.value,
+      type: data.type.present ? data.type.value : this.type,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AppSettingEntity(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('type: $type')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(key, value, type);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AppSettingEntity &&
+          other.key == this.key &&
+          other.value == this.value &&
+          other.type == this.type);
+}
+
+class AppSettingsCompanion extends UpdateCompanion<AppSettingEntity> {
+  final Value<String> key;
+  final Value<String> value;
+  final Value<String> type;
+  final Value<int> rowid;
+  const AppSettingsCompanion({
+    this.key = const Value.absent(),
+    this.value = const Value.absent(),
+    this.type = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AppSettingsCompanion.insert({
+    required String key,
+    required String value,
+    this.type = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : key = Value(key),
+        value = Value(value);
+  static Insertable<AppSettingEntity> custom({
+    Expression<String>? key,
+    Expression<String>? value,
+    Expression<String>? type,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (key != null) 'key': key,
+      if (value != null) 'value': value,
+      if (type != null) 'type': type,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AppSettingsCompanion copyWith(
+      {Value<String>? key,
+      Value<String>? value,
+      Value<String>? type,
+      Value<int>? rowid}) {
+    return AppSettingsCompanion(
+      key: key ?? this.key,
+      value: value ?? this.value,
+      type: type ?? this.type,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AppSettingsCompanion(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('type: $type, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2564,6 +4173,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $WorldInfosTable worldInfos = $WorldInfosTable(this);
   late final $TextPresetsTable textPresets = $TextPresetsTable(this);
   late final $RoleMemoriesTable roleMemories = $RoleMemoriesTable(this);
+  late final $ContactRolesTable contactRoles = $ContactRolesTable(this);
+  late final $ContactMesTable contactMes = $ContactMesTable(this);
+  late final $ApiPresetsTable apiPresets = $ApiPresetsTable(this);
+  late final $MomentsUserSettingsTable momentsUserSettings =
+      $MomentsUserSettingsTable(this);
+  late final $AppSettingsTable appSettings = $AppSettingsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2574,7 +4189,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         momentsPosts,
         worldInfos,
         textPresets,
-        roleMemories
+        roleMemories,
+        contactRoles,
+        contactMes,
+        apiPresets,
+        momentsUserSettings,
+        appSettings
       ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
@@ -4085,6 +5705,892 @@ typedef $$RoleMemoriesTableProcessedTableManager = ProcessedTableManager<
     ),
     RoleMemoryEntity,
     PrefetchHooks Function()>;
+typedef $$ContactRolesTableCreateCompanionBuilder = ContactRolesCompanion
+    Function({
+  required String id,
+  required String name,
+  Value<String?> avatarPath,
+  required String description,
+  Value<int> rowid,
+});
+typedef $$ContactRolesTableUpdateCompanionBuilder = ContactRolesCompanion
+    Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String?> avatarPath,
+  Value<String> description,
+  Value<int> rowid,
+});
+
+class $$ContactRolesTableFilterComposer
+    extends Composer<_$AppDatabase, $ContactRolesTable> {
+  $$ContactRolesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get avatarPath => $composableBuilder(
+      column: $table.avatarPath, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnFilters(column));
+}
+
+class $$ContactRolesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ContactRolesTable> {
+  $$ContactRolesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get avatarPath => $composableBuilder(
+      column: $table.avatarPath, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnOrderings(column));
+}
+
+class $$ContactRolesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ContactRolesTable> {
+  $$ContactRolesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get avatarPath => $composableBuilder(
+      column: $table.avatarPath, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => column);
+}
+
+class $$ContactRolesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ContactRolesTable,
+    ContactRoleEntity,
+    $$ContactRolesTableFilterComposer,
+    $$ContactRolesTableOrderingComposer,
+    $$ContactRolesTableAnnotationComposer,
+    $$ContactRolesTableCreateCompanionBuilder,
+    $$ContactRolesTableUpdateCompanionBuilder,
+    (
+      ContactRoleEntity,
+      BaseReferences<_$AppDatabase, $ContactRolesTable, ContactRoleEntity>
+    ),
+    ContactRoleEntity,
+    PrefetchHooks Function()> {
+  $$ContactRolesTableTableManager(_$AppDatabase db, $ContactRolesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ContactRolesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ContactRolesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ContactRolesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String?> avatarPath = const Value.absent(),
+            Value<String> description = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ContactRolesCompanion(
+            id: id,
+            name: name,
+            avatarPath: avatarPath,
+            description: description,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String name,
+            Value<String?> avatarPath = const Value.absent(),
+            required String description,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ContactRolesCompanion.insert(
+            id: id,
+            name: name,
+            avatarPath: avatarPath,
+            description: description,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$ContactRolesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $ContactRolesTable,
+    ContactRoleEntity,
+    $$ContactRolesTableFilterComposer,
+    $$ContactRolesTableOrderingComposer,
+    $$ContactRolesTableAnnotationComposer,
+    $$ContactRolesTableCreateCompanionBuilder,
+    $$ContactRolesTableUpdateCompanionBuilder,
+    (
+      ContactRoleEntity,
+      BaseReferences<_$AppDatabase, $ContactRolesTable, ContactRoleEntity>
+    ),
+    ContactRoleEntity,
+    PrefetchHooks Function()>;
+typedef $$ContactMesTableCreateCompanionBuilder = ContactMesCompanion Function({
+  required String id,
+  required String name,
+  Value<String?> avatarPath,
+  required String info,
+  Value<int> rowid,
+});
+typedef $$ContactMesTableUpdateCompanionBuilder = ContactMesCompanion Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String?> avatarPath,
+  Value<String> info,
+  Value<int> rowid,
+});
+
+class $$ContactMesTableFilterComposer
+    extends Composer<_$AppDatabase, $ContactMesTable> {
+  $$ContactMesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get avatarPath => $composableBuilder(
+      column: $table.avatarPath, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get info => $composableBuilder(
+      column: $table.info, builder: (column) => ColumnFilters(column));
+}
+
+class $$ContactMesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ContactMesTable> {
+  $$ContactMesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get avatarPath => $composableBuilder(
+      column: $table.avatarPath, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get info => $composableBuilder(
+      column: $table.info, builder: (column) => ColumnOrderings(column));
+}
+
+class $$ContactMesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ContactMesTable> {
+  $$ContactMesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get avatarPath => $composableBuilder(
+      column: $table.avatarPath, builder: (column) => column);
+
+  GeneratedColumn<String> get info =>
+      $composableBuilder(column: $table.info, builder: (column) => column);
+}
+
+class $$ContactMesTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ContactMesTable,
+    ContactMeEntity,
+    $$ContactMesTableFilterComposer,
+    $$ContactMesTableOrderingComposer,
+    $$ContactMesTableAnnotationComposer,
+    $$ContactMesTableCreateCompanionBuilder,
+    $$ContactMesTableUpdateCompanionBuilder,
+    (
+      ContactMeEntity,
+      BaseReferences<_$AppDatabase, $ContactMesTable, ContactMeEntity>
+    ),
+    ContactMeEntity,
+    PrefetchHooks Function()> {
+  $$ContactMesTableTableManager(_$AppDatabase db, $ContactMesTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ContactMesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ContactMesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ContactMesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String?> avatarPath = const Value.absent(),
+            Value<String> info = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ContactMesCompanion(
+            id: id,
+            name: name,
+            avatarPath: avatarPath,
+            info: info,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String name,
+            Value<String?> avatarPath = const Value.absent(),
+            required String info,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ContactMesCompanion.insert(
+            id: id,
+            name: name,
+            avatarPath: avatarPath,
+            info: info,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$ContactMesTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $ContactMesTable,
+    ContactMeEntity,
+    $$ContactMesTableFilterComposer,
+    $$ContactMesTableOrderingComposer,
+    $$ContactMesTableAnnotationComposer,
+    $$ContactMesTableCreateCompanionBuilder,
+    $$ContactMesTableUpdateCompanionBuilder,
+    (
+      ContactMeEntity,
+      BaseReferences<_$AppDatabase, $ContactMesTable, ContactMeEntity>
+    ),
+    ContactMeEntity,
+    PrefetchHooks Function()>;
+typedef $$ApiPresetsTableCreateCompanionBuilder = ApiPresetsCompanion Function({
+  required String id,
+  required String name,
+  required ApiProvider provider,
+  required String baseUrl,
+  required String apiKey,
+  required String model,
+  Value<double> temperature,
+  Value<double> topP,
+  Value<bool> isStream,
+  Value<bool> enableThinking,
+  Value<int> rowid,
+});
+typedef $$ApiPresetsTableUpdateCompanionBuilder = ApiPresetsCompanion Function({
+  Value<String> id,
+  Value<String> name,
+  Value<ApiProvider> provider,
+  Value<String> baseUrl,
+  Value<String> apiKey,
+  Value<String> model,
+  Value<double> temperature,
+  Value<double> topP,
+  Value<bool> isStream,
+  Value<bool> enableThinking,
+  Value<int> rowid,
+});
+
+class $$ApiPresetsTableFilterComposer
+    extends Composer<_$AppDatabase, $ApiPresetsTable> {
+  $$ApiPresetsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<ApiProvider, ApiProvider, int> get provider =>
+      $composableBuilder(
+          column: $table.provider,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<String> get baseUrl => $composableBuilder(
+      column: $table.baseUrl, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get apiKey => $composableBuilder(
+      column: $table.apiKey, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get model => $composableBuilder(
+      column: $table.model, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get temperature => $composableBuilder(
+      column: $table.temperature, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get topP => $composableBuilder(
+      column: $table.topP, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isStream => $composableBuilder(
+      column: $table.isStream, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get enableThinking => $composableBuilder(
+      column: $table.enableThinking,
+      builder: (column) => ColumnFilters(column));
+}
+
+class $$ApiPresetsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ApiPresetsTable> {
+  $$ApiPresetsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get provider => $composableBuilder(
+      column: $table.provider, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get baseUrl => $composableBuilder(
+      column: $table.baseUrl, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get apiKey => $composableBuilder(
+      column: $table.apiKey, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get model => $composableBuilder(
+      column: $table.model, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get temperature => $composableBuilder(
+      column: $table.temperature, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get topP => $composableBuilder(
+      column: $table.topP, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isStream => $composableBuilder(
+      column: $table.isStream, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get enableThinking => $composableBuilder(
+      column: $table.enableThinking,
+      builder: (column) => ColumnOrderings(column));
+}
+
+class $$ApiPresetsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ApiPresetsTable> {
+  $$ApiPresetsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<ApiProvider, int> get provider =>
+      $composableBuilder(column: $table.provider, builder: (column) => column);
+
+  GeneratedColumn<String> get baseUrl =>
+      $composableBuilder(column: $table.baseUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get apiKey =>
+      $composableBuilder(column: $table.apiKey, builder: (column) => column);
+
+  GeneratedColumn<String> get model =>
+      $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<double> get temperature => $composableBuilder(
+      column: $table.temperature, builder: (column) => column);
+
+  GeneratedColumn<double> get topP =>
+      $composableBuilder(column: $table.topP, builder: (column) => column);
+
+  GeneratedColumn<bool> get isStream =>
+      $composableBuilder(column: $table.isStream, builder: (column) => column);
+
+  GeneratedColumn<bool> get enableThinking => $composableBuilder(
+      column: $table.enableThinking, builder: (column) => column);
+}
+
+class $$ApiPresetsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ApiPresetsTable,
+    ApiPresetEntity,
+    $$ApiPresetsTableFilterComposer,
+    $$ApiPresetsTableOrderingComposer,
+    $$ApiPresetsTableAnnotationComposer,
+    $$ApiPresetsTableCreateCompanionBuilder,
+    $$ApiPresetsTableUpdateCompanionBuilder,
+    (
+      ApiPresetEntity,
+      BaseReferences<_$AppDatabase, $ApiPresetsTable, ApiPresetEntity>
+    ),
+    ApiPresetEntity,
+    PrefetchHooks Function()> {
+  $$ApiPresetsTableTableManager(_$AppDatabase db, $ApiPresetsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ApiPresetsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ApiPresetsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ApiPresetsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<ApiProvider> provider = const Value.absent(),
+            Value<String> baseUrl = const Value.absent(),
+            Value<String> apiKey = const Value.absent(),
+            Value<String> model = const Value.absent(),
+            Value<double> temperature = const Value.absent(),
+            Value<double> topP = const Value.absent(),
+            Value<bool> isStream = const Value.absent(),
+            Value<bool> enableThinking = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ApiPresetsCompanion(
+            id: id,
+            name: name,
+            provider: provider,
+            baseUrl: baseUrl,
+            apiKey: apiKey,
+            model: model,
+            temperature: temperature,
+            topP: topP,
+            isStream: isStream,
+            enableThinking: enableThinking,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String name,
+            required ApiProvider provider,
+            required String baseUrl,
+            required String apiKey,
+            required String model,
+            Value<double> temperature = const Value.absent(),
+            Value<double> topP = const Value.absent(),
+            Value<bool> isStream = const Value.absent(),
+            Value<bool> enableThinking = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              ApiPresetsCompanion.insert(
+            id: id,
+            name: name,
+            provider: provider,
+            baseUrl: baseUrl,
+            apiKey: apiKey,
+            model: model,
+            temperature: temperature,
+            topP: topP,
+            isStream: isStream,
+            enableThinking: enableThinking,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$ApiPresetsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $ApiPresetsTable,
+    ApiPresetEntity,
+    $$ApiPresetsTableFilterComposer,
+    $$ApiPresetsTableOrderingComposer,
+    $$ApiPresetsTableAnnotationComposer,
+    $$ApiPresetsTableCreateCompanionBuilder,
+    $$ApiPresetsTableUpdateCompanionBuilder,
+    (
+      ApiPresetEntity,
+      BaseReferences<_$AppDatabase, $ApiPresetsTable, ApiPresetEntity>
+    ),
+    ApiPresetEntity,
+    PrefetchHooks Function()>;
+typedef $$MomentsUserSettingsTableCreateCompanionBuilder
+    = MomentsUserSettingsCompanion Function({
+  required String id,
+  Value<String> name,
+  Value<String?> avatarUrl,
+  Value<String?> coverImageUrl,
+  Value<String?> signature,
+  Value<int> rowid,
+});
+typedef $$MomentsUserSettingsTableUpdateCompanionBuilder
+    = MomentsUserSettingsCompanion Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String?> avatarUrl,
+  Value<String?> coverImageUrl,
+  Value<String?> signature,
+  Value<int> rowid,
+});
+
+class $$MomentsUserSettingsTableFilterComposer
+    extends Composer<_$AppDatabase, $MomentsUserSettingsTable> {
+  $$MomentsUserSettingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get avatarUrl => $composableBuilder(
+      column: $table.avatarUrl, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get coverImageUrl => $composableBuilder(
+      column: $table.coverImageUrl, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get signature => $composableBuilder(
+      column: $table.signature, builder: (column) => ColumnFilters(column));
+}
+
+class $$MomentsUserSettingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $MomentsUserSettingsTable> {
+  $$MomentsUserSettingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get avatarUrl => $composableBuilder(
+      column: $table.avatarUrl, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get coverImageUrl => $composableBuilder(
+      column: $table.coverImageUrl,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get signature => $composableBuilder(
+      column: $table.signature, builder: (column) => ColumnOrderings(column));
+}
+
+class $$MomentsUserSettingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MomentsUserSettingsTable> {
+  $$MomentsUserSettingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get avatarUrl =>
+      $composableBuilder(column: $table.avatarUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get coverImageUrl => $composableBuilder(
+      column: $table.coverImageUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get signature =>
+      $composableBuilder(column: $table.signature, builder: (column) => column);
+}
+
+class $$MomentsUserSettingsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $MomentsUserSettingsTable,
+    MomentsUserSettingsEntity,
+    $$MomentsUserSettingsTableFilterComposer,
+    $$MomentsUserSettingsTableOrderingComposer,
+    $$MomentsUserSettingsTableAnnotationComposer,
+    $$MomentsUserSettingsTableCreateCompanionBuilder,
+    $$MomentsUserSettingsTableUpdateCompanionBuilder,
+    (
+      MomentsUserSettingsEntity,
+      BaseReferences<_$AppDatabase, $MomentsUserSettingsTable,
+          MomentsUserSettingsEntity>
+    ),
+    MomentsUserSettingsEntity,
+    PrefetchHooks Function()> {
+  $$MomentsUserSettingsTableTableManager(
+      _$AppDatabase db, $MomentsUserSettingsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MomentsUserSettingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MomentsUserSettingsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MomentsUserSettingsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String?> avatarUrl = const Value.absent(),
+            Value<String?> coverImageUrl = const Value.absent(),
+            Value<String?> signature = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MomentsUserSettingsCompanion(
+            id: id,
+            name: name,
+            avatarUrl: avatarUrl,
+            coverImageUrl: coverImageUrl,
+            signature: signature,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            Value<String> name = const Value.absent(),
+            Value<String?> avatarUrl = const Value.absent(),
+            Value<String?> coverImageUrl = const Value.absent(),
+            Value<String?> signature = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MomentsUserSettingsCompanion.insert(
+            id: id,
+            name: name,
+            avatarUrl: avatarUrl,
+            coverImageUrl: coverImageUrl,
+            signature: signature,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$MomentsUserSettingsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $MomentsUserSettingsTable,
+    MomentsUserSettingsEntity,
+    $$MomentsUserSettingsTableFilterComposer,
+    $$MomentsUserSettingsTableOrderingComposer,
+    $$MomentsUserSettingsTableAnnotationComposer,
+    $$MomentsUserSettingsTableCreateCompanionBuilder,
+    $$MomentsUserSettingsTableUpdateCompanionBuilder,
+    (
+      MomentsUserSettingsEntity,
+      BaseReferences<_$AppDatabase, $MomentsUserSettingsTable,
+          MomentsUserSettingsEntity>
+    ),
+    MomentsUserSettingsEntity,
+    PrefetchHooks Function()>;
+typedef $$AppSettingsTableCreateCompanionBuilder = AppSettingsCompanion
+    Function({
+  required String key,
+  required String value,
+  Value<String> type,
+  Value<int> rowid,
+});
+typedef $$AppSettingsTableUpdateCompanionBuilder = AppSettingsCompanion
+    Function({
+  Value<String> key,
+  Value<String> value,
+  Value<String> type,
+  Value<int> rowid,
+});
+
+class $$AppSettingsTableFilterComposer
+    extends Composer<_$AppDatabase, $AppSettingsTable> {
+  $$AppSettingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get key => $composableBuilder(
+      column: $table.key, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get value => $composableBuilder(
+      column: $table.value, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get type => $composableBuilder(
+      column: $table.type, builder: (column) => ColumnFilters(column));
+}
+
+class $$AppSettingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AppSettingsTable> {
+  $$AppSettingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get key => $composableBuilder(
+      column: $table.key, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get value => $composableBuilder(
+      column: $table.value, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get type => $composableBuilder(
+      column: $table.type, builder: (column) => ColumnOrderings(column));
+}
+
+class $$AppSettingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AppSettingsTable> {
+  $$AppSettingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+}
+
+class $$AppSettingsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $AppSettingsTable,
+    AppSettingEntity,
+    $$AppSettingsTableFilterComposer,
+    $$AppSettingsTableOrderingComposer,
+    $$AppSettingsTableAnnotationComposer,
+    $$AppSettingsTableCreateCompanionBuilder,
+    $$AppSettingsTableUpdateCompanionBuilder,
+    (
+      AppSettingEntity,
+      BaseReferences<_$AppDatabase, $AppSettingsTable, AppSettingEntity>
+    ),
+    AppSettingEntity,
+    PrefetchHooks Function()> {
+  $$AppSettingsTableTableManager(_$AppDatabase db, $AppSettingsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AppSettingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AppSettingsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AppSettingsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> key = const Value.absent(),
+            Value<String> value = const Value.absent(),
+            Value<String> type = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AppSettingsCompanion(
+            key: key,
+            value: value,
+            type: type,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String key,
+            required String value,
+            Value<String> type = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AppSettingsCompanion.insert(
+            key: key,
+            value: value,
+            type: type,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$AppSettingsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $AppSettingsTable,
+    AppSettingEntity,
+    $$AppSettingsTableFilterComposer,
+    $$AppSettingsTableOrderingComposer,
+    $$AppSettingsTableAnnotationComposer,
+    $$AppSettingsTableCreateCompanionBuilder,
+    $$AppSettingsTableUpdateCompanionBuilder,
+    (
+      AppSettingEntity,
+      BaseReferences<_$AppDatabase, $AppSettingsTable, AppSettingEntity>
+    ),
+    AppSettingEntity,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4101,4 +6607,14 @@ class $AppDatabaseManager {
       $$TextPresetsTableTableManager(_db, _db.textPresets);
   $$RoleMemoriesTableTableManager get roleMemories =>
       $$RoleMemoriesTableTableManager(_db, _db.roleMemories);
+  $$ContactRolesTableTableManager get contactRoles =>
+      $$ContactRolesTableTableManager(_db, _db.contactRoles);
+  $$ContactMesTableTableManager get contactMes =>
+      $$ContactMesTableTableManager(_db, _db.contactMes);
+  $$ApiPresetsTableTableManager get apiPresets =>
+      $$ApiPresetsTableTableManager(_db, _db.apiPresets);
+  $$MomentsUserSettingsTableTableManager get momentsUserSettings =>
+      $$MomentsUserSettingsTableTableManager(_db, _db.momentsUserSettings);
+  $$AppSettingsTableTableManager get appSettings =>
+      $$AppSettingsTableTableManager(_db, _db.appSettings);
 }

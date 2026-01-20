@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/database/database.dart';
 import '../core/providers/chat_provider.dart';
 import '../core/providers/contact_provider.dart';
 import '../core/providers/api_settings_provider.dart';
@@ -18,7 +18,11 @@ import '../core/models/moments_model.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/message_bubbles.dart';
 import '../widgets/chat_context_menu.dart';
+import '../widgets/red_packet_dialog.dart';
 import 'chat_settings_screen.dart';
+import 'red_packet_result_screen.dart';
+import 'transfer_receive_screen.dart';
+import 'transfer_result_screen.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final String chatId;
@@ -298,6 +302,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                   }
                                 });
                               },
+                              onBubbleTap: (msg, r, m) {
+                                if (msg.type == MessageType.redpacket) {
+                                  _handleRedPacketTap(context, msg, r, m);
+                                } else if (msg.type == MessageType.transfer) {
+                                  _handleTransferTap(context, msg, r, m);
+                                }
+                              },
                             ),
                           ],
                         );
@@ -315,6 +326,100 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         );
       },
     );
+  }
+
+  void _handleRedPacketTap(BuildContext context, ChatMessage message,
+      ContactRole role, ContactMe me) {
+    final status = message.metadata?['status'] ?? 'unclaimed';
+
+    if (status == 'opened') {
+      // 已领取，直接跳转结果页
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RedPacketResultScreen(
+            message: message,
+            role: role,
+            me: me,
+          ),
+        ),
+      );
+    } else {
+      // 未领取，显示开红包弹窗
+      showDialog(
+        context: context,
+        barrierColor: Colors.black54,
+        builder: (context) => RedPacketDialog(
+          message: message,
+          role: role,
+          me: me,
+          onOpen: () {
+            // 更新消息状态为已领取
+            final chatProvider = context.read<ChatProvider>();
+            final newMetadata =
+                Map<String, dynamic>.from(message.metadata ?? {});
+            newMetadata['status'] = 'opened';
+
+            chatProvider.updateMessageMetadata(message.id, newMetadata);
+
+            Navigator.pop(context); // 关闭弹窗
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => RedPacketResultScreen(
+                  message: message,
+                  role: role,
+                  me: me,
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+  }
+
+  void _handleTransferTap(BuildContext context, ChatMessage message,
+      ContactRole role, ContactMe me) {
+    final status = message.metadata?['status'] ?? 'pending';
+
+    if (status == 'accepted') {
+      // 已收款，跳转结果页
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TransferResultScreen(message: message),
+        ),
+      );
+    } else {
+      // 待收款，跳转收款页
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TransferReceiveScreen(
+            message: message,
+            role: role,
+            me: me,
+            onAccept: (receiveContext) {
+              // 更新消息状态为已收款
+              final chatProvider = receiveContext.read<ChatProvider>();
+              final newMetadata =
+                  Map<String, dynamic>.from(message.metadata ?? {});
+              newMetadata['status'] = 'accepted';
+              chatProvider.updateMessageMetadata(message.id, newMetadata);
+
+              // 跳转结果页
+              Navigator.pushReplacement(
+                receiveContext,
+                MaterialPageRoute(
+                  builder: (context) => TransferResultScreen(message: message),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
   }
 
   // _buildMessageItem, _buildMessageBubble, _buildAvatar methods removed and refactored into MessageItem class
@@ -949,9 +1054,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     context.read<ChatProvider>().deleteMessage(messageId);
   }
 
+  /// 显示回溯确认对话框
+  /// 注意：所有设置现在从数据库读取，SharedPreferences 已被弃用
   void _showBacktrackDialog(ChatMessage message) async {
-    final prefs = await SharedPreferences.getInstance();
-    final dontShowAgain = prefs.getBool('backtrack_dont_show_again') ?? false;
+    final db = AppDatabase();
+    final dontShowAgain =
+        await db.getSettingBool('backtrack_dont_show_again') ?? false;
 
     if (dontShowAgain) {
       _performBacktrack(message);
@@ -997,7 +1105,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               TextButton(
                 onPressed: () async {
                   if (isChecked) {
-                    await prefs.setBool('backtrack_dont_show_again', true);
+                    final db = AppDatabase();
+                    await db.setSettingBool('backtrack_dont_show_again', true);
                   }
                   if (context.mounted) {
                     Navigator.pop(context);
@@ -1198,6 +1307,7 @@ class MessageItem extends StatelessWidget {
   final VoidCallback onTap;
   final Function(LongPressStartDetails) onLongPress;
   final Function(bool?) onSelectionChanged;
+  final Function(ChatMessage, ContactRole, ContactMe)? onBubbleTap;
 
   const MessageItem({
     super.key,
@@ -1209,6 +1319,7 @@ class MessageItem extends StatelessWidget {
     required this.onTap,
     required this.onLongPress,
     required this.onSelectionChanged,
+    this.onBubbleTap,
   });
 
   @override
@@ -1276,6 +1387,115 @@ class MessageItem extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _handleRedPacketTap(BuildContext context, ChatMessage message,
+      ContactRole role, ContactMe me) {
+    final status = message.metadata?['status'] ?? 'unclaimed';
+
+    if (status == 'opened') {
+      // 已领取，直接跳转结果页
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RedPacketResultScreen(
+            message: message,
+            role: role,
+            me: me,
+          ),
+        ),
+      );
+    } else {
+      // 未领取，显示开红包弹窗
+      showDialog(
+        context: context,
+        barrierColor: Colors.black54,
+        builder: (context) => RedPacketDialog(
+          message: message,
+          role: role,
+          me: me,
+          onOpen: () {
+            // 更新消息状态为已领取
+            final chatProvider = context.read<ChatProvider>();
+            final newMetadata =
+                Map<String, dynamic>.from(message.metadata ?? {});
+            newMetadata['status'] = 'opened';
+
+            // 模拟更新数据库
+            // 注意：这里应该调用 updateMessageMetadata，但目前只有 updateMessageContent
+            // 我们暂时通过 updateMessageContent 触发刷新，实际应该扩展 Provider
+            // 为了演示效果，我们假设 updateMessage 支持 metadata 更新
+            // 由于 ChatProvider 没有直接更新 metadata 的方法，我们需要扩展它
+            // 这里暂时用一个变通方法：重新插入一条同样 ID 的消息（会覆盖吗？Drift 的 insertOrReplace）
+            // 或者我们添加一个 updateMessageMetadata 方法到 ChatProvider
+
+            // 既然不能直接修改 metadata，我们先在内存中修改，然后跳转
+            // 实际项目中需要在 ChatProvider 添加 updateMessageMetadata 方法
+
+            // 临时方案：调用 updateMessageContent 触发刷新，虽然内容没变
+            // 更好的方案是请求添加 updateMessageMetadata
+
+            // 假设我们已经有了 updateMessageMetadata
+            chatProvider.updateMessageMetadata(message.id, newMetadata);
+
+            Navigator.pop(context); // 关闭弹窗
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => RedPacketResultScreen(
+                  message: message,
+                  role: role,
+                  me: me,
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    }
+  }
+
+  void _handleTransferTap(BuildContext context, ChatMessage message,
+      ContactRole role, ContactMe me) {
+    final status = message.metadata?['status'] ?? 'pending';
+
+    if (status == 'accepted') {
+      // 已收款，跳转结果页
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TransferResultScreen(message: message),
+        ),
+      );
+    } else {
+      // 待收款，跳转收款页
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TransferReceiveScreen(
+            message: message,
+            role: role,
+            me: me,
+            onAccept: (receiveContext) {
+              // 更新消息状态为已收款
+              final chatProvider = receiveContext.read<ChatProvider>();
+              final newMetadata =
+                  Map<String, dynamic>.from(message.metadata ?? {});
+              newMetadata['status'] = 'accepted';
+              chatProvider.updateMessageMetadata(message.id, newMetadata);
+
+              // 跳转结果页
+              Navigator.pushReplacement(
+                receiveContext,
+                MaterialPageRoute(
+                  builder: (context) => TransferResultScreen(message: message),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildAvatar(String? path, bool isMe) {
@@ -1351,13 +1571,29 @@ class MessageItem extends StatelessWidget {
 
       // 资金往来类型
       case MessageType.redpacket:
-        bubbleContent =
-            RedpacketBubble(message: message, maxWidth: maxBubbleWidth);
+        bubbleContent = GestureDetector(
+          onTap: () {
+            if (isMultiSelectMode) {
+              onTap();
+              return;
+            }
+            onBubbleTap?.call(message, role, me);
+          },
+          child: RedpacketBubble(message: message, maxWidth: maxBubbleWidth),
+        );
         break;
 
       case MessageType.transfer:
-        bubbleContent =
-            TransferBubble(message: message, maxWidth: maxBubbleWidth);
+        bubbleContent = GestureDetector(
+          onTap: () {
+            if (isMultiSelectMode) {
+              onTap();
+              return;
+            }
+            onBubbleTap?.call(message, role, me);
+          },
+          child: TransferBubble(message: message, maxWidth: maxBubbleWidth),
+        );
         break;
 
       // 分享类型

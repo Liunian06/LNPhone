@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/database/database.dart';
 import '../core/models/moments_model.dart';
 import '../core/models/contact_model.dart';
 import '../core/providers/moments_provider.dart';
@@ -41,9 +41,11 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
   }
 
   /// 加载上次分组设置
+  /// 注意：所有设置现在从数据库读取，SharedPreferences 已被弃用
   Future<void> _loadLastGroup() async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastGroupIds = prefs.getStringList('last_moment_visible_group');
+    final db = AppDatabase();
+    final lastGroupIds =
+        await db.getSettingStringList('last_moment_visible_group');
 
     if (lastGroupIds != null && lastGroupIds.isNotEmpty && mounted) {
       final contactProvider = context.read<ContactProvider>();
@@ -60,10 +62,11 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
   }
 
   /// 保存当前分组设置
+  /// 注意：所有设置现在存储在数据库中
   Future<void> _saveLastGroup() async {
     if (_visibleToRoles.isNotEmpty) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(
+      final db = AppDatabase();
+      await db.setSettingStringList(
         'last_moment_visible_group',
         _visibleToRoles.map((r) => r.id).toList(),
       );

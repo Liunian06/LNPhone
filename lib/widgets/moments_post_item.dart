@@ -20,11 +20,19 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
   bool _showFullContent = false;
   final TextEditingController _commentController = TextEditingController();
   MomentsUser? _replyToUser;
+  OverlayEntry? _menuOverlay;
+  final GlobalKey _moreButtonKey = GlobalKey();
 
   @override
   void dispose() {
+    _removeMenuOverlay();
     _commentController.dispose();
     super.dispose();
+  }
+
+  void _removeMenuOverlay() {
+    _menuOverlay?.remove();
+    _menuOverlay = null;
   }
 
   @override
@@ -293,8 +301,6 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
 
   /// 构建时间、位置和操作按钮
   Widget _buildTimeLocationAndAction(bool isDark) {
-    final momentsProvider = context.watch<MomentsProvider>();
-    final isMenuVisible = momentsProvider.activePostId == widget.post.id;
     final secondaryColor = isDark ? Colors.grey[400] : Colors.grey[600];
 
     return Row(
@@ -313,39 +319,25 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
           ),
         ],
         const Spacer(),
-        // 交互面板和更多按钮
-        Row(
-          children: [
-            AnimatedSize(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
-              child: isMenuVisible
-                  ? Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      child: _buildInteractionPanel(),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-            _buildMoreButton(isMenuVisible, isDark),
-          ],
-        ),
+        // 更多按钮
+        _buildMoreButton(isDark),
       ],
     );
   }
 
   /// 构建更多按钮
-  Widget _buildMoreButton(bool isVisible, bool isDark) {
+  Widget _buildMoreButton(bool isDark) {
     final bgColor = isDark ? const Color(0xFF3A3A3C) : const Color(0xFFF7F7F7);
     final iconColor =
         isDark ? const Color(0xFF7AA3E5) : const Color(0xFF576B95);
 
     return GestureDetector(
+      key: _moreButtonKey,
       onTap: () {
-        final provider = context.read<MomentsProvider>();
-        if (isVisible) {
-          provider.setActivePostId(null);
+        if (_menuOverlay != null) {
+          _removeMenuOverlay();
         } else {
-          provider.setActivePostId(widget.post.id);
+          _showMenuOverlay();
         }
       },
       child: Container(
@@ -360,99 +352,160 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
     );
   }
 
+  /// 显示悬浮菜单
+  void _showMenuOverlay() {
+    final RenderBox? renderBox =
+        _moreButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final buttonPosition = renderBox.localToGlobal(Offset.zero);
+    final buttonSize = renderBox.size;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // 菜单宽度
+    const menuWidth = 200.0;
+
+    // 计算菜单位置：在按钮左侧显示
+    double left = buttonPosition.dx - menuWidth - 8;
+    if (left < 8) {
+      left = 8;
+    }
+
+    // 菜单顶部与按钮对齐
+    final top = buttonPosition.dy - 20;
+
+    _menuOverlay = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          // 透明遮罩层，点击关闭菜单
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _removeMenuOverlay,
+              behavior: HitTestBehavior.opaque,
+              child: Container(color: Colors.transparent),
+            ),
+          ),
+          // 菜单
+          Positioned(
+            left: left,
+            top: top,
+            child: Material(
+              color: Colors.transparent,
+              child: _buildInteractionPanel(),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    Overlay.of(context).insert(_menuOverlay!);
+  }
+
   /// 构建交互面板（点赞、评论、编辑、删除）
   Widget _buildInteractionPanel() {
     final momentsProvider = context.read<MomentsProvider>();
     final isLiked = momentsProvider.isLiked(widget.post.id);
-    final currentUser = momentsProvider.currentUser;
-    final isOwnPost = widget.post.user.id == currentUser.id;
 
     return Container(
+      width: 200,
       decoration: BoxDecoration(
         color: const Color(0xFF4C4C4C),
         borderRadius: BorderRadius.circular(4),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 第一行：点赞和评论
           Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
               // 点赞按钮
-              GestureDetector(
-                onTap: () {
-                  momentsProvider.toggleLike(widget.post.id);
-                  momentsProvider.setActivePostId(null);
-                },
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      Icon(
-                        isLiked ? Icons.favorite : Icons.favorite_border,
-                        size: 18,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        isLiked ? '取消' : '赞',
-                        style:
-                            const TextStyle(color: Colors.white, fontSize: 14),
-                      ),
-                    ],
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    _removeMenuOverlay();
+                    momentsProvider.toggleLike(widget.post.id);
+                  },
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          isLiked ? Icons.favorite : Icons.favorite_border,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          isLiked ? '取消' : '赞',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 14),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
               // 分隔线
               Container(width: 1, height: 20, color: Colors.black26),
               // 评论按钮
-              GestureDetector(
-                onTap: () {
-                  momentsProvider.setActivePostId(null);
-                  setState(() {
-                    _replyToUser = null;
-                  });
-                  _showCommentInput();
-                },
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: const Row(
-                    children: [
-                      Icon(
-                        Icons.chat_bubble_outline,
-                        size: 18,
-                        color: Colors.white,
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        '评论',
-                        style: TextStyle(color: Colors.white, fontSize: 14),
-                      ),
-                    ],
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    _removeMenuOverlay();
+                    setState(() {
+                      _replyToUser = null;
+                    });
+                    _showCommentInput();
+                  },
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          size: 18,
+                          color: Colors.white,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          '评论',
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ],
           ),
-          // 第二行：编辑和删除（仅帖子作者可见）
-          if (isOwnPost) ...[
-            Container(height: 1, color: Colors.black26),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 编辑按钮
-                GestureDetector(
+          // 第二行：编辑和删除（所有帖子都显示）
+          Container(height: 1, color: Colors.black26),
+          Row(
+            children: [
+              // 编辑按钮
+              Expanded(
+                child: GestureDetector(
                   onTap: () {
-                    momentsProvider.setActivePostId(null);
+                    _removeMenuOverlay();
                     _showEditPostDialog();
                   },
                   child: Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.edit_outlined,
@@ -468,18 +521,21 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                     ),
                   ),
                 ),
-                // 分隔线
-                Container(width: 1, height: 20, color: Colors.black26),
-                // 删除按钮
-                GestureDetector(
+              ),
+              // 分隔线
+              Container(width: 1, height: 20, color: Colors.black26),
+              // 删除按钮
+              Expanded(
+                child: GestureDetector(
                   onTap: () {
-                    momentsProvider.setActivePostId(null);
+                    _removeMenuOverlay();
                     _showDeleteConfirmDialog();
                   },
                   child: Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.delete_outline,
@@ -495,9 +551,9 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                     ),
                   ),
                 ),
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -603,6 +659,7 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
         isDark ? const Color(0xFF3A3A3C) : const Color(0xFFE5E5E5);
 
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       decoration: BoxDecoration(
         color: bgColor,
@@ -617,6 +674,7 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
           if (widget.post.likes.isNotEmpty && widget.post.comments.isNotEmpty)
             Container(
               height: 1,
+              width: double.infinity,
               margin: const EdgeInsets.symmetric(vertical: 6),
               color: dividerColor,
             ),

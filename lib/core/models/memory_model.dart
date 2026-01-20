@@ -72,6 +72,10 @@ enum MemoryCategory {
   relationship, // 人际关系
   promise, // 承诺约定
   secret, // 秘密心事
+  time, // 重要时间
+  location, // 重要地点
+  task, // 待办任务
+  item, // 重要物品
 }
 
 /// 记忆分类扩展
@@ -90,6 +94,14 @@ extension MemoryCategoryExtension on MemoryCategory {
         return '承诺约定';
       case MemoryCategory.secret:
         return '秘密心事';
+      case MemoryCategory.time:
+        return '重要时间';
+      case MemoryCategory.location:
+        return '重要地点';
+      case MemoryCategory.task:
+        return '待办任务';
+      case MemoryCategory.item:
+        return '重要物品';
     }
   }
 
@@ -107,6 +119,14 @@ extension MemoryCategoryExtension on MemoryCategory {
         return '🤝';
       case MemoryCategory.secret:
         return '🔒';
+      case MemoryCategory.time:
+        return '📅';
+      case MemoryCategory.location:
+        return '📍';
+      case MemoryCategory.task:
+        return '✅';
+      case MemoryCategory.item:
+        return '🎁';
     }
   }
 }

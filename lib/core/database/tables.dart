@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../models/chat_model.dart';
 import '../models/moments_model.dart';
 import '../models/memory_model.dart';
+import '../models/api_preset.dart';
 
 /// List<String> 的转换器
 class StringListConverter extends TypeConverter<List<String>, String> {
@@ -140,6 +141,94 @@ class MemoryCategoryConverter extends TypeConverter<MemoryCategory, int> {
   int toSql(MemoryCategory value) {
     return value.index;
   }
+}
+
+/// ApiProvider 的转换器
+class ApiProviderConverter extends TypeConverter<ApiProvider, int> {
+  const ApiProviderConverter();
+
+  @override
+  ApiProvider fromSql(int fromDb) {
+    if (fromDb >= 0 && fromDb < ApiProvider.values.length) {
+      return ApiProvider.values[fromDb];
+    }
+    return ApiProvider.openai;
+  }
+
+  @override
+  int toSql(ApiProvider value) {
+    return value.index;
+  }
+}
+
+/// 朋友圈用户设置表（头像、封面、昵称、签名）
+@DataClassName('MomentsUserSettingsEntity')
+class MomentsUserSettings extends Table {
+  TextColumn get id => text()(); // 固定为 'current_user'
+  TextColumn get name => text().withDefault(const Constant('我'))();
+  TextColumn get avatarUrl => text().nullable()();
+  TextColumn get coverImageUrl => text().nullable()();
+  TextColumn get signature => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 应用设置表（Key-Value 存储）
+/// 用于存储所有之前在 SharedPreferences 中的设置
+/// 注意：所有设置应该存储在数据库中，SharedPreferences 已被弃用
+@DataClassName('AppSettingEntity')
+class AppSettings extends Table {
+  TextColumn get key => text()(); // 设置键名
+  TextColumn get value => text()(); // 设置值（JSON 格式）
+  TextColumn get type => text().withDefault(
+      const Constant('string'))(); // 值类型: string, int, double, bool, json
+
+  @override
+  Set<Column> get primaryKey => {key};
+}
+
+/// 角色人设表
+@DataClassName('ContactRoleEntity')
+class ContactRoles extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get avatarPath => text().nullable()();
+  TextColumn get description => text()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 用户人设表
+@DataClassName('ContactMeEntity')
+class ContactMes extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get avatarPath => text().nullable()();
+  TextColumn get info => text()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// API预设表
+@DataClassName('ApiPresetEntity')
+class ApiPresets extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  IntColumn get provider => integer().map(const ApiProviderConverter())();
+  TextColumn get baseUrl => text()();
+  TextColumn get apiKey => text()();
+  TextColumn get model => text()();
+  RealColumn get temperature => real().withDefault(const Constant(0.7))();
+  RealColumn get topP => real().withDefault(const Constant(0.9))();
+  BoolColumn get isStream => boolean().withDefault(const Constant(true))();
+  BoolColumn get enableThinking =>
+      boolean().withDefault(const Constant(true))();
+
+  @override
+  Set<Column> get primaryKey => {id};
 }
 
 /// 角色记忆表

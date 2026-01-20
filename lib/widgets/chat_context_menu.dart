@@ -25,18 +25,33 @@ class ChatContextMenu extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       elevation: 8,
       child: Container(
-        width: 280,
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Wrap(
-          alignment: WrapAlignment.spaceEvenly,
-          runSpacing: 12,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _buildMenuItem(Icons.copy_rounded, '复制', onCopy),
-            _buildMenuItem(Icons.reply_rounded, '引用', onReply),
-            _buildMenuItem(Icons.edit_rounded, '编辑', onEdit),
-            _buildMenuItem(Icons.delete_outline_rounded, '删除', onDelete),
-            _buildMenuItem(Icons.restore_rounded, '回溯', onBacktrack),
-            _buildMenuItem(Icons.checklist_rounded, '多选', onMultiSelect),
+            // 第一行：复制、引用、编辑
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildMenuItem(Icons.copy_rounded, '复制', onCopy),
+                const SizedBox(width: 24),
+                _buildMenuItem(Icons.reply_rounded, '引用', onReply),
+                const SizedBox(width: 24),
+                _buildMenuItem(Icons.edit_rounded, '编辑', onEdit),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // 第二行：删除、回溯、多选
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildMenuItem(Icons.delete_outline_rounded, '删除', onDelete),
+                const SizedBox(width: 24),
+                _buildMenuItem(Icons.restore_rounded, '回溯', onBacktrack),
+                const SizedBox(width: 24),
+                _buildMenuItem(Icons.checklist_rounded, '多选', onMultiSelect),
+              ],
+            ),
           ],
         ),
       ),

@@ -41,7 +41,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       final results = await Future.wait([
         _db.getAllWorldInfos(),
         _db.getAllTextPresets(),
-        _db.getAllApiPresets(),
+        _db.getAllApiPresetsFromDb(), // 使用正确的数据库方法
       ]);
 
       if (mounted) {

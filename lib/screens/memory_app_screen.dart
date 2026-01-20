@@ -717,6 +717,14 @@ class _MemoryAppScreenState extends State<MemoryAppScreen>
         return Colors.indigo;
       case MemoryCategory.secret:
         return Colors.purple;
+      case MemoryCategory.time:
+        return Colors.orange;
+      case MemoryCategory.location:
+        return Colors.green;
+      case MemoryCategory.task:
+        return Colors.blue;
+      case MemoryCategory.item:
+        return Colors.deepOrange;
     }
   }
 
@@ -1075,6 +1083,14 @@ class _MemoryEditSheetState extends State<MemoryEditSheet> {
         return Colors.indigo;
       case MemoryCategory.secret:
         return Colors.purple;
+      case MemoryCategory.time:
+        return Colors.orange;
+      case MemoryCategory.location:
+        return Colors.green;
+      case MemoryCategory.task:
+        return Colors.blue;
+      case MemoryCategory.item:
+        return Colors.deepOrange;
     }
   }
 }
@@ -1570,6 +1586,14 @@ class _RoleMemoryDetailScreenState extends State<RoleMemoryDetailScreen> {
         return Colors.indigo;
       case MemoryCategory.secret:
         return Colors.purple;
+      case MemoryCategory.time:
+        return Colors.orange;
+      case MemoryCategory.location:
+        return Colors.green;
+      case MemoryCategory.task:
+        return Colors.blue;
+      case MemoryCategory.item:
+        return Colors.deepOrange;
     }
   }
 

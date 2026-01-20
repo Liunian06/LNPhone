@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_file_dialog/flutter_file_dialog.dart';
 import 'package:intl/intl.dart';
+import 'package:restart_app/restart_app.dart';
 import '../core/providers/system_state_provider.dart';
 import '../core/providers/chat_provider.dart';
 import '../core/data/grid_default_apps.dart';
@@ -512,32 +513,40 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
 
       if (!mounted) return;
 
-      // 如果导入成功，刷新 ChatProvider 的数据
       if (success) {
-        try {
-          final chatProvider = context.read<ChatProvider>();
-          await chatProvider.reloadData();
-          debugPrint('ChatProvider 数据已刷新');
-        } catch (e) {
-          debugPrint('刷新 ChatProvider 数据失败: $e');
-        }
+        // 导入成功后，提示用户应用将重启以加载新数据
+        showCupertinoDialog(
+          context: context,
+          builder: (dialogContext) => CupertinoAlertDialog(
+            title: const Text('导入成功'),
+            content: const Text('数据已成功导入，应用将重启以加载新数据。'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('重启应用'),
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  // 重启应用以完全重新加载数据库
+                  Restart.restartApp();
+                },
+              ),
+            ],
+          ),
+        );
+      } else {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('导入失败'),
+            content: const Text('文件格式不正确或数据损坏'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('确定'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
       }
-
-      if (!mounted) return;
-
-      showCupertinoDialog(
-        context: context,
-        builder: (context) => CupertinoAlertDialog(
-          title: Text(success ? '导入成功' : '导入失败'),
-          content: Text(success ? '设置和数据已成功导入' : '文件格式不正确或数据损坏'),
-          actions: [
-            CupertinoDialogAction(
-              child: const Text('确定'),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-      );
     } catch (e) {
       if (!mounted) return;
 

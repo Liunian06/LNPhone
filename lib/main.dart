@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'screens/system_shell.dart';
+import 'core/database/database.dart';
 import 'core/providers/system_state_provider.dart';
 import 'core/providers/contact_provider.dart';
 import 'core/providers/api_settings_provider.dart';
@@ -13,6 +14,10 @@ import 'core/providers/memory_provider.dart';
 import 'core/services/background_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/theme/app_theme.dart';
+
+/// 全局数据库实例
+/// 注意：所有应用设置现在存储在数据库中，SharedPreferences 已被弃用
+final AppDatabase database = AppDatabase();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -112,11 +117,11 @@ class LnPhoneApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => SystemStateProvider()),
+        ChangeNotifierProvider(create: (_) => SystemStateProvider(database)),
         ChangeNotifierProvider(create: (_) => ContactProvider()),
         ChangeNotifierProvider(create: (_) => ApiSettingsProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
-        ChangeNotifierProvider(create: (_) => PromptSettingsProvider()),
+        ChangeNotifierProvider(create: (_) => PromptSettingsProvider(database)),
         ChangeNotifierProvider(create: (_) => MomentsProvider()),
         ChangeNotifierProvider(create: (_) => MemoryProvider()),
       ],

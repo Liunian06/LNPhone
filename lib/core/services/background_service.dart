@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../database/database.dart';
 import '../models/api_preset.dart';
 import '../models/moments_model.dart';
@@ -137,29 +136,27 @@ class BackgroundService {
   static Future<void> _checkAndTriggerActiveReply({bool force = false}) async {
     try {
       debugPrint('[BG] ========== 后台检查开始 (Force: $force) ==========');
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.reload(); // 强制刷新数据，确保获取到最新的配置和活跃时间
-      debugPrint('[BG] SharedPreferences 已重新加载');
 
+      // 注意：所有设置现在从数据库读取，SharedPreferences 已被弃用
       final db = AppDatabase();
 
-      // 1. 检查是否开启了后台主动回复
+      // 1. 检查是否开启了后台主动回复（从数据库读取）
       final enableActiveReply =
-          prefs.getBool('enable_background_active_reply') ?? true;
+          await db.getSettingBool('enable_background_active_reply') ?? true;
       debugPrint('[BG] 后台主动回复开关: $enableActiveReply');
       if (!enableActiveReply && !force) {
         debugPrint('[BG] 后台主动回复已关闭，跳过检查');
         return;
       }
 
-      // 2. 获取配置的间隔时间 (分钟)
+      // 2. 获取配置的间隔时间 (分钟)（从数据库读取）
       final intervalMinutes =
-          prefs.getInt('background_active_reply_interval') ?? 60;
+          await db.getSettingInt('background_active_reply_interval') ?? 60;
       final intervalMillis = intervalMinutes * 60 * 1000;
       debugPrint('[BG] 配置的间隔时间: $intervalMinutes 分钟 ($intervalMillis 毫秒)');
 
-      // 3. 获取上次活跃时间
-      final lastActiveTime = prefs.getInt(_lastActiveTimeKey) ?? 0;
+      // 3. 获取上次活跃时间（从数据库读取）
+      final lastActiveTime = await db.getSettingInt(_lastActiveTimeKey) ?? 0;
       final currentTime = DateTime.now().millisecondsSinceEpoch;
       final inactiveTime = currentTime - lastActiveTime;
       debugPrint('[BG] 上次活跃时间: $lastActiveTime');
@@ -203,7 +200,7 @@ class BackgroundService {
             if (currentTime - lastMessageTime > effectiveInterval) {
               debugPrint('[BG] 会话 ${session.id} 满足条件，触发 AI 回复');
               // 触发 AI 回复
-              await _triggerAiReply(db, session, prefs);
+              await _triggerAiReply(db, session);
             } else {
               debugPrint('[BG] 会话 ${session.id} 不满足条件，跳过');
             }
@@ -222,10 +219,11 @@ class BackgroundService {
     }
   }
 
+  /// 触发 AI 回复
+  /// 注意：所有设置现在从数据库读取，SharedPreferences 已被弃用
   static Future<void> _triggerAiReply(
     AppDatabase db,
     ChatSession session,
-    SharedPreferences prefs,
   ) async {
     try {
       debugPrint('[BG] >>> 开始为会话 ${session.id} 生成 AI 回复');
@@ -246,13 +244,13 @@ class BackgroundService {
       }
       debugPrint('[BG] ✓ 角色: ${role.name}, 用户: ${me.name}');
 
-      // 加载 Prompt 设置
+      // 加载 Prompt 设置（从数据库读取）
       debugPrint('[BG] 加载 Prompt 设置...');
-      final roleplayPrompt = prefs.getString('roleplay_prompt') ?? '';
-      final realityPrompt = prefs.getString('reality_prompt') ?? '';
+      final roleplayPrompt = await db.getSetting('roleplay_prompt') ?? '';
+      final realityPrompt = await db.getSetting('reality_prompt') ?? '';
       final enableRealityPrompt =
-          prefs.getBool('enable_reality_prompt') ?? true;
-      final contextLength = prefs.getInt('context_length') ?? 10;
+          await db.getSettingBool('enable_reality_prompt') ?? true;
+      final contextLength = await db.getSettingInt('context_length') ?? 10;
 
       debugPrint(
         '[BG] Prompt 配置: contextLength=$contextLength, enableRealityPrompt=$enableRealityPrompt',
@@ -266,9 +264,9 @@ class BackgroundService {
       );
       debugPrint('[BG] ✓ Prompt 设置加载完成');
 
-      // 加载 API Preset
+      // 加载 API Preset（从数据库读取）
       debugPrint('[BG] 加载 API Preset...');
-      final currentApiId = prefs.getString('active_preset_id');
+      final currentApiId = await db.getSetting('active_preset_id');
       debugPrint('[BG] 当前 API ID: $currentApiId');
 
       ApiPreset? apiPreset;
@@ -441,9 +439,11 @@ class BackgroundService {
     }
   }
 
+  /// 更新最后活跃时间（存储到数据库）
+  /// 注意：所有设置现在存储在数据库中，SharedPreferences 已被弃用
   static Future<void> updateLastActiveTime() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(
+    final db = AppDatabase();
+    await db.setSettingInt(
       _lastActiveTimeKey,
       DateTime.now().millisecondsSinceEpoch,
     );
