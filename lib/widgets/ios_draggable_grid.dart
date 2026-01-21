@@ -118,13 +118,34 @@ class _IOSDraggableGridState extends State<IOSDraggableGrid> {
   Widget _buildGridCell(int index, double iconSize) {
     final appId = _currentGrid[index];
 
-    // 空位：可以接受拖放（仅来自网格内）
-    if (appId == null) {
+    // 获取应用（如果存在）
+    final app = appId != null ? widget.appRegistry[appId] : null;
+
+    // 空位或无效appId（应用已被删除）：可以接受拖放（仅来自网格内）
+    if (appId == null || app == null) {
+      // 如果是无效的appId，自动清理它
+      if (appId != null && app == null) {
+        // 异步清理无效的appId
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            final newGrid = List<String?>.from(_currentGrid);
+            newGrid[index] = null;
+            if (newGrid != _currentGrid) {
+              setState(() {
+                _currentGrid = newGrid;
+              });
+              widget.onGridChanged?.call(newGrid);
+            }
+          }
+        });
+      }
+
       return DragTarget<String>(
         onWillAcceptWithDetails: (details) {
           final draggedAppId = details.data;
-          // 只接受来自网格内的拖拽
-          return _currentGrid.contains(draggedAppId);
+          // 只接受来自网格内的有效拖拽
+          return _currentGrid.contains(draggedAppId) &&
+              widget.appRegistry.containsKey(draggedAppId);
         },
         onAcceptWithDetails: (details) {
           final draggedAppId = details.data;
@@ -146,9 +167,6 @@ class _IOSDraggableGridState extends State<IOSDraggableGrid> {
         },
       );
     }
-
-    final app = widget.appRegistry[appId];
-    if (app == null) return const SizedBox.shrink();
 
     return Consumer<SystemStateProvider>(
       builder: (context, provider, _) {

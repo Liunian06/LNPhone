@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../core/database/database.dart';
 import '../core/providers/chat_provider.dart';
 import '../core/providers/contact_provider.dart';
@@ -10,6 +11,7 @@ import '../core/providers/api_settings_provider.dart';
 import '../core/providers/prompt_settings_provider.dart';
 import '../core/providers/moments_provider.dart';
 import '../core/providers/memory_provider.dart';
+import '../core/providers/wallet_provider.dart';
 import '../core/services/llm_service.dart';
 import '../core/services/notification_service.dart';
 import '../core/models/chat_model.dart';
@@ -23,6 +25,8 @@ import 'chat_settings_screen.dart';
 import 'red_packet_result_screen.dart';
 import 'transfer_receive_screen.dart';
 import 'transfer_result_screen.dart';
+import 'send_red_packet_screen.dart';
+import 'send_transfer_screen.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final String chatId;
@@ -349,20 +353,33 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       showDialog(
         context: context,
         barrierColor: Colors.black54,
-        builder: (context) => RedPacketDialog(
+        builder: (dialogContext) => RedPacketDialog(
           message: message,
           role: role,
           me: me,
           onOpen: () {
             // 更新消息状态为已领取
             final chatProvider = context.read<ChatProvider>();
+            final walletProvider = context.read<WalletProvider>();
             final newMetadata =
                 Map<String, dynamic>.from(message.metadata ?? {});
             newMetadata['status'] = 'opened';
 
             chatProvider.updateMessageMetadata(message.id, newMetadata);
 
-            Navigator.pop(context); // 关闭弹窗
+            // 将红包金额添加到钱包余额
+            final amount = double.tryParse(message.content) ?? 0.0;
+            if (amount > 0) {
+              final senderName = message.isMe ? me.name : role.name;
+              walletProvider.receiveRedPacket(
+                amount: amount,
+                senderName: senderName,
+                sessionId: widget.chatId,
+                messageId: message.id,
+              );
+            }
+
+            Navigator.pop(dialogContext); // 关闭弹窗
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -403,10 +420,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             onAccept: (receiveContext) {
               // 更新消息状态为已收款
               final chatProvider = receiveContext.read<ChatProvider>();
+              final walletProvider = receiveContext.read<WalletProvider>();
               final newMetadata =
                   Map<String, dynamic>.from(message.metadata ?? {});
               newMetadata['status'] = 'accepted';
               chatProvider.updateMessageMetadata(message.id, newMetadata);
+
+              // 将转账金额添加到钱包余额
+              final amount = double.tryParse(message.content) ?? 0.0;
+              if (amount > 0) {
+                final senderName = message.isMe ? me.name : role.name;
+                walletProvider.receiveTransfer(
+                  amount: amount,
+                  senderName: senderName,
+                  sessionId: widget.chatId,
+                  messageId: message.id,
+                );
+              }
 
               // 跳转结果页
               Navigator.pushReplacement(
@@ -624,146 +654,468 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   Widget _buildAttachmentOptionsPanel() {
+    // 定义所有附件选项
+    final List<_AttachmentOptionData> allOptions = [
+      _AttachmentOptionData(Icons.photo_library, '相册', _handlePickImages),
+      _AttachmentOptionData(Icons.camera_alt, '拍摄', _handleTakePhoto),
+      _AttachmentOptionData(Icons.location_on, '位置', _handleInputLocation),
+      _AttachmentOptionData(Icons.redeem, '红包', _handleSendRedPacket),
+      _AttachmentOptionData(Icons.payments, '转账', _handleSendTransfer),
+      // 后续可以在这里添加更多功能
+    ];
+
+    // 每页8个按钮（2行x4列）
+    const int itemsPerPage = 8;
+    final int pageCount = (allOptions.length / itemsPerPage).ceil();
+
     return SizedBox(
-      height: 180,
-      child: PageView(
+      height: 200, // 两行按钮 + padding (减小12px)
+      child: PageView.builder(
+        itemCount: pageCount,
+        itemBuilder: (context, pageIndex) {
+          final startIndex = pageIndex * itemsPerPage;
+          final endIndex =
+              (startIndex + itemsPerPage).clamp(0, allOptions.length);
+          final pageOptions = allOptions.sublist(startIndex, endIndex);
+
+          return _buildAttachmentPage(pageOptions);
+        },
+      ),
+    );
+  }
+
+  /// 构建一页附件选项（2行x4列）
+  Widget _buildAttachmentPage(List<_AttachmentOptionData> options) {
+    // 填充空白选项使每行都有4个
+    final List<_AttachmentOptionData?> row1 = [];
+    final List<_AttachmentOptionData?> row2 = [];
+
+    for (int i = 0; i < 4; i++) {
+      row1.add(i < options.length ? options[i] : null);
+    }
+    for (int i = 4; i < 8; i++) {
+      row2.add(i < options.length ? options[i] : null);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // 第一页 - 8个按钮
-          _buildPage1(),
-          // 第二页 - 4个按钮
-          _buildPage2(),
+          // 第一行
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: row1.map((opt) {
+              if (opt == null) {
+                return const SizedBox(width: 68);
+              }
+              return _buildAttachmentOption(
+                icon: opt.icon,
+                label: opt.label,
+                onTap: opt.onTap,
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 12),
+          // 第二行
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: row2.map((opt) {
+              if (opt == null) {
+                return const SizedBox(width: 68);
+              }
+              return _buildAttachmentOption(
+                icon: opt.icon,
+                label: opt.label,
+                onTap: opt.onTap,
+              );
+            }).toList(),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildPage1() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+  /// 处理选择多张图片
+  Future<void> _handlePickImages() async {
+    setState(() => _showAttachmentOptions = false);
+
+    try {
+      final ImagePicker picker = ImagePicker();
+      final List<XFile> images = await picker.pickMultiImage(
+        imageQuality: 80,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+
+      if (images.isEmpty) return;
+
+      final chatProvider = context.read<ChatProvider>();
+
+      // 依次发送每张图片
+      for (final image in images) {
+        await chatProvider.addMessage(
+          widget.chatId,
+          image.path,
+          MessageType.image,
+          true,
+        );
+      }
+
+      // 标记会话为已读
+      await chatProvider.markSessionAsRead(widget.chatId);
+
+      if (mounted) {
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) _scrollToBottom();
+        });
+      }
+
+      // 触发 AI 回复
+      _triggerAiResponse();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('选择图片失败: $e')),
+        );
+      }
+    }
+  }
+
+  /// 处理拍摄照片
+  Future<void> _handleTakePhoto() async {
+    setState(() => _showAttachmentOptions = false);
+
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? photo = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+
+      if (photo == null) return;
+
+      final chatProvider = context.read<ChatProvider>();
+
+      await chatProvider.addMessage(
+        widget.chatId,
+        photo.path,
+        MessageType.image,
+        true,
+      );
+
+      // 标记会话为已读
+      await chatProvider.markSessionAsRead(widget.chatId);
+
+      if (mounted) {
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) _scrollToBottom();
+        });
+      }
+
+      // 触发 AI 回复
+      _triggerAiResponse();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('拍摄失败: $e')),
+        );
+      }
+    }
+  }
+
+  /// 处理输入位置
+  void _handleInputLocation() {
+    setState(() => _showAttachmentOptions = false);
+
+    final addressController = TextEditingController();
+    final nameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('发送位置'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _buildAttachmentOption(
-              icon: Icons.photo_library,
-              label: '相册',
-              onTap: () {
-                setState(() => _showAttachmentOptions = false);
-                // TODO: 打开相册选择图片
-              },
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: '地点名称',
+                hintText: '如：星巴克咖啡',
+                border: OutlineInputBorder(),
+              ),
             ),
-            _buildAttachmentOption(
-              icon: Icons.camera_alt,
-              label: '拍摄',
-              onTap: () {
-                setState(() => _showAttachmentOptions = false);
-                // TODO: 打开相机拍照
-              },
-            ),
-            _buildAttachmentOption(
-              icon: Icons.video_call,
-              label: '视频通话',
-              onTap: () {
-                setState(() => _showAttachmentOptions = false);
-                // TODO: 发起视频通话
-              },
-            ),
-            _buildAttachmentOption(
-              icon: Icons.location_on,
-              label: '位置',
-              onTap: () {
-                setState(() => _showAttachmentOptions = false);
-                // TODO: 选择位置
-              },
+            const SizedBox(height: 12),
+            TextField(
+              controller: addressController,
+              decoration: const InputDecoration(
+                labelText: '详细地址',
+                hintText: '如：北京市朝阳区xxx路xxx号',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildAttachmentOption(
-              icon: Icons.card_giftcard,
-              label: '红包',
-              onTap: () {
-                setState(() => _showAttachmentOptions = false);
-                // TODO: 发红包
-              },
-            ),
-            _buildAttachmentOption(
-              icon: Icons.redeem,
-              label: '礼物',
-              onTap: () {
-                setState(() => _showAttachmentOptions = false);
-                // TODO: 发送礼物
-              },
-            ),
-            _buildAttachmentOption(
-              icon: Icons.payments,
-              label: '转账',
-              onTap: () {
-                setState(() => _showAttachmentOptions = false);
-                // TODO: 转账
-              },
-            ),
-            _buildAttachmentOption(
-              icon: Icons.mic,
-              label: '语音输入',
-              onTap: () {
-                setState(() => _showAttachmentOptions = false);
-                // TODO: 语音输入
-              },
-            ),
-          ],
-        ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              final address = addressController.text.trim();
+
+              if (name.isEmpty && address.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('请输入地点名称或地址')),
+                );
+                return;
+              }
+
+              Navigator.pop(dialogContext);
+
+              final chatProvider = context.read<ChatProvider>();
+
+              // 发送位置消息
+              await chatProvider.addMessage(
+                widget.chatId,
+                name.isNotEmpty ? name : address,
+                MessageType.location,
+                true,
+                metadata: {
+                  'name': name,
+                  'address': address,
+                },
+              );
+
+              // 标记会话为已读
+              await chatProvider.markSessionAsRead(widget.chatId);
+
+              if (mounted) {
+                Future.delayed(const Duration(milliseconds: 100), () {
+                  if (mounted) _scrollToBottom();
+                });
+              }
+
+              // 触发 AI 回复
+              _triggerAiResponse();
+            },
+            child: const Text('发送'),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildPage2() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildAttachmentOption(
-              icon: Icons.star,
-              label: '收藏',
-              onTap: () {
-                setState(() => _showAttachmentOptions = false);
-                // TODO: 打开收藏
+  /// 处理发红包
+  void _handleSendRedPacket() {
+    setState(() => _showAttachmentOptions = false);
+
+    final chatProvider = context.read<ChatProvider>();
+    final contactProvider = context.read<ContactProvider>();
+    final chat = chatProvider.getChat(widget.chatId);
+    if (chat == null) return;
+
+    final role = contactProvider.roles.firstWhere(
+      (r) => r.id == chat.roleId,
+      orElse: () => ContactRole(
+        id: 'unknown',
+        name: '未知用户',
+        description: '',
+        avatarPath: null,
+      ),
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SendRedPacketScreen(
+          receiverName: role.name,
+          receiverAvatar: role.avatarPath,
+          chatId: widget.chatId,
+          onSend: (amount, message) async {
+            // 发送红包消息
+            await chatProvider.addMessage(
+              widget.chatId,
+              amount.toStringAsFixed(2),
+              MessageType.redpacket,
+              true,
+              metadata: {
+                'message': message,
+                'status': 'unclaimed',
               },
-            ),
-            _buildAttachmentOption(
-              icon: Icons.person,
-              label: '个人名片',
-              onTap: () {
-                setState(() => _showAttachmentOptions = false);
-                // TODO: 分享个人名片
-              },
-            ),
-            _buildAttachmentOption(
-              icon: Icons.folder,
-              label: '文件',
-              onTap: () {
-                setState(() => _showAttachmentOptions = false);
-                // TODO: 选择文件
-              },
-            ),
-            _buildAttachmentOption(
-              icon: Icons.music_note,
-              label: '音乐',
-              onTap: () {
-                setState(() => _showAttachmentOptions = false);
-                // TODO: 分享音乐
-              },
-            ),
-          ],
+            );
+
+            // 标记会话为已读
+            await chatProvider.markSessionAsRead(widget.chatId);
+
+            if (mounted) {
+              Future.delayed(const Duration(milliseconds: 100), () {
+                if (mounted) _scrollToBottom();
+              });
+            }
+
+            // 触发 AI 回复
+            _triggerAiResponse();
+          },
         ),
-      ],
+      ),
+    );
+  }
+
+  /// 处理转账
+  void _handleSendTransfer() {
+    setState(() => _showAttachmentOptions = false);
+
+    final chatProvider = context.read<ChatProvider>();
+    final contactProvider = context.read<ContactProvider>();
+    final chat = chatProvider.getChat(widget.chatId);
+    if (chat == null) return;
+
+    final role = contactProvider.roles.firstWhere(
+      (r) => r.id == chat.roleId,
+      orElse: () => ContactRole(
+        id: 'unknown',
+        name: '未知用户',
+        description: '',
+        avatarPath: null,
+      ),
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SendTransferScreen(
+          receiverName: role.name,
+          receiverAvatar: role.avatarPath,
+          chatId: widget.chatId,
+          onSend: (amount, message) async {
+            // 发送转账消息
+            await chatProvider.addMessage(
+              widget.chatId,
+              amount.toStringAsFixed(2),
+              MessageType.transfer,
+              true,
+              metadata: {
+                'message': message,
+                'status': 'pending',
+              },
+            );
+
+            // 标记会话为已读
+            await chatProvider.markSessionAsRead(widget.chatId);
+
+            if (mounted) {
+              Future.delayed(const Duration(milliseconds: 100), () {
+                if (mounted) _scrollToBottom();
+              });
+            }
+
+            // 触发 AI 回复
+            _triggerAiResponse();
+          },
+        ),
+      ),
+    );
+  }
+
+  /// 触发 AI 回复（用于发送特殊消息后）
+  void _triggerAiResponse() async {
+    if (!mounted) return;
+
+    final chatProvider = context.read<ChatProvider>();
+    final apiProvider = context.read<ApiSettingsProvider>();
+    final promptProvider = context.read<PromptSettingsProvider>();
+    final contactProvider = context.read<ContactProvider>();
+    final momentsProvider = context.read<MomentsProvider>();
+    final memoryProvider = context.read<MemoryProvider>();
+    final chatId = widget.chatId;
+
+    final chat = chatProvider.getChat(chatId);
+    if (chat == null) return;
+
+    // 等待 API 设置初始化完成
+    if (!apiProvider.isInitialized) {
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+
+    final activePreset = apiProvider.activePreset;
+    if (activePreset == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('无法找到可用的 API 预设，请在设置中配置 API'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
+    final role = contactProvider.roles.firstWhere(
+      (r) => r.id == chat.roleId,
+      orElse: () => ContactRole(
+        id: 'unknown',
+        name: '未知用户',
+        description: '',
+        avatarPath: null,
+      ),
+    );
+
+    final me = contactProvider.meList.firstWhere(
+      (m) => m.id == chat.meId,
+      orElse: () =>
+          ContactMe(id: 'unknown', name: '我', info: '', avatarPath: null),
+    );
+
+    // 调用 Provider 生成回复
+    chatProvider.generateAiResponse(
+      chatId: chatId,
+      apiPreset: activePreset,
+      promptConfig: promptProvider.config,
+      role: role,
+      me: me,
+      onAddMoment: (content, user) {
+        momentsProvider.addMomentFromChat(content, user);
+      },
+      onError: (error) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('生成回复失败'),
+              content: SingleChildScrollView(
+                child: Text(error),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('确定'),
+                ),
+              ],
+            ),
+          );
+        }
+      },
+      enableExtendedChat: chat.enableExtendedChat,
+      delayedReplySeconds: promptProvider.delayedReplySeconds,
+      roleMemories: memoryProvider
+          .getMemoriesForRole(role.id)
+          .map((m) => m.content)
+          .toList(),
+      onAddMemory: (content, categoryStr) {
+        memoryProvider.addMemoryFromAiResponse(
+          roleId: role.id,
+          content: content,
+          sourceSessionId: chatId,
+          categoryStr: categoryStr,
+        );
+      },
     );
   }
 
@@ -1389,115 +1741,6 @@ class MessageItem extends StatelessWidget {
     );
   }
 
-  void _handleRedPacketTap(BuildContext context, ChatMessage message,
-      ContactRole role, ContactMe me) {
-    final status = message.metadata?['status'] ?? 'unclaimed';
-
-    if (status == 'opened') {
-      // 已领取，直接跳转结果页
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => RedPacketResultScreen(
-            message: message,
-            role: role,
-            me: me,
-          ),
-        ),
-      );
-    } else {
-      // 未领取，显示开红包弹窗
-      showDialog(
-        context: context,
-        barrierColor: Colors.black54,
-        builder: (context) => RedPacketDialog(
-          message: message,
-          role: role,
-          me: me,
-          onOpen: () {
-            // 更新消息状态为已领取
-            final chatProvider = context.read<ChatProvider>();
-            final newMetadata =
-                Map<String, dynamic>.from(message.metadata ?? {});
-            newMetadata['status'] = 'opened';
-
-            // 模拟更新数据库
-            // 注意：这里应该调用 updateMessageMetadata，但目前只有 updateMessageContent
-            // 我们暂时通过 updateMessageContent 触发刷新，实际应该扩展 Provider
-            // 为了演示效果，我们假设 updateMessage 支持 metadata 更新
-            // 由于 ChatProvider 没有直接更新 metadata 的方法，我们需要扩展它
-            // 这里暂时用一个变通方法：重新插入一条同样 ID 的消息（会覆盖吗？Drift 的 insertOrReplace）
-            // 或者我们添加一个 updateMessageMetadata 方法到 ChatProvider
-
-            // 既然不能直接修改 metadata，我们先在内存中修改，然后跳转
-            // 实际项目中需要在 ChatProvider 添加 updateMessageMetadata 方法
-
-            // 临时方案：调用 updateMessageContent 触发刷新，虽然内容没变
-            // 更好的方案是请求添加 updateMessageMetadata
-
-            // 假设我们已经有了 updateMessageMetadata
-            chatProvider.updateMessageMetadata(message.id, newMetadata);
-
-            Navigator.pop(context); // 关闭弹窗
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => RedPacketResultScreen(
-                  message: message,
-                  role: role,
-                  me: me,
-                ),
-              ),
-            );
-          },
-        ),
-      );
-    }
-  }
-
-  void _handleTransferTap(BuildContext context, ChatMessage message,
-      ContactRole role, ContactMe me) {
-    final status = message.metadata?['status'] ?? 'pending';
-
-    if (status == 'accepted') {
-      // 已收款，跳转结果页
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => TransferResultScreen(message: message),
-        ),
-      );
-    } else {
-      // 待收款，跳转收款页
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => TransferReceiveScreen(
-            message: message,
-            role: role,
-            me: me,
-            onAccept: (receiveContext) {
-              // 更新消息状态为已收款
-              final chatProvider = receiveContext.read<ChatProvider>();
-              final newMetadata =
-                  Map<String, dynamic>.from(message.metadata ?? {});
-              newMetadata['status'] = 'accepted';
-              chatProvider.updateMessageMetadata(message.id, newMetadata);
-
-              // 跳转结果页
-              Navigator.pushReplacement(
-                receiveContext,
-                MaterialPageRoute(
-                  builder: (context) => TransferResultScreen(message: message),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-    }
-  }
-
   Widget _buildAvatar(String? path, bool isMe) {
     return Container(
       width: 40,
@@ -1546,21 +1789,9 @@ class MessageItem extends StatelessWidget {
         break;
 
       case MessageType.image:
-        bubbleContent = Container(
-          constraints: BoxConstraints(maxWidth: maxBubbleWidth),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: Colors.grey.withOpacity(0.2)),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: Container(
-              color: Colors.grey[300],
-              height: 150,
-              width: 100,
-              child: const Icon(Icons.image, color: Colors.grey),
-            ),
-          ),
+        bubbleContent = _ImageBubble(
+          imagePath: message.content,
+          maxWidth: maxBubbleWidth,
         );
         break;
 
@@ -1877,4 +2108,99 @@ String _resolveSenderName({
     return sender;
   }
   return role.name;
+}
+
+/// 附件选项数据模型
+class _AttachmentOptionData {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  _AttachmentOptionData(this.icon, this.label, this.onTap);
+}
+
+/// 图片消息气泡
+class _ImageBubble extends StatelessWidget {
+  final String imagePath;
+  final double maxWidth;
+
+  const _ImageBubble({
+    required this.imagePath,
+    required this.maxWidth,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        // 点击查看大图
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => _FullScreenImageViewer(imagePath: imagePath),
+          ),
+        );
+      },
+      child: Container(
+        constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: 200),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Image.file(
+            File(imagePath),
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                width: 100,
+                height: 100,
+                color: Colors.grey[300],
+                child: const Icon(Icons.broken_image, color: Colors.grey),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 全屏图片查看器
+class _FullScreenImageViewer extends StatelessWidget {
+  final String imagePath;
+
+  const _FullScreenImageViewer({required this.imagePath});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Center(
+          child: InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 4.0,
+            child: Image.file(
+              File(imagePath),
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) {
+                return const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.broken_image, color: Colors.white, size: 64),
+                      SizedBox(height: 16),
+                      Text('图片加载失败', style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -12,6 +12,7 @@ import '../models/api_preset.dart';
 import '../models/world_info_model.dart';
 import '../models/text_preset_model.dart';
 import '../models/memory_model.dart';
+import '../models/wallet_model.dart';
 import 'tables.dart';
 
 part 'database.g.dart';
@@ -28,6 +29,7 @@ part 'database.g.dart';
   ApiPresets,
   MomentsUserSettings,
   AppSettings,
+  WalletTransactions,
 ])
 class AppDatabase extends _$AppDatabase {
   // Singleton instance
@@ -75,7 +77,7 @@ class AppDatabase extends _$AppDatabase {
   static bool get hasActiveConnection => _instance != null;
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   // Migration Strategy
   @override
@@ -136,6 +138,10 @@ class AppDatabase extends _$AppDatabase {
         if (from < 13) {
           // 添加通用应用设置表（替代 SharedPreferences）
           await m.createTable(appSettings);
+        }
+        if (from < 14) {
+          // 添加钱包交易记录表
+          await m.createTable(walletTransactions);
         }
       },
     );
@@ -1087,6 +1093,74 @@ class AppDatabase extends _$AppDatabase {
   Future<Map<String, String>> getAllSettings() async {
     final entities = await select(appSettings).get();
     return {for (final e in entities) e.key: e.value};
+  }
+
+  // --- Wallet Queries ---
+
+  /// 获取钱包余额
+  Future<double> getWalletBalance() async {
+    final balanceStr = await getSetting('wallet_balance');
+    if (balanceStr == null) return 0.0;
+    return double.tryParse(balanceStr) ?? 0.0;
+  }
+
+  /// 设置钱包余额
+  Future<void> setWalletBalance(double balance) async {
+    // 确保余额在有效范围内
+    final clampedBalance = balance.clamp(0.0, Wallet.maxBalance);
+    await setSetting('wallet_balance', clampedBalance.toString());
+  }
+
+  /// 获取所有钱包交易记录（按时间倒序）
+  Future<List<WalletTransaction>> getAllWalletTransactions() async {
+    final query = select(walletTransactions)
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.timestamp, mode: OrderingMode.desc),
+      ]);
+    final entities = await query.get();
+    return entities
+        .map(
+          (e) => WalletTransaction(
+            id: e.id,
+            type: e.type,
+            direction: e.direction,
+            amount: e.amount,
+            description: e.description,
+            relatedContactName: e.relatedContactName,
+            relatedSessionId: e.relatedSessionId,
+            relatedMessageId: e.relatedMessageId,
+            timestamp: e.timestamp,
+          ),
+        )
+        .toList();
+  }
+
+  /// 插入钱包交易记录
+  Future<void> insertWalletTransaction(WalletTransaction transaction) async {
+    await into(walletTransactions).insert(
+      WalletTransactionsCompanion(
+        id: Value(transaction.id),
+        type: Value(transaction.type),
+        direction: Value(transaction.direction),
+        amount: Value(transaction.amount),
+        description: Value(transaction.description),
+        relatedContactName: Value(transaction.relatedContactName),
+        relatedSessionId: Value(transaction.relatedSessionId),
+        relatedMessageId: Value(transaction.relatedMessageId),
+        timestamp: Value(transaction.timestamp),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  /// 删除钱包交易记录
+  Future<void> deleteWalletTransaction(String id) async {
+    await (delete(walletTransactions)..where((t) => t.id.equals(id))).go();
+  }
+
+  /// 清空所有钱包交易记录
+  Future<void> clearAllWalletTransactions() async {
+    await delete(walletTransactions).go();
   }
 }
 

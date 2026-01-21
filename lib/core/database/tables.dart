@@ -4,6 +4,7 @@ import '../models/chat_model.dart';
 import '../models/moments_model.dart';
 import '../models/memory_model.dart';
 import '../models/api_preset.dart';
+import '../models/wallet_model.dart';
 
 /// List<String> 的转换器
 class StringListConverter extends TypeConverter<List<String>, String> {
@@ -159,6 +160,62 @@ class ApiProviderConverter extends TypeConverter<ApiProvider, int> {
   int toSql(ApiProvider value) {
     return value.index;
   }
+}
+
+/// 钱包交易类型转换器
+class WalletTransactionTypeConverter
+    extends TypeConverter<WalletTransactionType, int> {
+  const WalletTransactionTypeConverter();
+
+  @override
+  WalletTransactionType fromSql(int fromDb) {
+    if (fromDb >= 0 && fromDb < WalletTransactionType.values.length) {
+      return WalletTransactionType.values[fromDb];
+    }
+    return WalletTransactionType.transfer;
+  }
+
+  @override
+  int toSql(WalletTransactionType value) {
+    return value.index;
+  }
+}
+
+/// 交易方向转换器
+class TransactionDirectionConverter
+    extends TypeConverter<TransactionDirection, int> {
+  const TransactionDirectionConverter();
+
+  @override
+  TransactionDirection fromSql(int fromDb) {
+    if (fromDb >= 0 && fromDb < TransactionDirection.values.length) {
+      return TransactionDirection.values[fromDb];
+    }
+    return TransactionDirection.income;
+  }
+
+  @override
+  int toSql(TransactionDirection value) {
+    return value.index;
+  }
+}
+
+/// 钱包交易记录表
+@DataClassName('WalletTransactionEntity')
+class WalletTransactions extends Table {
+  TextColumn get id => text()();
+  IntColumn get type => integer().map(const WalletTransactionTypeConverter())();
+  IntColumn get direction =>
+      integer().map(const TransactionDirectionConverter())();
+  RealColumn get amount => real()();
+  TextColumn get description => text().nullable()();
+  TextColumn get relatedContactName => text().nullable()();
+  TextColumn get relatedSessionId => text().nullable()();
+  TextColumn get relatedMessageId => text().nullable()();
+  IntColumn get timestamp => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
 }
 
 /// 朋友圈用户设置表（头像、封面、昵称、签名）

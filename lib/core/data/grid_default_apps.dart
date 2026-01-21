@@ -59,14 +59,6 @@ class GridDefaultApps {
           gradientColors: [Color(0xFFFF512F), Color(0xFFDD2476)],
         ),
         // 系统应用 (保留需要的)
-        'wallet': const AppModel(
-          id: 'wallet',
-          name: '钱包',
-          type: AppType.system,
-          iconType: IconType.gradient,
-          icon: CupertinoIcons.creditcard_fill,
-          gradientColors: [Color(0xFF1C1C1E), Color(0xFF3A3A3C)],
-        ),
         'settings': const AppModel(
           id: 'settings',
           name: '设置',
@@ -91,7 +83,7 @@ class GridDefaultApps {
         null, null, null, null,
         null, null, null, null,
         // 第7行 - 原dock应用
-        'ai_chat', null, 'wallet', 'settings',
+        'ai_chat', null, null, 'settings',
       ];
 
   /// 默认第二页网格布局

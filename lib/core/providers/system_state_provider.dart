@@ -426,19 +426,12 @@ class SystemStateProvider extends ChangeNotifier {
   }
 
   // 持久化存储 - 加载设置
-  // 注意：先检查数据库，如果没有则从 SharedPreferences 迁移
+  // 无论数据库是否有数据，都尝试从 SharedPreferences 迁移
+  // 这样可以确保从任何中间版本升级时都不会丢失数据
   Future<void> _loadSettings() async {
     try {
-      // [已弃用] SharedPreferences 仅用于兼容迁移
-      final prefs = await SharedPreferences.getInstance();
-
-      // 检查是否需要迁移（如果数据库中没有 wallpaper_index，则尝试迁移）
-      final needsMigration = !(await _db.hasSetting('wallpaper_index'));
-
-      if (needsMigration) {
-        debugPrint('[SystemState] 开始从 SharedPreferences 迁移数据到数据库...');
-        await _migrateFromSharedPreferences(prefs);
-      }
+      // 无条件尝试迁移，确保不丢失任何旧数据
+      await _migrateFromSharedPreferences();
 
       // 从数据库加载设置
       await _loadFromDatabase();
@@ -453,60 +446,159 @@ class SystemStateProvider extends ChangeNotifier {
   }
 
   /// 从 SharedPreferences 迁移数据到数据库
+  /// 使用增量更新策略：只添加数据库中不存在的设置，不覆盖已有数据
   /// [已弃用] 此方法仅用于兼容旧版本数据
-  Future<void> _migrateFromSharedPreferences(SharedPreferences prefs) async {
+  Future<void> _migrateFromSharedPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    bool hasMigrated = false;
+
     try {
-      // 迁移桌面壁纸
-      final wallpaperIndex = prefs.getInt('wallpaper_index') ?? 0;
-      await _db.setSettingInt('wallpaper_index', wallpaperIndex.clamp(0, 6));
-
-      final customWallpaperPath = prefs.getString('custom_wallpaper_path');
-      if (customWallpaperPath != null) {
-        await _db.setSetting('custom_wallpaper_path', customWallpaperPath);
+      // 迁移桌面壁纸索引（增量更新）
+      if (prefs.containsKey('wallpaper_index')) {
+        final value = prefs.getInt('wallpaper_index');
+        if (value != null && !(await _db.hasSetting('wallpaper_index'))) {
+          await _db.setSettingInt('wallpaper_index', value.clamp(0, 6));
+        }
+        await prefs.remove('wallpaper_index');
+        hasMigrated = true;
       }
 
-      // 迁移锁屏壁纸
-      final lockScreenIndex = prefs.getInt('lockscreen_wallpaper_index') ?? 0;
-      await _db.setSettingInt(
-          'lockscreen_wallpaper_index', lockScreenIndex.clamp(0, 6));
-
-      final customLockPath =
-          prefs.getString('custom_lockscreen_wallpaper_path');
-      if (customLockPath != null) {
-        await _db.setSetting(
-            'custom_lockscreen_wallpaper_path', customLockPath);
+      // 迁移自定义桌面壁纸路径（增量更新）
+      if (prefs.containsKey('custom_wallpaper_path')) {
+        final value = prefs.getString('custom_wallpaper_path');
+        if (value != null && !(await _db.hasSetting('custom_wallpaper_path'))) {
+          await _db.setSetting('custom_wallpaper_path', value);
+        }
+        await prefs.remove('custom_wallpaper_path');
+        hasMigrated = true;
       }
 
-      // 迁移自定义图标
-      final iconsJson = prefs.getString('custom_app_icons');
-      if (iconsJson != null) {
-        await _db.setSetting('custom_app_icons', iconsJson);
+      // 迁移锁屏壁纸索引（增量更新）
+      if (prefs.containsKey('lockscreen_wallpaper_index')) {
+        final value = prefs.getInt('lockscreen_wallpaper_index');
+        if (value != null &&
+            !(await _db.hasSetting('lockscreen_wallpaper_index'))) {
+          await _db.setSettingInt(
+              'lockscreen_wallpaper_index', value.clamp(0, 6));
+        }
+        await prefs.remove('lockscreen_wallpaper_index');
+        hasMigrated = true;
       }
 
-      // 迁移网格布局
-      final gridJson = prefs.getString('grid_pages');
-      if (gridJson != null) {
-        await _db.setSetting('grid_pages', gridJson);
+      // 迁移自定义锁屏壁纸路径（增量更新）
+      if (prefs.containsKey('custom_lockscreen_wallpaper_path')) {
+        final value = prefs.getString('custom_lockscreen_wallpaper_path');
+        if (value != null &&
+            !(await _db.hasSetting('custom_lockscreen_wallpaper_path'))) {
+          await _db.setSetting('custom_lockscreen_wallpaper_path', value);
+        }
+        await prefs.remove('custom_lockscreen_wallpaper_path');
+        hasMigrated = true;
       }
 
-      // 迁移系统设置
-      await _db.setSettingDouble(
-          'brightness', prefs.getDouble('brightness') ?? 0.7);
-      await _db.setSettingDouble('volume', prefs.getDouble('volume') ?? 0.5);
-      await _db.setSettingBool(
-          'airplane_mode', prefs.getBool('airplane_mode') ?? false);
-      await _db.setSettingBool(
-          'wifi_enabled', prefs.getBool('wifi_enabled') ?? true);
-      await _db.setSettingBool(
-          'bluetooth_enabled', prefs.getBool('bluetooth_enabled') ?? true);
-      await _db.setSettingBool(
-          'cellular_enabled', prefs.getBool('cellular_enabled') ?? true);
-      await _db.setSettingBool(
-          'rotation_locked', prefs.getBool('rotation_locked') ?? false);
-      await _db.setSettingBool(
-          'focus_mode', prefs.getBool('focus_mode') ?? false);
+      // 迁移自定义图标（增量更新）
+      if (prefs.containsKey('custom_app_icons')) {
+        final value = prefs.getString('custom_app_icons');
+        if (value != null && !(await _db.hasSetting('custom_app_icons'))) {
+          await _db.setSetting('custom_app_icons', value);
+        }
+        await prefs.remove('custom_app_icons');
+        hasMigrated = true;
+      }
 
-      debugPrint('[SystemState] 数据迁移完成');
+      // 迁移网格布局（增量更新）
+      if (prefs.containsKey('grid_pages')) {
+        final value = prefs.getString('grid_pages');
+        if (value != null && !(await _db.hasSetting('grid_pages'))) {
+          await _db.setSetting('grid_pages', value);
+        }
+        await prefs.remove('grid_pages');
+        hasMigrated = true;
+      }
+
+      // 迁移系统设置 - brightness（增量更新）
+      if (prefs.containsKey('brightness')) {
+        final value = prefs.getDouble('brightness');
+        if (value != null && !(await _db.hasSetting('brightness'))) {
+          await _db.setSettingDouble('brightness', value);
+        }
+        await prefs.remove('brightness');
+        hasMigrated = true;
+      }
+
+      // 迁移系统设置 - volume（增量更新）
+      if (prefs.containsKey('volume')) {
+        final value = prefs.getDouble('volume');
+        if (value != null && !(await _db.hasSetting('volume'))) {
+          await _db.setSettingDouble('volume', value);
+        }
+        await prefs.remove('volume');
+        hasMigrated = true;
+      }
+
+      // 迁移系统设置 - airplane_mode（增量更新）
+      if (prefs.containsKey('airplane_mode')) {
+        final value = prefs.getBool('airplane_mode');
+        if (value != null && !(await _db.hasSetting('airplane_mode'))) {
+          await _db.setSettingBool('airplane_mode', value);
+        }
+        await prefs.remove('airplane_mode');
+        hasMigrated = true;
+      }
+
+      // 迁移系统设置 - wifi_enabled（增量更新）
+      if (prefs.containsKey('wifi_enabled')) {
+        final value = prefs.getBool('wifi_enabled');
+        if (value != null && !(await _db.hasSetting('wifi_enabled'))) {
+          await _db.setSettingBool('wifi_enabled', value);
+        }
+        await prefs.remove('wifi_enabled');
+        hasMigrated = true;
+      }
+
+      // 迁移系统设置 - bluetooth_enabled（增量更新）
+      if (prefs.containsKey('bluetooth_enabled')) {
+        final value = prefs.getBool('bluetooth_enabled');
+        if (value != null && !(await _db.hasSetting('bluetooth_enabled'))) {
+          await _db.setSettingBool('bluetooth_enabled', value);
+        }
+        await prefs.remove('bluetooth_enabled');
+        hasMigrated = true;
+      }
+
+      // 迁移系统设置 - cellular_enabled（增量更新）
+      if (prefs.containsKey('cellular_enabled')) {
+        final value = prefs.getBool('cellular_enabled');
+        if (value != null && !(await _db.hasSetting('cellular_enabled'))) {
+          await _db.setSettingBool('cellular_enabled', value);
+        }
+        await prefs.remove('cellular_enabled');
+        hasMigrated = true;
+      }
+
+      // 迁移系统设置 - rotation_locked（增量更新）
+      if (prefs.containsKey('rotation_locked')) {
+        final value = prefs.getBool('rotation_locked');
+        if (value != null && !(await _db.hasSetting('rotation_locked'))) {
+          await _db.setSettingBool('rotation_locked', value);
+        }
+        await prefs.remove('rotation_locked');
+        hasMigrated = true;
+      }
+
+      // 迁移系统设置 - focus_mode（增量更新）
+      if (prefs.containsKey('focus_mode')) {
+        final value = prefs.getBool('focus_mode');
+        if (value != null && !(await _db.hasSetting('focus_mode'))) {
+          await _db.setSettingBool('focus_mode', value);
+        }
+        await prefs.remove('focus_mode');
+        hasMigrated = true;
+      }
+
+      if (hasMigrated) {
+        debugPrint('[SystemState] 数据迁移完成');
+      }
     } catch (e) {
       debugPrint('[SystemState] 数据迁移失败: $e');
     }
@@ -1492,29 +1584,9 @@ class SystemStateProvider extends ChangeNotifier {
   /// 注意：所有设置现在存储在数据库中，SharedPreferences 已被弃用
   Future<void> _loadWallpaperSettings() async {
     try {
-      // [已弃用] SharedPreferences 仅用于兼容迁移
-      final prefs = await SharedPreferences.getInstance();
-
-      // 检查是否需要迁移壁纸池设置
-      final needsMigration = !(await _db.hasSetting('wallpaper_pool'));
-
-      if (needsMigration) {
-        // 从 SharedPreferences 迁移壁纸池设置
-        final poolJson = prefs.getString('wallpaper_pool');
-        if (poolJson != null) {
-          await _db.setSetting('wallpaper_pool', poolJson);
-        }
-
-        final poolIndex = prefs.getInt('current_wallpaper_pool_index');
-        if (poolIndex != null) {
-          await _db.setSettingInt('current_wallpaper_pool_index', poolIndex);
-        }
-
-        final lastUpdate = prefs.getString('last_wallpaper_update_date');
-        if (lastUpdate != null) {
-          await _db.setSetting('last_wallpaper_update_date', lastUpdate);
-        }
-      }
+      // 无论数据库是否有数据，都尝试从 SharedPreferences 迁移
+      // 这样可以确保从任何中间版本升级时都不会丢失数据
+      await _migrateWallpaperSettingsFromSharedPreferences();
 
       // 从数据库加载壁纸池设置
       final poolJson = await _db.getSetting('wallpaper_pool');
@@ -1533,6 +1605,54 @@ class SystemStateProvider extends ChangeNotifier {
           '壁纸设置加载完成: 池大小=${_wallpaperPool.length}, 当前索引=$_currentWallpaperPoolIndex, 上次更新=$_lastWallpaperUpdateDate');
     } catch (e) {
       debugPrint('加载壁纸设置失败: $e');
+    }
+  }
+
+  /// 从 SharedPreferences 迁移壁纸池设置到数据库
+  /// 使用增量更新策略：只添加数据库中不存在的设置，不覆盖已有数据
+  /// [已弃用] 此方法仅用于兼容旧版本数据
+  Future<void> _migrateWallpaperSettingsFromSharedPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    bool hasMigrated = false;
+
+    try {
+      // 迁移壁纸池（增量更新）
+      if (prefs.containsKey('wallpaper_pool')) {
+        final value = prefs.getString('wallpaper_pool');
+        if (value != null && !(await _db.hasSetting('wallpaper_pool'))) {
+          await _db.setSetting('wallpaper_pool', value);
+        }
+        await prefs.remove('wallpaper_pool');
+        hasMigrated = true;
+      }
+
+      // 迁移当前壁纸池索引（增量更新）
+      if (prefs.containsKey('current_wallpaper_pool_index')) {
+        final value = prefs.getInt('current_wallpaper_pool_index');
+        if (value != null &&
+            !(await _db.hasSetting('current_wallpaper_pool_index'))) {
+          await _db.setSettingInt('current_wallpaper_pool_index', value);
+        }
+        await prefs.remove('current_wallpaper_pool_index');
+        hasMigrated = true;
+      }
+
+      // 迁移上次壁纸更新日期（增量更新）
+      if (prefs.containsKey('last_wallpaper_update_date')) {
+        final value = prefs.getString('last_wallpaper_update_date');
+        if (value != null &&
+            !(await _db.hasSetting('last_wallpaper_update_date'))) {
+          await _db.setSetting('last_wallpaper_update_date', value);
+        }
+        await prefs.remove('last_wallpaper_update_date');
+        hasMigrated = true;
+      }
+
+      if (hasMigrated) {
+        debugPrint('[SystemState] 壁纸池设置迁移完成');
+      }
+    } catch (e) {
+      debugPrint('[SystemState] 壁纸池设置迁移失败: $e');
     }
   }
 

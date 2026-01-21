@@ -29,58 +29,88 @@ class ContactProvider extends ChangeNotifier {
   }
 
   Future<void> _loadData() async {
-    // 先从数据库加载
+    // 无论数据库是否有数据，都尝试从 SharedPreferences 迁移
+    // 这样可以确保从任何中间版本升级时都不会丢失数据
+    await _migrateFromSharedPreferences();
+
+    // 从数据库加载最新数据
     _roles = await _db.getAllContactRoles();
     _meList = await _db.getAllContactMes();
-
-    // 如果数据库为空，尝试从 SharedPreferences 迁移
-    if (_roles.isEmpty && _meList.isEmpty) {
-      await _migrateFromSharedPreferences();
-    }
 
     _isLoaded = true;
     notifyListeners();
   }
 
   /// 从 SharedPreferences 迁移数据到数据库（兼容旧版本）
+  /// 使用增量更新策略：只添加数据库中不存在的数据，不覆盖已有数据
   Future<void> _migrateFromSharedPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     bool hasMigrated = false;
 
-    // 迁移角色数据
+    // 迁移角色数据（增量更新：只添加数据库中没有的）
     final rolesJson = prefs.getString('contact_roles');
     if (rolesJson != null) {
-      final List<dynamic> decoded = jsonDecode(rolesJson);
-      _roles = decoded.map((item) => ContactRole.fromJson(item)).toList();
+      try {
+        final List<dynamic> decoded = jsonDecode(rolesJson);
+        final rolesFromPrefs =
+            decoded.map((item) => ContactRole.fromJson(item)).toList();
 
-      // 保存到数据库
-      for (final role in _roles) {
-        await _db.insertContactRole(role);
+        // 获取数据库中已有的角色 ID
+        final existingRoles = await _db.getAllContactRoles();
+        final existingRoleIds = existingRoles.map((r) => r.id).toSet();
+
+        // 只添加数据库中不存在的角色
+        int addedCount = 0;
+        for (final role in rolesFromPrefs) {
+          if (!existingRoleIds.contains(role.id)) {
+            await _db.insertContactRole(role);
+            addedCount++;
+          }
+        }
+
+        // 迁移成功后清除旧数据
+        await prefs.remove('contact_roles');
+        hasMigrated = true;
+        if (addedCount > 0) {
+          debugPrint(
+              '[ContactProvider] 已从 SharedPreferences 增量添加 $addedCount 个角色');
+        }
+      } catch (e) {
+        debugPrint('[ContactProvider] 迁移角色数据失败: $e');
       }
-
-      // 清除旧数据
-      await prefs.remove('contact_roles');
-      hasMigrated = true;
-      debugPrint(
-          '[ContactProvider] 已从 SharedPreferences 迁移 ${_roles.length} 个角色');
     }
 
-    // 迁移用户数据
+    // 迁移用户数据（增量更新：只添加数据库中没有的）
     final meListJson = prefs.getString('contact_me_list');
     if (meListJson != null) {
-      final List<dynamic> decoded = jsonDecode(meListJson);
-      _meList = decoded.map((item) => ContactMe.fromJson(item)).toList();
+      try {
+        final List<dynamic> decoded = jsonDecode(meListJson);
+        final meListFromPrefs =
+            decoded.map((item) => ContactMe.fromJson(item)).toList();
 
-      // 保存到数据库
-      for (final me in _meList) {
-        await _db.insertContactMe(me);
+        // 获取数据库中已有的用户人设 ID
+        final existingMeList = await _db.getAllContactMes();
+        final existingMeIds = existingMeList.map((m) => m.id).toSet();
+
+        // 只添加数据库中不存在的用户人设
+        int addedCount = 0;
+        for (final me in meListFromPrefs) {
+          if (!existingMeIds.contains(me.id)) {
+            await _db.insertContactMe(me);
+            addedCount++;
+          }
+        }
+
+        // 迁移成功后清除旧数据
+        await prefs.remove('contact_me_list');
+        hasMigrated = true;
+        if (addedCount > 0) {
+          debugPrint(
+              '[ContactProvider] 已从 SharedPreferences 增量添加 $addedCount 个用户人设');
+        }
+      } catch (e) {
+        debugPrint('[ContactProvider] 迁移用户人设失败: $e');
       }
-
-      // 清除旧数据
-      await prefs.remove('contact_me_list');
-      hasMigrated = true;
-      debugPrint(
-          '[ContactProvider] 已从 SharedPreferences 迁移 ${_meList.length} 个用户人设');
     }
 
     if (hasMigrated) {

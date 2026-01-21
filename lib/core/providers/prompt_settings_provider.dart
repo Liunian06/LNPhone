@@ -39,78 +39,141 @@ class PromptSettingsProvider extends ChangeNotifier {
 
   /// 从数据库加载设置，并从 SharedPreferences 迁移旧数据
   Future<void> _loadSettings() async {
-    // [已弃用] SharedPreferences 仅用于兼容迁移
-    final prefs = await SharedPreferences.getInstance();
-
-    // 检查是否需要迁移（如果数据库中没有 roleplay_prompt，则尝试迁移）
-    final needsMigration = !(await _db.hasSetting('roleplay_prompt'));
-
-    if (needsMigration) {
-      debugPrint('[PromptSettings] 开始从 SharedPreferences 迁移数据到数据库...');
-      await _migrateFromSharedPreferences(prefs);
-    }
+    // 无论数据库是否有数据，都尝试从 SharedPreferences 迁移
+    // 这样可以确保从任何中间版本升级时都不会丢失数据
+    await _migrateFromSharedPreferences();
 
     // 从数据库加载设置
     await _loadFromDatabase();
   }
 
   /// 从 SharedPreferences 迁移数据到数据库
+  /// 使用增量更新策略：只添加数据库中不存在的设置，不覆盖已有数据
   /// [已弃用] 此方法仅用于兼容旧版本数据
-  Future<void> _migrateFromSharedPreferences(SharedPreferences prefs) async {
+  Future<void> _migrateFromSharedPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    bool hasMigrated = false;
+
     try {
-      // 迁移 roleplay_prompt
-      String? roleplayPrompt = prefs.getString('roleplay_prompt');
-      if (roleplayPrompt == null) {
-        try {
-          roleplayPrompt = await rootBundle.loadString(
-            'assets/prompts/roleplay_prompt.txt',
-          );
-        } catch (e) {
-          debugPrint('Error loading roleplay_prompt: $e');
-          roleplayPrompt = '你是一个AI助手，正在进行角色扮演任务。请完全沉浸在设定的角色中，不要暴露你是AI的身份。';
+      // 迁移 roleplay_prompt（增量更新：只在数据库中没有时添加）
+      final roleplayPromptFromPrefs = prefs.getString('roleplay_prompt');
+      if (roleplayPromptFromPrefs != null) {
+        if (!(await _db.hasSetting('roleplay_prompt'))) {
+          await _db.setSetting('roleplay_prompt', roleplayPromptFromPrefs);
+          debugPrint('[PromptSettings] 已增量添加 roleplay_prompt');
         }
+        await prefs.remove('roleplay_prompt');
+        hasMigrated = true;
       }
-      await _db.setSetting('roleplay_prompt', roleplayPrompt);
 
-      // 迁移 reality_prompt
-      String? realityPrompt = prefs.getString('reality_prompt');
-      if (realityPrompt == null) {
-        try {
-          realityPrompt = await rootBundle.loadString(
-            'assets/prompts/reality_prompt.txt',
-          );
-        } catch (e) {
-          debugPrint('Error loading reality_prompt: $e');
-          realityPrompt = '当前时间：{time}。当前日期：{date}。';
+      // 迁移 reality_prompt（增量更新：只在数据库中没有时添加）
+      final realityPromptFromPrefs = prefs.getString('reality_prompt');
+      if (realityPromptFromPrefs != null) {
+        if (!(await _db.hasSetting('reality_prompt'))) {
+          await _db.setSetting('reality_prompt', realityPromptFromPrefs);
+          debugPrint('[PromptSettings] 已增量添加 reality_prompt');
         }
+        await prefs.remove('reality_prompt');
+        hasMigrated = true;
       }
-      await _db.setSetting('reality_prompt', realityPrompt);
 
-      // 迁移其他布尔和整数设置
-      final enableRealityPrompt =
-          prefs.getBool('enable_reality_prompt') ?? _enableRealityPrompt;
-      await _db.setSettingBool('enable_reality_prompt', enableRealityPrompt);
+      // 迁移 enable_reality_prompt（增量更新）
+      if (prefs.containsKey('enable_reality_prompt')) {
+        final value = prefs.getBool('enable_reality_prompt');
+        if (value != null && !(await _db.hasSetting('enable_reality_prompt'))) {
+          await _db.setSettingBool('enable_reality_prompt', value);
+        }
+        await prefs.remove('enable_reality_prompt');
+        hasMigrated = true;
+      }
 
-      final contextLength = prefs.getInt('context_length') ?? _contextLength;
-      await _db.setSettingInt('context_length', contextLength);
+      // 迁移 context_length（增量更新）
+      // 同时检查驼峰命名和蛇形命名（兼容旧版本）
+      int? contextLengthValue;
+      if (prefs.containsKey('contextLength')) {
+        contextLengthValue = prefs.getInt('contextLength');
+        await prefs.remove('contextLength');
+        hasMigrated = true;
+      }
+      if (prefs.containsKey('context_length')) {
+        contextLengthValue ??= prefs.getInt('context_length');
+        await prefs.remove('context_length');
+        hasMigrated = true;
+      }
+      if (contextLengthValue != null &&
+          !(await _db.hasSetting('context_length'))) {
+        await _db.setSettingInt('context_length', contextLengthValue);
+        debugPrint(
+            '[PromptSettings] 已增量添加 context_length: $contextLengthValue');
+      }
 
-      final delayedReplySeconds =
-          prefs.getInt('delayed_reply_seconds') ?? _delayedReplySeconds;
-      await _db.setSettingInt('delayed_reply_seconds', delayedReplySeconds);
+      // 迁移 delayed_reply_seconds（增量更新）
+      // 同时检查驼峰命名和蛇形命名（兼容旧版本）
+      int? delayedReplyValue;
+      if (prefs.containsKey('delayedReplySeconds')) {
+        delayedReplyValue = prefs.getInt('delayedReplySeconds');
+        await prefs.remove('delayedReplySeconds');
+        hasMigrated = true;
+      }
+      if (prefs.containsKey('delayed_reply_seconds')) {
+        delayedReplyValue ??= prefs.getInt('delayed_reply_seconds');
+        await prefs.remove('delayed_reply_seconds');
+        hasMigrated = true;
+      }
+      if (delayedReplyValue != null &&
+          !(await _db.hasSetting('delayed_reply_seconds'))) {
+        await _db.setSettingInt('delayed_reply_seconds', delayedReplyValue);
+        debugPrint(
+            '[PromptSettings] 已增量添加 delayed_reply_seconds: $delayedReplyValue');
+      }
 
-      final enableBackgroundActiveReply =
-          prefs.getBool('enable_background_active_reply') ??
-              _enableBackgroundActiveReply;
-      await _db.setSettingBool(
-          'enable_background_active_reply', enableBackgroundActiveReply);
+      // 迁移 enable_background_active_reply（增量更新）
+      // 同时检查驼峰命名和蛇形命名（兼容旧版本）
+      bool? enableBackgroundValue;
+      if (prefs.containsKey('enableBackgroundActiveReply')) {
+        enableBackgroundValue = prefs.getBool('enableBackgroundActiveReply');
+        await prefs.remove('enableBackgroundActiveReply');
+        hasMigrated = true;
+      }
+      if (prefs.containsKey('enable_background_active_reply')) {
+        enableBackgroundValue ??=
+            prefs.getBool('enable_background_active_reply');
+        await prefs.remove('enable_background_active_reply');
+        hasMigrated = true;
+      }
+      if (enableBackgroundValue != null &&
+          !(await _db.hasSetting('enable_background_active_reply'))) {
+        await _db.setSettingBool(
+            'enable_background_active_reply', enableBackgroundValue);
+        debugPrint(
+            '[PromptSettings] 已增量添加 enable_background_active_reply: $enableBackgroundValue');
+      }
 
-      final backgroundActiveReplyInterval =
-          prefs.getInt('background_active_reply_interval') ??
-              _backgroundActiveReplyInterval;
-      await _db.setSettingInt(
-          'background_active_reply_interval', backgroundActiveReplyInterval);
+      // 迁移 background_active_reply_interval（增量更新）
+      // 同时检查驼峰命名和蛇形命名（兼容旧版本）
+      int? backgroundIntervalValue;
+      if (prefs.containsKey('backgroundActiveReplyInterval')) {
+        backgroundIntervalValue = prefs.getInt('backgroundActiveReplyInterval');
+        await prefs.remove('backgroundActiveReplyInterval');
+        hasMigrated = true;
+      }
+      if (prefs.containsKey('background_active_reply_interval')) {
+        backgroundIntervalValue ??=
+            prefs.getInt('background_active_reply_interval');
+        await prefs.remove('background_active_reply_interval');
+        hasMigrated = true;
+      }
+      if (backgroundIntervalValue != null &&
+          !(await _db.hasSetting('background_active_reply_interval'))) {
+        await _db.setSettingInt(
+            'background_active_reply_interval', backgroundIntervalValue);
+        debugPrint(
+            '[PromptSettings] 已增量添加 background_active_reply_interval: $backgroundIntervalValue');
+      }
 
-      debugPrint('[PromptSettings] 数据迁移完成');
+      if (hasMigrated) {
+        debugPrint('[PromptSettings] 数据迁移完成');
+      }
     } catch (e) {
       debugPrint('[PromptSettings] 数据迁移失败: $e');
     }

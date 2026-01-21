@@ -4164,6 +4164,506 @@ class AppSettingsCompanion extends UpdateCompanion<AppSettingEntity> {
   }
 }
 
+class $WalletTransactionsTable extends WalletTransactions
+    with TableInfo<$WalletTransactionsTable, WalletTransactionEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $WalletTransactionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  late final GeneratedColumnWithTypeConverter<WalletTransactionType, int> type =
+      GeneratedColumn<int>('type', aliasedName, false,
+              type: DriftSqlType.int, requiredDuringInsert: true)
+          .withConverter<WalletTransactionType>(
+              $WalletTransactionsTable.$convertertype);
+  @override
+  late final GeneratedColumnWithTypeConverter<TransactionDirection, int>
+      direction = GeneratedColumn<int>('direction', aliasedName, false,
+              type: DriftSqlType.int, requiredDuringInsert: true)
+          .withConverter<TransactionDirection>(
+              $WalletTransactionsTable.$converterdirection);
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<double> amount = GeneratedColumn<double>(
+      'amount', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _descriptionMeta =
+      const VerificationMeta('description');
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+      'description', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _relatedContactNameMeta =
+      const VerificationMeta('relatedContactName');
+  @override
+  late final GeneratedColumn<String> relatedContactName =
+      GeneratedColumn<String>('related_contact_name', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _relatedSessionIdMeta =
+      const VerificationMeta('relatedSessionId');
+  @override
+  late final GeneratedColumn<String> relatedSessionId = GeneratedColumn<String>(
+      'related_session_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _relatedMessageIdMeta =
+      const VerificationMeta('relatedMessageId');
+  @override
+  late final GeneratedColumn<String> relatedMessageId = GeneratedColumn<String>(
+      'related_message_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _timestampMeta =
+      const VerificationMeta('timestamp');
+  @override
+  late final GeneratedColumn<int> timestamp = GeneratedColumn<int>(
+      'timestamp', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        type,
+        direction,
+        amount,
+        description,
+        relatedContactName,
+        relatedSessionId,
+        relatedMessageId,
+        timestamp
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'wallet_transactions';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<WalletTransactionEntity> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('amount')) {
+      context.handle(_amountMeta,
+          amount.isAcceptableOrUnknown(data['amount']!, _amountMeta));
+    } else if (isInserting) {
+      context.missing(_amountMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+          _descriptionMeta,
+          description.isAcceptableOrUnknown(
+              data['description']!, _descriptionMeta));
+    }
+    if (data.containsKey('related_contact_name')) {
+      context.handle(
+          _relatedContactNameMeta,
+          relatedContactName.isAcceptableOrUnknown(
+              data['related_contact_name']!, _relatedContactNameMeta));
+    }
+    if (data.containsKey('related_session_id')) {
+      context.handle(
+          _relatedSessionIdMeta,
+          relatedSessionId.isAcceptableOrUnknown(
+              data['related_session_id']!, _relatedSessionIdMeta));
+    }
+    if (data.containsKey('related_message_id')) {
+      context.handle(
+          _relatedMessageIdMeta,
+          relatedMessageId.isAcceptableOrUnknown(
+              data['related_message_id']!, _relatedMessageIdMeta));
+    }
+    if (data.containsKey('timestamp')) {
+      context.handle(_timestampMeta,
+          timestamp.isAcceptableOrUnknown(data['timestamp']!, _timestampMeta));
+    } else if (isInserting) {
+      context.missing(_timestampMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  WalletTransactionEntity map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return WalletTransactionEntity(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      type: $WalletTransactionsTable.$convertertype.fromSql(attachedDatabase
+          .typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}type'])!),
+      direction: $WalletTransactionsTable.$converterdirection.fromSql(
+          attachedDatabase.typeMapping
+              .read(DriftSqlType.int, data['${effectivePrefix}direction'])!),
+      amount: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}amount'])!,
+      description: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}description']),
+      relatedContactName: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}related_contact_name']),
+      relatedSessionId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}related_session_id']),
+      relatedMessageId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}related_message_id']),
+      timestamp: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}timestamp'])!,
+    );
+  }
+
+  @override
+  $WalletTransactionsTable createAlias(String alias) {
+    return $WalletTransactionsTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<WalletTransactionType, int> $convertertype =
+      const WalletTransactionTypeConverter();
+  static TypeConverter<TransactionDirection, int> $converterdirection =
+      const TransactionDirectionConverter();
+}
+
+class WalletTransactionEntity extends DataClass
+    implements Insertable<WalletTransactionEntity> {
+  final String id;
+  final WalletTransactionType type;
+  final TransactionDirection direction;
+  final double amount;
+  final String? description;
+  final String? relatedContactName;
+  final String? relatedSessionId;
+  final String? relatedMessageId;
+  final int timestamp;
+  const WalletTransactionEntity(
+      {required this.id,
+      required this.type,
+      required this.direction,
+      required this.amount,
+      this.description,
+      this.relatedContactName,
+      this.relatedSessionId,
+      this.relatedMessageId,
+      required this.timestamp});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    {
+      map['type'] =
+          Variable<int>($WalletTransactionsTable.$convertertype.toSql(type));
+    }
+    {
+      map['direction'] = Variable<int>(
+          $WalletTransactionsTable.$converterdirection.toSql(direction));
+    }
+    map['amount'] = Variable<double>(amount);
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    if (!nullToAbsent || relatedContactName != null) {
+      map['related_contact_name'] = Variable<String>(relatedContactName);
+    }
+    if (!nullToAbsent || relatedSessionId != null) {
+      map['related_session_id'] = Variable<String>(relatedSessionId);
+    }
+    if (!nullToAbsent || relatedMessageId != null) {
+      map['related_message_id'] = Variable<String>(relatedMessageId);
+    }
+    map['timestamp'] = Variable<int>(timestamp);
+    return map;
+  }
+
+  WalletTransactionsCompanion toCompanion(bool nullToAbsent) {
+    return WalletTransactionsCompanion(
+      id: Value(id),
+      type: Value(type),
+      direction: Value(direction),
+      amount: Value(amount),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      relatedContactName: relatedContactName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(relatedContactName),
+      relatedSessionId: relatedSessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(relatedSessionId),
+      relatedMessageId: relatedMessageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(relatedMessageId),
+      timestamp: Value(timestamp),
+    );
+  }
+
+  factory WalletTransactionEntity.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return WalletTransactionEntity(
+      id: serializer.fromJson<String>(json['id']),
+      type: serializer.fromJson<WalletTransactionType>(json['type']),
+      direction: serializer.fromJson<TransactionDirection>(json['direction']),
+      amount: serializer.fromJson<double>(json['amount']),
+      description: serializer.fromJson<String?>(json['description']),
+      relatedContactName:
+          serializer.fromJson<String?>(json['relatedContactName']),
+      relatedSessionId: serializer.fromJson<String?>(json['relatedSessionId']),
+      relatedMessageId: serializer.fromJson<String?>(json['relatedMessageId']),
+      timestamp: serializer.fromJson<int>(json['timestamp']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'type': serializer.toJson<WalletTransactionType>(type),
+      'direction': serializer.toJson<TransactionDirection>(direction),
+      'amount': serializer.toJson<double>(amount),
+      'description': serializer.toJson<String?>(description),
+      'relatedContactName': serializer.toJson<String?>(relatedContactName),
+      'relatedSessionId': serializer.toJson<String?>(relatedSessionId),
+      'relatedMessageId': serializer.toJson<String?>(relatedMessageId),
+      'timestamp': serializer.toJson<int>(timestamp),
+    };
+  }
+
+  WalletTransactionEntity copyWith(
+          {String? id,
+          WalletTransactionType? type,
+          TransactionDirection? direction,
+          double? amount,
+          Value<String?> description = const Value.absent(),
+          Value<String?> relatedContactName = const Value.absent(),
+          Value<String?> relatedSessionId = const Value.absent(),
+          Value<String?> relatedMessageId = const Value.absent(),
+          int? timestamp}) =>
+      WalletTransactionEntity(
+        id: id ?? this.id,
+        type: type ?? this.type,
+        direction: direction ?? this.direction,
+        amount: amount ?? this.amount,
+        description: description.present ? description.value : this.description,
+        relatedContactName: relatedContactName.present
+            ? relatedContactName.value
+            : this.relatedContactName,
+        relatedSessionId: relatedSessionId.present
+            ? relatedSessionId.value
+            : this.relatedSessionId,
+        relatedMessageId: relatedMessageId.present
+            ? relatedMessageId.value
+            : this.relatedMessageId,
+        timestamp: timestamp ?? this.timestamp,
+      );
+  WalletTransactionEntity copyWithCompanion(WalletTransactionsCompanion data) {
+    return WalletTransactionEntity(
+      id: data.id.present ? data.id.value : this.id,
+      type: data.type.present ? data.type.value : this.type,
+      direction: data.direction.present ? data.direction.value : this.direction,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      description:
+          data.description.present ? data.description.value : this.description,
+      relatedContactName: data.relatedContactName.present
+          ? data.relatedContactName.value
+          : this.relatedContactName,
+      relatedSessionId: data.relatedSessionId.present
+          ? data.relatedSessionId.value
+          : this.relatedSessionId,
+      relatedMessageId: data.relatedMessageId.present
+          ? data.relatedMessageId.value
+          : this.relatedMessageId,
+      timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WalletTransactionEntity(')
+          ..write('id: $id, ')
+          ..write('type: $type, ')
+          ..write('direction: $direction, ')
+          ..write('amount: $amount, ')
+          ..write('description: $description, ')
+          ..write('relatedContactName: $relatedContactName, ')
+          ..write('relatedSessionId: $relatedSessionId, ')
+          ..write('relatedMessageId: $relatedMessageId, ')
+          ..write('timestamp: $timestamp')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, type, direction, amount, description,
+      relatedContactName, relatedSessionId, relatedMessageId, timestamp);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is WalletTransactionEntity &&
+          other.id == this.id &&
+          other.type == this.type &&
+          other.direction == this.direction &&
+          other.amount == this.amount &&
+          other.description == this.description &&
+          other.relatedContactName == this.relatedContactName &&
+          other.relatedSessionId == this.relatedSessionId &&
+          other.relatedMessageId == this.relatedMessageId &&
+          other.timestamp == this.timestamp);
+}
+
+class WalletTransactionsCompanion
+    extends UpdateCompanion<WalletTransactionEntity> {
+  final Value<String> id;
+  final Value<WalletTransactionType> type;
+  final Value<TransactionDirection> direction;
+  final Value<double> amount;
+  final Value<String?> description;
+  final Value<String?> relatedContactName;
+  final Value<String?> relatedSessionId;
+  final Value<String?> relatedMessageId;
+  final Value<int> timestamp;
+  final Value<int> rowid;
+  const WalletTransactionsCompanion({
+    this.id = const Value.absent(),
+    this.type = const Value.absent(),
+    this.direction = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.description = const Value.absent(),
+    this.relatedContactName = const Value.absent(),
+    this.relatedSessionId = const Value.absent(),
+    this.relatedMessageId = const Value.absent(),
+    this.timestamp = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  WalletTransactionsCompanion.insert({
+    required String id,
+    required WalletTransactionType type,
+    required TransactionDirection direction,
+    required double amount,
+    this.description = const Value.absent(),
+    this.relatedContactName = const Value.absent(),
+    this.relatedSessionId = const Value.absent(),
+    this.relatedMessageId = const Value.absent(),
+    required int timestamp,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        type = Value(type),
+        direction = Value(direction),
+        amount = Value(amount),
+        timestamp = Value(timestamp);
+  static Insertable<WalletTransactionEntity> custom({
+    Expression<String>? id,
+    Expression<int>? type,
+    Expression<int>? direction,
+    Expression<double>? amount,
+    Expression<String>? description,
+    Expression<String>? relatedContactName,
+    Expression<String>? relatedSessionId,
+    Expression<String>? relatedMessageId,
+    Expression<int>? timestamp,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (type != null) 'type': type,
+      if (direction != null) 'direction': direction,
+      if (amount != null) 'amount': amount,
+      if (description != null) 'description': description,
+      if (relatedContactName != null)
+        'related_contact_name': relatedContactName,
+      if (relatedSessionId != null) 'related_session_id': relatedSessionId,
+      if (relatedMessageId != null) 'related_message_id': relatedMessageId,
+      if (timestamp != null) 'timestamp': timestamp,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  WalletTransactionsCompanion copyWith(
+      {Value<String>? id,
+      Value<WalletTransactionType>? type,
+      Value<TransactionDirection>? direction,
+      Value<double>? amount,
+      Value<String?>? description,
+      Value<String?>? relatedContactName,
+      Value<String?>? relatedSessionId,
+      Value<String?>? relatedMessageId,
+      Value<int>? timestamp,
+      Value<int>? rowid}) {
+    return WalletTransactionsCompanion(
+      id: id ?? this.id,
+      type: type ?? this.type,
+      direction: direction ?? this.direction,
+      amount: amount ?? this.amount,
+      description: description ?? this.description,
+      relatedContactName: relatedContactName ?? this.relatedContactName,
+      relatedSessionId: relatedSessionId ?? this.relatedSessionId,
+      relatedMessageId: relatedMessageId ?? this.relatedMessageId,
+      timestamp: timestamp ?? this.timestamp,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<int>(
+          $WalletTransactionsTable.$convertertype.toSql(type.value));
+    }
+    if (direction.present) {
+      map['direction'] = Variable<int>(
+          $WalletTransactionsTable.$converterdirection.toSql(direction.value));
+    }
+    if (amount.present) {
+      map['amount'] = Variable<double>(amount.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (relatedContactName.present) {
+      map['related_contact_name'] = Variable<String>(relatedContactName.value);
+    }
+    if (relatedSessionId.present) {
+      map['related_session_id'] = Variable<String>(relatedSessionId.value);
+    }
+    if (relatedMessageId.present) {
+      map['related_message_id'] = Variable<String>(relatedMessageId.value);
+    }
+    if (timestamp.present) {
+      map['timestamp'] = Variable<int>(timestamp.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('WalletTransactionsCompanion(')
+          ..write('id: $id, ')
+          ..write('type: $type, ')
+          ..write('direction: $direction, ')
+          ..write('amount: $amount, ')
+          ..write('description: $description, ')
+          ..write('relatedContactName: $relatedContactName, ')
+          ..write('relatedSessionId: $relatedSessionId, ')
+          ..write('relatedMessageId: $relatedMessageId, ')
+          ..write('timestamp: $timestamp, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4179,6 +4679,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $MomentsUserSettingsTable momentsUserSettings =
       $MomentsUserSettingsTable(this);
   late final $AppSettingsTable appSettings = $AppSettingsTable(this);
+  late final $WalletTransactionsTable walletTransactions =
+      $WalletTransactionsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4194,7 +4696,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         contactMes,
         apiPresets,
         momentsUserSettings,
-        appSettings
+        appSettings,
+        walletTransactions
       ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
@@ -6591,6 +7094,255 @@ typedef $$AppSettingsTableProcessedTableManager = ProcessedTableManager<
     ),
     AppSettingEntity,
     PrefetchHooks Function()>;
+typedef $$WalletTransactionsTableCreateCompanionBuilder
+    = WalletTransactionsCompanion Function({
+  required String id,
+  required WalletTransactionType type,
+  required TransactionDirection direction,
+  required double amount,
+  Value<String?> description,
+  Value<String?> relatedContactName,
+  Value<String?> relatedSessionId,
+  Value<String?> relatedMessageId,
+  required int timestamp,
+  Value<int> rowid,
+});
+typedef $$WalletTransactionsTableUpdateCompanionBuilder
+    = WalletTransactionsCompanion Function({
+  Value<String> id,
+  Value<WalletTransactionType> type,
+  Value<TransactionDirection> direction,
+  Value<double> amount,
+  Value<String?> description,
+  Value<String?> relatedContactName,
+  Value<String?> relatedSessionId,
+  Value<String?> relatedMessageId,
+  Value<int> timestamp,
+  Value<int> rowid,
+});
+
+class $$WalletTransactionsTableFilterComposer
+    extends Composer<_$AppDatabase, $WalletTransactionsTable> {
+  $$WalletTransactionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<WalletTransactionType, WalletTransactionType,
+          int>
+      get type => $composableBuilder(
+          column: $table.type,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnWithTypeConverterFilters<TransactionDirection, TransactionDirection,
+          int>
+      get direction => $composableBuilder(
+          column: $table.direction,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<double> get amount => $composableBuilder(
+      column: $table.amount, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get relatedContactName => $composableBuilder(
+      column: $table.relatedContactName,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get relatedSessionId => $composableBuilder(
+      column: $table.relatedSessionId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get relatedMessageId => $composableBuilder(
+      column: $table.relatedMessageId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get timestamp => $composableBuilder(
+      column: $table.timestamp, builder: (column) => ColumnFilters(column));
+}
+
+class $$WalletTransactionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $WalletTransactionsTable> {
+  $$WalletTransactionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get type => $composableBuilder(
+      column: $table.type, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get direction => $composableBuilder(
+      column: $table.direction, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get amount => $composableBuilder(
+      column: $table.amount, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get relatedContactName => $composableBuilder(
+      column: $table.relatedContactName,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get relatedSessionId => $composableBuilder(
+      column: $table.relatedSessionId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get relatedMessageId => $composableBuilder(
+      column: $table.relatedMessageId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get timestamp => $composableBuilder(
+      column: $table.timestamp, builder: (column) => ColumnOrderings(column));
+}
+
+class $$WalletTransactionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $WalletTransactionsTable> {
+  $$WalletTransactionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<WalletTransactionType, int> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<TransactionDirection, int> get direction =>
+      $composableBuilder(column: $table.direction, builder: (column) => column);
+
+  GeneratedColumn<double> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+      column: $table.description, builder: (column) => column);
+
+  GeneratedColumn<String> get relatedContactName => $composableBuilder(
+      column: $table.relatedContactName, builder: (column) => column);
+
+  GeneratedColumn<String> get relatedSessionId => $composableBuilder(
+      column: $table.relatedSessionId, builder: (column) => column);
+
+  GeneratedColumn<String> get relatedMessageId => $composableBuilder(
+      column: $table.relatedMessageId, builder: (column) => column);
+
+  GeneratedColumn<int> get timestamp =>
+      $composableBuilder(column: $table.timestamp, builder: (column) => column);
+}
+
+class $$WalletTransactionsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $WalletTransactionsTable,
+    WalletTransactionEntity,
+    $$WalletTransactionsTableFilterComposer,
+    $$WalletTransactionsTableOrderingComposer,
+    $$WalletTransactionsTableAnnotationComposer,
+    $$WalletTransactionsTableCreateCompanionBuilder,
+    $$WalletTransactionsTableUpdateCompanionBuilder,
+    (
+      WalletTransactionEntity,
+      BaseReferences<_$AppDatabase, $WalletTransactionsTable,
+          WalletTransactionEntity>
+    ),
+    WalletTransactionEntity,
+    PrefetchHooks Function()> {
+  $$WalletTransactionsTableTableManager(
+      _$AppDatabase db, $WalletTransactionsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$WalletTransactionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$WalletTransactionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$WalletTransactionsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<WalletTransactionType> type = const Value.absent(),
+            Value<TransactionDirection> direction = const Value.absent(),
+            Value<double> amount = const Value.absent(),
+            Value<String?> description = const Value.absent(),
+            Value<String?> relatedContactName = const Value.absent(),
+            Value<String?> relatedSessionId = const Value.absent(),
+            Value<String?> relatedMessageId = const Value.absent(),
+            Value<int> timestamp = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WalletTransactionsCompanion(
+            id: id,
+            type: type,
+            direction: direction,
+            amount: amount,
+            description: description,
+            relatedContactName: relatedContactName,
+            relatedSessionId: relatedSessionId,
+            relatedMessageId: relatedMessageId,
+            timestamp: timestamp,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required WalletTransactionType type,
+            required TransactionDirection direction,
+            required double amount,
+            Value<String?> description = const Value.absent(),
+            Value<String?> relatedContactName = const Value.absent(),
+            Value<String?> relatedSessionId = const Value.absent(),
+            Value<String?> relatedMessageId = const Value.absent(),
+            required int timestamp,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              WalletTransactionsCompanion.insert(
+            id: id,
+            type: type,
+            direction: direction,
+            amount: amount,
+            description: description,
+            relatedContactName: relatedContactName,
+            relatedSessionId: relatedSessionId,
+            relatedMessageId: relatedMessageId,
+            timestamp: timestamp,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$WalletTransactionsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $WalletTransactionsTable,
+    WalletTransactionEntity,
+    $$WalletTransactionsTableFilterComposer,
+    $$WalletTransactionsTableOrderingComposer,
+    $$WalletTransactionsTableAnnotationComposer,
+    $$WalletTransactionsTableCreateCompanionBuilder,
+    $$WalletTransactionsTableUpdateCompanionBuilder,
+    (
+      WalletTransactionEntity,
+      BaseReferences<_$AppDatabase, $WalletTransactionsTable,
+          WalletTransactionEntity>
+    ),
+    WalletTransactionEntity,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -6617,4 +7369,6 @@ class $AppDatabaseManager {
       $$MomentsUserSettingsTableTableManager(_db, _db.momentsUserSettings);
   $$AppSettingsTableTableManager get appSettings =>
       $$AppSettingsTableTableManager(_db, _db.appSettings);
+  $$WalletTransactionsTableTableManager get walletTransactions =>
+      $$WalletTransactionsTableTableManager(_db, _db.walletTransactions);
 }

@@ -7,8 +7,6 @@ import '../core/models/app_model.dart';
 import '../core/providers/system_state_provider.dart';
 import '../widgets/ios_app_grid.dart';
 import '../widgets/ios_wallpaper.dart';
-import '../widgets/ios_control_center.dart';
-import '../widgets/ios_notification_center.dart';
 import '../widgets/ios_draggable_grid.dart';
 import 'settings_screen.dart';
 import 'wechat_main_screen.dart';
@@ -32,13 +30,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // 网格数据
   late List<List<String?>> _gridPages;
   late Map<String, AppModel> _appRegistry;
-
-  // 手势相关
-  double _dragStartY = 0;
-  double _dragStartX = 0;
-  bool _isDraggingVertical = false;
-  bool _isShowingControlCenter = false;
-  bool _isShowingNotificationCenter = false;
 
   // 应用启动动画
   late AnimationController _launchController;
@@ -145,6 +136,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _checkAndAddNewApps(SystemStateProvider provider) {
+    bool hasChanges = false;
+
+    // 首先清理无效的appId（应用已被删除但网格中还保留着appId）
+    for (int i = 0; i < _gridPages.length; i++) {
+      for (int j = 0; j < _gridPages[i].length; j++) {
+        final appId = _gridPages[i][j];
+        if (appId != null && !_appRegistry.containsKey(appId)) {
+          // 应用不存在于注册表中，清除该位置
+          _gridPages[i][j] = null;
+          hasChanges = true;
+          print('清理无效appId: $appId 在位置 ($i, $j)');
+        }
+      }
+    }
+
     final existingApps = <String>{};
     for (final page in _gridPages) {
       for (final appId in page) {
@@ -160,9 +166,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final missingApps =
         allApps.where((id) => !existingApps.contains(id)).toList();
 
-    if (missingApps.isEmpty) return;
-
-    bool hasChanges = false;
     int missingAppIndex = 0;
 
     // 尝试填入现有页面的空位
@@ -244,86 +247,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() => _isEditing = false);
   }
 
-  void _handlePanStart(DragStartDetails details) {
-    _dragStartY = details.globalPosition.dy;
-    _dragStartX = details.globalPosition.dx;
-    _isDraggingVertical = false;
-  }
-
-  void _handlePanUpdate(DragUpdateDetails details) {
-    final deltaY = details.globalPosition.dy - _dragStartY;
-    final deltaX = (details.globalPosition.dx - _dragStartX).abs();
-
-    if (!_isDraggingVertical && deltaY.abs() > 20 && deltaY.abs() > deltaX) {
-      _isDraggingVertical = true;
-    }
-  }
-
-  void _handlePanEnd(DragEndDetails details) {
-    if (!_isDraggingVertical) return;
-
-    final screenWidth = MediaQuery.of(context).size.width;
-    final velocity = details.velocity.pixelsPerSecond.dy;
-
-    if (_dragStartX > screenWidth * 0.5 &&
-        _dragStartY < 100 &&
-        velocity > 300) {
-      _showControlCenter();
-    } else if (_dragStartX <= screenWidth * 0.5 &&
-        _dragStartY < 100 &&
-        velocity > 300) {
-      _showNotificationCenter();
-    }
-
-    _isDraggingVertical = false;
-  }
-
-  void _showControlCenter() {
-    if (_isShowingControlCenter) return;
-    setState(() => _isShowingControlCenter = true);
-
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'Control Center',
-      barrierColor: Colors.transparent,
-      transitionDuration: Duration.zero,
-      pageBuilder: (context, animation, secondaryAnimation) {
-        return IOSControlCenter(
-          onClose: () {
-            Navigator.of(context).pop();
-            setState(() => _isShowingControlCenter = false);
-          },
-        );
-      },
-    ).then((_) {
-      setState(() => _isShowingControlCenter = false);
-    });
-  }
-
-  void _showNotificationCenter() {
-    if (_isShowingNotificationCenter) return;
-    setState(() => _isShowingNotificationCenter = true);
-
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'Notification Center',
-      barrierColor: Colors.transparent,
-      transitionDuration: Duration.zero,
-      pageBuilder: (context, animation, secondaryAnimation) {
-        return IOSNotificationCenter(
-          onClose: () {
-            Navigator.of(context).pop();
-            setState(() => _isShowingNotificationCenter = false);
-          },
-        );
-      },
-    ).then((_) {
-      setState(() => _isShowingNotificationCenter = false);
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<SystemStateProvider>();
@@ -346,9 +269,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     return GestureDetector(
       onTap: _isEditing ? _exitEditMode : null,
-      onPanStart: _handlePanStart,
-      onPanUpdate: _handlePanUpdate,
-      onPanEnd: _handlePanEnd,
       child: Scaffold(
         backgroundColor: Colors.black,
         body: IOSWallpaper(

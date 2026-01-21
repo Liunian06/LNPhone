@@ -2,7 +2,7 @@ name: lnphone2
 description: "AI Native Phone System - iOS Style Interface"
 publish_to: 'none'
 
-version: 1.4.8+1
+version: 1.5.2+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

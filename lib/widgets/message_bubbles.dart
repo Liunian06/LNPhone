@@ -451,30 +451,72 @@ class LocationBubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 地图占位
-          Container(
-            height: 120,
-            decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(context.isDarkMode ? 0.2 : 0.1),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(8),
+          // 仿真地图背景
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+            child: SizedBox(
+              height: 120,
+              width: double.infinity,
+              child: Stack(
+                children: [
+                  // 地图背景层 - 模拟街道地图
+                  CustomPaint(
+                    size: const Size(double.infinity, 120),
+                    painter: _MapBackgroundPainter(
+                      isDarkMode: context.isDarkMode,
+                    ),
+                  ),
+                  // 定位标记
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 标记阴影
+                        Container(
+                          width: 8,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        // 向上偏移显示标记
+                        Transform.translate(
+                          offset: const Offset(0, -4),
+                          child: const Icon(
+                            Icons.location_on,
+                            color: Color(0xFFE53935),
+                            size: 40,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ),
-            child: const Center(
-              child: Icon(Icons.map, size: 48, color: Colors.blue),
             ),
           ),
           Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                const Icon(Icons.location_on, color: Colors.red, size: 20),
+                const Icon(Icons.location_on,
+                    color: Color(0xFFE53935), size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     location,
                     style: TextStyle(
                         fontSize: 14, color: context.primaryTextColor),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -484,6 +526,155 @@ class LocationBubble extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 仿真地图背景绘制器
+class _MapBackgroundPainter extends CustomPainter {
+  final bool isDarkMode;
+
+  _MapBackgroundPainter({required this.isDarkMode});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 背景色 - 模拟地图底色
+    final bgPaint = Paint()
+      ..color = isDarkMode ? const Color(0xFF2D3748) : const Color(0xFFE8F4E8);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
+
+    // 主要道路颜色
+    final mainRoadPaint = Paint()
+      ..color = isDarkMode ? const Color(0xFF4A5568) : const Color(0xFFFFFFFF)
+      ..strokeWidth = 8
+      ..style = PaintingStyle.stroke;
+
+    // 次要道路颜色
+    final secondaryRoadPaint = Paint()
+      ..color = isDarkMode ? const Color(0xFF3D4A5C) : const Color(0xFFF5F5F5)
+      ..strokeWidth = 4
+      ..style = PaintingStyle.stroke;
+
+    // 绘制主要横向道路
+    final centerY = size.height / 2;
+    canvas.drawLine(
+      Offset(0, centerY),
+      Offset(size.width, centerY),
+      mainRoadPaint,
+    );
+
+    // 绘制主要纵向道路
+    final centerX = size.width / 2;
+    canvas.drawLine(
+      Offset(centerX, 0),
+      Offset(centerX, size.height),
+      mainRoadPaint,
+    );
+
+    // 绘制次要横向道路
+    canvas.drawLine(
+      Offset(0, size.height * 0.25),
+      Offset(size.width, size.height * 0.25),
+      secondaryRoadPaint,
+    );
+    canvas.drawLine(
+      Offset(0, size.height * 0.75),
+      Offset(size.width, size.height * 0.75),
+      secondaryRoadPaint,
+    );
+
+    // 绘制次要纵向道路
+    canvas.drawLine(
+      Offset(size.width * 0.25, 0),
+      Offset(size.width * 0.25, size.height),
+      secondaryRoadPaint,
+    );
+    canvas.drawLine(
+      Offset(size.width * 0.75, 0),
+      Offset(size.width * 0.75, size.height),
+      secondaryRoadPaint,
+    );
+
+    // 绘制建筑物块（模拟）
+    final buildingPaint = Paint()
+      ..color = isDarkMode ? const Color(0xFF374151) : const Color(0xFFD4E6D4);
+
+    // 左上建筑群
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width * 0.05, size.height * 0.05, size.width * 0.15,
+            size.height * 0.15),
+        const Radius.circular(2),
+      ),
+      buildingPaint,
+    );
+
+    // 右上建筑群
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width * 0.8, size.height * 0.05, size.width * 0.15,
+            size.height * 0.12),
+        const Radius.circular(2),
+      ),
+      buildingPaint,
+    );
+
+    // 左下建筑群
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width * 0.05, size.height * 0.8, size.width * 0.12,
+            size.height * 0.15),
+        const Radius.circular(2),
+      ),
+      buildingPaint,
+    );
+
+    // 右下建筑群
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width * 0.78, size.height * 0.78, size.width * 0.17,
+            size.height * 0.17),
+        const Radius.circular(2),
+      ),
+      buildingPaint,
+    );
+
+    // 添加一些小的建筑点缀
+    final smallBuildingPaint = Paint()
+      ..color = isDarkMode ? const Color(0xFF404B5A) : const Color(0xFFCCDDCC);
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width * 0.3, size.height * 0.05, size.width * 0.08,
+            size.height * 0.08),
+        const Radius.circular(1),
+      ),
+      smallBuildingPaint,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width * 0.6, size.height * 0.82, size.width * 0.1,
+            size.height * 0.1),
+        const Radius.circular(1),
+      ),
+      smallBuildingPaint,
+    );
+
+    // 绿地/公园区域
+    final parkPaint = Paint()
+      ..color = isDarkMode ? const Color(0xFF2D4A3E) : const Color(0xFFC8E6C9);
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(size.width * 0.55, size.height * 0.05, size.width * 0.18,
+            size.height * 0.12),
+        const Radius.circular(3),
+      ),
+      parkPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// 纪念日卡片气泡

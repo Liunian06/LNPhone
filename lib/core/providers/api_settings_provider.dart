@@ -51,21 +51,15 @@ class ApiSettingsProvider extends ChangeNotifier {
 
   Future<void> _loadPresets() async {
     try {
-      // 先从数据库加载
-      _presets = await _db.getAllApiPresetsFromDb();
+      // 无论数据库是否有数据，都尝试从 SharedPreferences 迁移
+      // 这样可以确保从任何中间版本升级时都不会丢失数据
+      await _migrateFromSharedPreferences();
 
-      // 如果数据库为空，尝试从 SharedPreferences 迁移预设
-      if (_presets.isEmpty) {
-        await _migratePresetsFromSharedPreferences();
-      }
+      // 从数据库加载最新数据
+      _presets = await _db.getAllApiPresetsFromDb();
 
       // 加载活动预设 ID（从数据库读取）
       _activePresetId = await _db.getSetting('active_preset_id');
-
-      // 如果数据库中没有，尝试从 SharedPreferences 迁移
-      if (_activePresetId == null) {
-        await _migrateActivePresetIdFromSharedPreferences();
-      }
 
       // 验证 activePresetId 是否仍然有效
       if (_activePresetId != null) {
@@ -85,41 +79,68 @@ class ApiSettingsProvider extends ChangeNotifier {
     }
   }
 
-  /// 从 SharedPreferences 迁移预设数据到数据库（兼容旧版本）
+  /// 从 SharedPreferences 迁移所有数据到数据库（兼容旧版本）
+  /// 使用增量更新策略：只添加数据库中不存在的数据，不覆盖已有数据
   /// [已弃用] 此方法仅用于兼容旧版本数据
-  Future<void> _migratePresetsFromSharedPreferences() async {
+  Future<void> _migrateFromSharedPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    final presetsJson = prefs.getStringList('api_presets') ?? [];
+    bool hasMigrated = false;
 
-    if (presetsJson.isNotEmpty) {
-      _presets = presetsJson
-          .map((json) => ApiPreset.fromJson(jsonDecode(json)))
-          .toList();
+    // 迁移预设数据（增量更新：只添加数据库中没有的）
+    final presetsJson = prefs.getStringList('api_presets');
+    if (presetsJson != null && presetsJson.isNotEmpty) {
+      try {
+        final presetsFromPrefs = presetsJson
+            .map((json) => ApiPreset.fromJson(jsonDecode(json)))
+            .toList();
 
-      // 保存到数据库
-      for (final preset in _presets) {
-        await _db.insertApiPreset(preset);
+        // 获取数据库中已有的预设 ID
+        final existingPresets = await _db.getAllApiPresetsFromDb();
+        final existingPresetIds = existingPresets.map((p) => p.id).toSet();
+
+        // 只添加数据库中不存在的预设
+        int addedCount = 0;
+        for (final preset in presetsFromPrefs) {
+          if (!existingPresetIds.contains(preset.id)) {
+            await _db.insertApiPreset(preset);
+            addedCount++;
+          }
+        }
+
+        // 迁移成功后清除旧数据
+        await prefs.remove('api_presets');
+        hasMigrated = true;
+        if (addedCount > 0) {
+          debugPrint(
+              '[ApiSettingsProvider] 已从 SharedPreferences 增量添加 $addedCount 个 API 预设');
+        }
+      } catch (e) {
+        debugPrint('[ApiSettingsProvider] 增量添加预设数据失败: $e');
       }
-
-      // 清除旧数据
-      await prefs.remove('api_presets');
-      debugPrint(
-          '[ApiSettingsProvider] 已从 SharedPreferences 迁移 ${_presets.length} 个 API 预设');
     }
-  }
 
-  /// 从 SharedPreferences 迁移活动预设ID到数据库
-  /// [已弃用] 此方法仅用于兼容旧版本数据
-  Future<void> _migrateActivePresetIdFromSharedPreferences() async {
-    final prefs = await SharedPreferences.getInstance();
+    // 迁移活动预设 ID（只在数据库中没有时才添加）
     final activeId = prefs.getString('active_preset_id');
-
     if (activeId != null) {
-      _activePresetId = activeId;
-      await _db.setSetting('active_preset_id', activeId);
-      await prefs.remove('active_preset_id');
-      debugPrint(
-          '[ApiSettingsProvider] 已从 SharedPreferences 迁移 active_preset_id');
+      try {
+        // 只有数据库中没有 active_preset_id 时才添加
+        final existingActiveId = await _db.getSetting('active_preset_id');
+        if (existingActiveId == null) {
+          await _db.setSetting('active_preset_id', activeId);
+          debugPrint(
+              '[ApiSettingsProvider] 已从 SharedPreferences 增量添加 active_preset_id');
+        }
+
+        // 迁移成功后清除旧数据
+        await prefs.remove('active_preset_id');
+        hasMigrated = true;
+      } catch (e) {
+        debugPrint('[ApiSettingsProvider] 增量添加 active_preset_id 失败: $e');
+      }
+    }
+
+    if (hasMigrated) {
+      debugPrint('[ApiSettingsProvider] 数据迁移完成');
     }
   }
 

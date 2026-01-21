@@ -761,48 +761,94 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
+    final dividerColor = isDark ? Colors.white12 : Colors.black12;
 
     showCupertinoModalPopup(
       context: context,
       builder: (context) => Container(
         height: 400,
-        color: bgColor,
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        ),
         child: SafeArea(
           top: false,
           child: Column(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  CupertinoButton(
-                    child: const Text('取消'),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  CupertinoButton(
-                    child: const Text('确定'),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: dividerColor)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    CupertinoButton(
+                      child: const Text('取消'),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    Text(
+                      '选择模型',
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                    const SizedBox(width: 60), // 平衡布局
+                  ],
+                ),
               ),
               Expanded(
-                child: CupertinoPicker(
-                  itemExtent: 32,
-                  onSelectedItemChanged: (index) {
-                    setState(() {
-                      _model = _availableModels[index];
-                      _modelController.text = _model;
-                    });
-                  },
-                  children: _availableModels
-                      .map(
-                        (m) => Center(
-                          child: Text(
-                            m,
-                            style: TextStyle(color: textColor),
-                          ),
+                child: ListView.builder(
+                  itemCount: _availableModels.length,
+                  itemBuilder: (context, index) {
+                    final model = _availableModels[index];
+                    final isSelected = model == _model;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _model = model;
+                          _modelController.text = model;
+                        });
+                        Navigator.pop(context);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
                         ),
-                      )
-                      .toList(),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? (isDark
+                                  ? Colors.white10
+                                  : Colors.blue.withValues(alpha: 0.1))
+                              : Colors.transparent,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                model,
+                                style: TextStyle(
+                                  color: isSelected ? Colors.blue : textColor,
+                                  fontSize: 16,
+                                  decoration: TextDecoration.none,
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              const Icon(
+                                CupertinoIcons.check_mark,
+                                color: Colors.blue,
+                                size: 20,
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],

@@ -48,7 +48,11 @@ class MomentsProvider extends ChangeNotifier {
   /// 加载当前用户信息
   Future<void> _loadCurrentUser() async {
     try {
-      // 先从数据库加载
+      // 无论数据库是否有数据，都尝试从 SharedPreferences 迁移
+      // 这样可以确保从任何中间版本升级时都不会丢失数据
+      await _migrateFromSharedPreferences();
+
+      // 从数据库加载
       final settings = await _database.getMomentsUserSettings();
       if (settings != null) {
         _currentUser = MomentsUser(
@@ -59,41 +63,41 @@ class MomentsProvider extends ChangeNotifier {
           coverImageUrl: settings.coverImageUrl,
           signature: settings.signature,
         );
-        notifyListeners();
-        return;
       }
-
-      // 如果数据库为空，尝试从 SharedPreferences 迁移
-      await _migrateFromSharedPreferences();
+      notifyListeners();
     } catch (e) {
       debugPrint('加载朋友圈用户信息失败: $e');
     }
   }
 
   /// 从 SharedPreferences 迁移数据到数据库（兼容旧版本）
+  /// 使用增量更新策略：只在数据库中没有用户设置时才添加，不覆盖已有数据
+  /// [已弃用] 此方法仅用于兼容旧版本数据
   Future<void> _migrateFromSharedPreferences() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userJson = prefs.getString('moments_current_user');
       if (userJson != null) {
-        final user = MomentsUser.fromJson(jsonDecode(userJson));
-        _currentUser = user;
+        // 只在数据库中没有用户设置时才添加
+        final existingSettings = await _database.getMomentsUserSettings();
+        if (existingSettings == null) {
+          final user = MomentsUser.fromJson(jsonDecode(userJson));
 
-        // 保存到数据库
-        await _database.saveMomentsUserSettings(
-          name: user.name,
-          avatarUrl: user.avatarUrl,
-          coverImageUrl: user.coverImageUrl,
-          signature: user.signature,
-        );
+          // 保存到数据库
+          await _database.saveMomentsUserSettings(
+            name: user.name,
+            avatarUrl: user.avatarUrl,
+            coverImageUrl: user.coverImageUrl,
+            signature: user.signature,
+          );
+          debugPrint('[MomentsProvider] 已从 SharedPreferences 增量添加朋友圈用户设置');
+        }
 
-        // 清除旧数据
+        // 无论是否添加，都清除旧数据
         await prefs.remove('moments_current_user');
-        debugPrint('[MomentsProvider] 已从 SharedPreferences 迁移朋友圈用户设置');
-        notifyListeners();
       }
     } catch (e) {
-      debugPrint('[MomentsProvider] 迁移朋友圈用户设置失败: $e');
+      debugPrint('[MomentsProvider] 增量添加朋友圈用户设置失败: $e');
     }
   }
 
