@@ -12,6 +12,11 @@ enum MessageType {
   // 资金往来类型
   redpacket, // 红包
   transfer, // 转账
+  // 红包/转账响应类型（不在聊天界面显示，用于更新原消息状态）
+  acceptRedpacket, // 接受红包
+  rejectRedpacket, // 拒绝红包
+  acceptTransfer, // 接受转账
+  rejectTransfer, // 拒绝转账
   // 分享类型
   product, // 商品推荐
   link, // 链接分享
@@ -106,6 +111,10 @@ class ChatMessage {
       case MessageType.memory:
       case MessageType.diary:
       case MessageType.moment:
+      case MessageType.acceptRedpacket:
+      case MessageType.rejectRedpacket:
+      case MessageType.acceptTransfer:
+      case MessageType.rejectTransfer:
         return ''; // 这些类型不在聊天界面显示
     }
   }
@@ -195,7 +204,11 @@ class ChatSession {
       // 跳过不显示的消息类型
       if (msg.type == MessageType.memory ||
           msg.type == MessageType.diary ||
-          msg.type == MessageType.moment) {
+          msg.type == MessageType.moment ||
+          msg.type == MessageType.acceptRedpacket ||
+          msg.type == MessageType.rejectRedpacket ||
+          msg.type == MessageType.acceptTransfer ||
+          msg.type == MessageType.rejectTransfer) {
         continue;
       }
       return msg.displayText;

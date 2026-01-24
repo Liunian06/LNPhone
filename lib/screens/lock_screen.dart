@@ -149,7 +149,15 @@ class _LockScreenState extends State<LockScreen>
                     const SizedBox(height: 80),
 
                     // 时间组件
-                    const IOSTimeWidget(showDate: true, showSeconds: false),
+                    Consumer<SystemStateProvider>(
+                      builder: (context, provider, _) {
+                        return IOSTimeWidget(
+                          showDate: true,
+                          showSeconds: false,
+                          textColor: Color(provider.lockScreenTimeColor),
+                        );
+                      },
+                    ),
 
                     const Spacer(),
 

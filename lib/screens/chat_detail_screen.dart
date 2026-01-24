@@ -14,6 +14,7 @@ import '../core/providers/memory_provider.dart';
 import '../core/providers/wallet_provider.dart';
 import '../core/services/llm_service.dart';
 import '../core/services/notification_service.dart';
+import '../core/models/api_preset.dart';
 import '../core/models/chat_model.dart';
 import '../core/models/contact_model.dart';
 import '../core/models/moments_model.dart';
@@ -139,10 +140,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             resizeToAvoidBottomInset: true,
             backgroundColor: context.chatBackground,
             appBar: AppBar(
-              backgroundColor: backgroundImage != null
-                  ? Colors.transparent
-                  : context.appBarBackground,
+              backgroundColor: context.appBarBackground,
               elevation: 0,
+              scrolledUnderElevation: 0, // 禁用滚动时的颜色叠加（去除绿色泛光）
               leading: _isMultiSelectMode
                   ? TextButton(
                       onPressed: () {
@@ -336,8 +336,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       ContactRole role, ContactMe me) {
     final status = message.metadata?['status'] ?? 'unclaimed';
 
-    if (status == 'opened') {
-      // 已领取，直接跳转结果页
+    // 如果是自己发送的红包，直接跳转详情页
+    if (message.isMe) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RedPacketResultScreen(
+            message: message,
+            role: role,
+            me: me,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (status == 'opened' || status == 'refunded') {
+      // 已领取或已退还，直接跳转结果页
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -400,8 +415,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       ContactRole role, ContactMe me) {
     final status = message.metadata?['status'] ?? 'pending';
 
-    if (status == 'accepted') {
-      // 已收款，跳转结果页
+    // 如果是自己发送的转账，直接跳转结果页
+    if (message.isMe) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TransferResultScreen(message: message),
+        ),
+      );
+      return;
+    }
+
+    if (status == 'accepted' || status == 'rejected') {
+      // 已收款或已拒收，跳转结果页
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -424,6 +450,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               final newMetadata =
                   Map<String, dynamic>.from(message.metadata ?? {});
               newMetadata['status'] = 'accepted';
+              newMetadata['acceptedTime'] =
+                  DateTime.now().millisecondsSinceEpoch;
               chatProvider.updateMessageMetadata(message.id, newMetadata);
 
               // 将转账金额添加到钱包余额
@@ -1044,7 +1072,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       await Future.delayed(const Duration(milliseconds: 500));
     }
 
-    final activePreset = apiProvider.activePreset;
+    // 优先使用聊天会话的独立 API 预设，如果没有设置则使用全局默认
+    final activePreset = _getApiPresetForChat(chat, apiProvider);
     if (activePreset == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1204,7 +1233,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       await Future.delayed(const Duration(milliseconds: 500));
     }
 
-    final activePreset = apiProvider.activePreset;
+    // 优先使用聊天会话的独立 API 预设，如果没有设置则使用全局默认
+    final activePreset = _getApiPresetForChat(chat, apiProvider);
     if (activePreset == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1490,7 +1520,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final chat = chatProvider.getChat(chatId);
     if (chat == null) return;
 
-    final activePreset = apiProvider.activePreset;
+    // 优先使用聊天会话的独立 API 预设，如果没有设置则使用全局默认
+    final activePreset = _getApiPresetForChat(chat, apiProvider);
     if (activePreset == null) return;
 
     final role = contactProvider.roles.firstWhere(
@@ -1851,6 +1882,10 @@ class MessageItem extends StatelessWidget {
       case MessageType.diary:
       case MessageType.moment:
       case MessageType.state:
+      case MessageType.acceptRedpacket:
+      case MessageType.rejectRedpacket:
+      case MessageType.acceptTransfer:
+      case MessageType.rejectTransfer:
         return const SizedBox.shrink();
     }
 
@@ -2085,6 +2120,26 @@ class _BubbleTrianglePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// 获取聊天会话应该使用的 API 预设
+/// 优先使用聊天会话的独立预设，如果没有设置则使用全局默认预设
+ApiPreset? _getApiPresetForChat(
+    ChatSession chat, ApiSettingsProvider apiProvider) {
+  // 如果聊天设置了独立的 API 预设，优先使用
+  if (chat.apiPresetId != null && chat.apiPresetId!.isNotEmpty) {
+    try {
+      final preset = apiProvider.presets.firstWhere(
+        (p) => p.id == chat.apiPresetId,
+      );
+      return preset;
+    } catch (e) {
+      // 找不到对应的预设，回退到全局默认
+      debugPrint('[ChatDetailScreen] 找不到聊天独立预设 ${chat.apiPresetId}，使用全局默认');
+    }
+  }
+  // 使用全局默认预设
+  return apiProvider.activePreset;
 }
 
 /// 统一解析发送者名称的逻辑

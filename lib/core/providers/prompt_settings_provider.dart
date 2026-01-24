@@ -277,4 +277,26 @@ class PromptSettingsProvider extends ChangeNotifier {
     await _db.setSettingInt('background_active_reply_interval', value);
     notifyListeners();
   }
+
+  /// 重置所有提示词为默认值（从 assets 重新加载）
+  Future<void> resetToDefaults() async {
+    try {
+      // 重新加载 roleplay_prompt
+      final roleplayPrompt = await rootBundle.loadString(
+        'assets/prompts/roleplay_prompt.txt',
+      );
+      await updateRoleplayPrompt(roleplayPrompt);
+
+      // 重新加载 reality_prompt
+      final realityPrompt = await rootBundle.loadString(
+        'assets/prompts/reality_prompt.txt',
+      );
+      await updateRealityPrompt(realityPrompt);
+
+      debugPrint('[PromptSettings] 已重置为默认提示词');
+    } catch (e) {
+      debugPrint('[PromptSettings] 重置提示词失败: $e');
+      rethrow;
+    }
+  }
 }

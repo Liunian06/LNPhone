@@ -14,6 +14,7 @@ import 'core/providers/memory_provider.dart';
 import 'core/providers/wallet_provider.dart';
 import 'core/services/background_service.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/app_log_service.dart';
 import 'core/theme/app_theme.dart';
 
 /// 全局数据库实例
@@ -45,6 +46,9 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
+  // 记录应用启动日志
+  await AppLogService.logAppStart();
 
   // 先启动应用，然后在后台初始化服务
   runApp(const LnPhoneApp());
@@ -111,8 +115,46 @@ void _setupBackgroundServiceListener() {
 }
 
 /// LnPhone - AI Native 手机系统应用
-class LnPhoneApp extends StatelessWidget {
+class LnPhoneApp extends StatefulWidget {
   const LnPhoneApp({super.key});
+
+  @override
+  State<LnPhoneApp> createState() => _LnPhoneAppState();
+}
+
+class _LnPhoneAppState extends State<LnPhoneApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // 应用退出时刷新日志缓冲区
+    AppLogService.flush();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    switch (state) {
+      case AppLifecycleState.paused:
+        // 应用进入后台
+        AppLogService.logAppBackground();
+        // 刷新日志缓冲区
+        AppLogService.flush();
+        break;
+      case AppLifecycleState.resumed:
+        // 应用返回前台
+        AppLogService.logAppForeground();
+        break;
+      default:
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

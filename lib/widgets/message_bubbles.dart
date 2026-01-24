@@ -16,15 +16,17 @@ class RedpacketBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final messageText = message.metadata?['message'] ?? '恭喜发财，大吉大利';
-    final status =
-        message.metadata?['status'] ?? 'unclaimed'; // unclaimed, opened
+    final status = message.metadata?['status'] ??
+        'unclaimed'; // unclaimed, opened, refunded
     final isOpened = status == 'opened';
+    final isRefunded = status == 'refunded';
+    final isProcessed = isOpened || isRefunded;
 
     return Container(
       constraints: BoxConstraints(maxWidth: maxWidth * 0.8),
       decoration: BoxDecoration(
-        color: isOpened
-            ? const Color(0xFFF7E2B8) // 领取后的浅色背景
+        color: isProcessed
+            ? const Color(0xFFF7E2B8) // 已处理后的浅色背景
             : const Color(0xFFFA9D3B), // 未领取的橙色背景
         borderRadius: BorderRadius.circular(4),
       ),
@@ -39,10 +41,12 @@ class RedpacketBubble extends StatelessWidget {
                   width: 40,
                   height: 40,
                   child: Center(
-                    child: isOpened
-                        ? const Icon(
-                            Icons.check_circle_outline,
-                            color: Color(0xFFFBD98D),
+                    child: isProcessed
+                        ? Icon(
+                            isRefunded
+                                ? Icons.undo
+                                : Icons.check_circle_outline,
+                            color: const Color(0xFFFBD98D),
                             size: 24,
                           )
                         : const Text(
@@ -66,10 +70,10 @@ class RedpacketBubble extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (isOpened)
-                        const Text(
-                          '已领取',
-                          style: TextStyle(
+                      if (isProcessed)
+                        Text(
+                          isRefunded ? '已退还' : '已领取',
+                          style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 12,
                           ),
@@ -118,13 +122,25 @@ class TransferBubble extends StatelessWidget {
     final amount = message.content;
     final messageText = message.metadata?['message'] ?? '转账给朋友';
     final status =
-        message.metadata?['status'] ?? 'pending'; // pending, accepted
+        message.metadata?['status'] ?? 'pending'; // pending, accepted, rejected
     final isAccepted = status == 'accepted';
+    final isRejected = status == 'rejected';
+    final isProcessed = isAccepted || isRejected;
+
+    // 根据状态决定背景色
+    Color backgroundColor;
+    if (isRejected) {
+      backgroundColor = const Color(0xFFCCCCCC); // 拒收后的灰色背景
+    } else if (isAccepted) {
+      backgroundColor = const Color(0xFFF7E2B8); // 已收款的浅色背景
+    } else {
+      backgroundColor = const Color(0xFFFA9D3B); // 待收款的橙色背景
+    }
 
     return Container(
       constraints: BoxConstraints(maxWidth: maxWidth * 0.8),
       decoration: BoxDecoration(
-        color: const Color(0xFFFA9D3B), // 橙色背景
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Column(
@@ -141,14 +157,20 @@ class TransferBubble extends StatelessWidget {
                     color: Colors.white, // 白色圆圈背景
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFFFA9D3B),
+                      color: isRejected
+                          ? const Color(0xFF999999)
+                          : const Color(0xFFFA9D3B),
                       width: 2,
                     ),
                   ),
                   child: Center(
                     child: Icon(
-                      isAccepted ? Icons.check : Icons.compare_arrows,
-                      color: const Color(0xFFFA9D3B),
+                      isRejected
+                          ? Icons.close
+                          : (isAccepted ? Icons.check : Icons.compare_arrows),
+                      color: isRejected
+                          ? const Color(0xFF999999)
+                          : const Color(0xFFFA9D3B),
                       size: 24,
                     ),
                   ),
@@ -160,16 +182,16 @@ class TransferBubble extends StatelessWidget {
                     children: [
                       Text(
                         '¥$amount',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: isRejected ? Colors.black54 : Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                       Text(
-                        isAccepted ? '已收款' : messageText,
-                        style: const TextStyle(
-                          color: Colors.white70,
+                        isRejected ? '已拒收' : (isAccepted ? '已收款' : messageText),
+                        style: TextStyle(
+                          color: isRejected ? Colors.black38 : Colors.white70,
                           fontSize: 12,
                         ),
                         maxLines: 1,
@@ -185,14 +207,16 @@ class TransferBubble extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: isRejected
+                  ? Colors.black.withOpacity(0.05)
+                  : Colors.white.withOpacity(0.1),
               borderRadius:
                   const BorderRadius.vertical(bottom: Radius.circular(4)),
             ),
-            child: const Text(
+            child: Text(
               '转账',
               style: TextStyle(
-                color: Colors.white70,
+                color: isRejected ? Colors.black38 : Colors.white70,
                 fontSize: 11,
               ),
             ),

@@ -63,13 +63,6 @@ class _SendRedPacketScreenState extends State<SendRedPacketScreen> {
       return;
     }
 
-    if (amount > 200) {
-      setState(() {
-        _errorMessage = '单个红包金额不能超过200元';
-      });
-      return;
-    }
-
     final walletProvider = context.read<WalletProvider>();
     if (amount > walletProvider.balance) {
       setState(() {
@@ -224,6 +217,7 @@ class _SendRedPacketScreenState extends State<SendRedPacketScreen> {
                                   color: Colors.black87,
                                 ),
                                 decoration: const InputDecoration(
+                                  filled: false,
                                   border: InputBorder.none,
                                   hintText: '0.00',
                                   hintStyle: TextStyle(
@@ -258,7 +252,9 @@ class _SendRedPacketScreenState extends State<SendRedPacketScreen> {
                         TextField(
                           controller: _messageController,
                           maxLength: 20,
+                          style: const TextStyle(color: Colors.black87),
                           decoration: const InputDecoration(
+                            filled: false,
                             border: InputBorder.none,
                             hintText: '填写祝福语',
                             hintStyle: TextStyle(color: Colors.grey),

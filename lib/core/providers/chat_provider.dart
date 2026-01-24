@@ -481,9 +481,73 @@ class ChatProvider extends ChangeNotifier {
             // 没有找到state消息，不更新状态
           }
 
-          // 过滤消息
+          // 处理红包/转账响应消息（这些消息不会显示在聊天中，只更新原消息状态）
+          final redpacketTransferResponses = aiMessages.where((msg) =>
+              msg.type == MessageType.acceptRedpacket ||
+              msg.type == MessageType.rejectRedpacket ||
+              msg.type == MessageType.acceptTransfer ||
+              msg.type == MessageType.rejectTransfer);
+
+          for (final responseMsg in redpacketTransferResponses) {
+            final targetId = responseMsg.metadata?['target_id'] as String?;
+            if (targetId != null && targetId.isNotEmpty) {
+              // 查找目标消息
+              final targetMsgIndex =
+                  chat.messages.indexWhere((m) => m.id == targetId);
+              if (targetMsgIndex != -1) {
+                final targetMsg = chat.messages[targetMsgIndex];
+
+                // 根据响应类型更新目标消息状态
+                String newStatus;
+
+                // 智能判断：如果 AI 使用了通用的 accept/reject (被解析为 acceptRedpacket/rejectRedpacket)
+                // 但目标消息是转账，则自动修正状态
+                if (responseMsg.type == MessageType.acceptRedpacket) {
+                  if (targetMsg.type == MessageType.transfer) {
+                    newStatus = 'accepted'; // 转账被接受
+                  } else {
+                    newStatus = 'opened'; // 红包被领取
+                  }
+                } else if (responseMsg.type == MessageType.rejectRedpacket) {
+                  if (targetMsg.type == MessageType.transfer) {
+                    newStatus = 'rejected'; // 转账被拒绝
+                  } else {
+                    newStatus = 'refunded'; // 红包被退回
+                  }
+                } else if (responseMsg.type == MessageType.acceptTransfer) {
+                  newStatus = 'accepted';
+                } else if (responseMsg.type == MessageType.rejectTransfer) {
+                  newStatus = 'rejected';
+                } else {
+                  continue;
+                }
+
+                // 更新原消息的 metadata
+                final newMetadata =
+                    Map<String, dynamic>.from(targetMsg.metadata ?? {});
+                newMetadata['status'] = newStatus;
+                await _database.updateMessageMetadata(targetId, newMetadata);
+
+                debugPrint('[ChatProvider] 更新红包/转账状态: $targetId -> $newStatus');
+              } else {
+                debugPrint('[ChatProvider] ❌ 找不到目标消息: $targetId');
+              }
+            }
+          }
+
+          // 刷新聊天数据以获取最新状态
+          await _refreshChats();
+
+          // 过滤消息（排除红包/转账响应消息，它们只用于更新状态）
           final filteredMessages = aiMessages.where((msg) {
             if (msg.type == MessageType.state) return false;
+            // 过滤掉红包/转账响应消息
+            if (msg.type == MessageType.acceptRedpacket ||
+                msg.type == MessageType.rejectRedpacket ||
+                msg.type == MessageType.acceptTransfer ||
+                msg.type == MessageType.rejectTransfer) {
+              return false;
+            }
             if (!enableExtendedChat) {
               return msg.type != MessageType.action &&
                   msg.type != MessageType.thought;

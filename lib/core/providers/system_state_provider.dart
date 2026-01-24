@@ -46,6 +46,7 @@ class SystemStateProvider extends ChangeNotifier {
   // 锁屏壁纸
   int _lockScreenWallpaperIndex = 0;
   String? _customLockScreenWallpaperPath;
+  int _lockScreenTimeColor = 0xFFFFFFFF; // 默认白色
 
   // 自定义应用图标 (appId -> 图片路径)
   Map<String, String> _customAppIcons = {};
@@ -97,6 +98,7 @@ class SystemStateProvider extends ChangeNotifier {
   String? get customWallpaperPath => _customWallpaperPath;
   int get lockScreenWallpaperIndex => _lockScreenWallpaperIndex;
   String? get customLockScreenWallpaperPath => _customLockScreenWallpaperPath;
+  int get lockScreenTimeColor => _lockScreenTimeColor;
   Map<String, String> get customAppIcons => _customAppIcons;
   bool get isEditingHome => _isEditingHome;
   bool get isLoaded => _isLoaded;
@@ -227,6 +229,13 @@ class SystemStateProvider extends ChangeNotifier {
   void setCustomLockScreenWallpaper(String path) {
     _customLockScreenWallpaperPath = path;
     _lockScreenWallpaperIndex = 0; // 设置自定义壁纸时，将索引重置为 0
+    _saveSettings();
+    notifyListeners();
+  }
+
+  // 设置锁屏时间颜色
+  void setLockScreenTimeColor(int color) {
+    _lockScreenTimeColor = color;
     _saveSettings();
     notifyListeners();
   }
@@ -402,6 +411,7 @@ class SystemStateProvider extends ChangeNotifier {
       } else {
         await _db.deleteSetting('custom_lockscreen_wallpaper_path');
       }
+      await _db.setSettingInt('lockscreen_time_color', _lockScreenTimeColor);
 
       // 保存自定义图标
       await _db.setSetting('custom_app_icons', jsonEncode(_customAppIcons));
@@ -617,6 +627,8 @@ class SystemStateProvider extends ChangeNotifier {
     _lockScreenWallpaperIndex = _lockScreenWallpaperIndex.clamp(0, 6);
     _customLockScreenWallpaperPath =
         await _db.getSetting('custom_lockscreen_wallpaper_path');
+    _lockScreenTimeColor =
+        await _db.getSettingInt('lockscreen_time_color') ?? 0xFFFFFFFF;
 
     // 加载自定义图标
     final iconsJson = await _db.getSetting('custom_app_icons');
@@ -695,6 +707,7 @@ class SystemStateProvider extends ChangeNotifier {
         'index': _lockScreenWallpaperIndex,
         'customPath': _customLockScreenWallpaperPath,
         'data': await _fileToBase64(_customLockScreenWallpaperPath),
+        'timeColor': _lockScreenTimeColor,
       },
       'customIcons': _customAppIcons,
       'customIconsData': customIconsData,
@@ -906,6 +919,7 @@ class SystemStateProvider extends ChangeNotifier {
         'customPath': _customLockScreenWallpaperPath != null
             ? 'wallpaper_lock${path.extension(_customLockScreenWallpaperPath!)}'
             : null,
+        'timeColor': _lockScreenTimeColor,
       },
       'customIcons': _customAppIcons.map(
         (key, value) => MapEntry(key, 'icon_$key${path.extension(value)}'),
@@ -971,6 +985,7 @@ class SystemStateProvider extends ChangeNotifier {
         final wallpaper =
             settings['lockScreenWallpaper'] as Map<String, dynamic>;
         _lockScreenWallpaperIndex = wallpaper['index'] ?? 0;
+        _lockScreenTimeColor = wallpaper['timeColor'] ?? 0xFFFFFFFF;
 
         // 优先尝试从Base64数据恢复文件
         final base64Data = wallpaper['data'] as String?;
@@ -1100,6 +1115,7 @@ class SystemStateProvider extends ChangeNotifier {
         final wallpaper =
             settings['lockScreenWallpaper'] as Map<String, dynamic>;
         _lockScreenWallpaperIndex = wallpaper['index'] ?? 0;
+        _lockScreenTimeColor = wallpaper['timeColor'] ?? 0xFFFFFFFF;
 
         final customPathInZip = wallpaper['customPath'] as String?;
         if (customPathInZip != null) {
@@ -1195,6 +1211,7 @@ class SystemStateProvider extends ChangeNotifier {
       } else {
         await db.deleteSetting('custom_lockscreen_wallpaper_path');
       }
+      await db.setSettingInt('lockscreen_time_color', _lockScreenTimeColor);
 
       // 保存自定义图标
       await db.setSetting('custom_app_icons', jsonEncode(_customAppIcons));
@@ -1565,6 +1582,7 @@ class SystemStateProvider extends ChangeNotifier {
     _customWallpaperPath = null;
     _lockScreenWallpaperIndex = 0;
     _customLockScreenWallpaperPath = null;
+    _lockScreenTimeColor = 0xFFFFFFFF;
     _customAppIcons.clear();
     _gridPages.clear();
     _isEditingHome = false;

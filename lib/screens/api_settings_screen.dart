@@ -173,6 +173,13 @@ class ApiSettingsScreen extends StatelessWidget {
             child: const Text('编辑'),
           ),
           CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _copyPreset(context, provider, preset);
+            },
+            child: const Text('复制'),
+          ),
+          CupertinoActionSheetAction(
             isDestructiveAction: true,
             onPressed: () {
               Navigator.pop(context);
@@ -187,6 +194,37 @@ class ApiSettingsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _copyPreset(
+    BuildContext context,
+    ApiSettingsProvider provider,
+    ApiPreset preset,
+  ) async {
+    final newPreset = preset.copyWith(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: '${preset.name} copy',
+    );
+
+    try {
+      await provider.addPreset(newPreset);
+    } catch (e) {
+      if (context.mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('错误'),
+            content: Text(e.toString()),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('确定'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   void _confirmDelete(

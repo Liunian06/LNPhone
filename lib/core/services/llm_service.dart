@@ -9,6 +9,7 @@ import '../models/prompt_config.dart';
 import '../utils/image_utils.dart';
 import 'xml_parser.dart';
 import 'api_log_service.dart';
+import 'app_log_service.dart';
 
 class LlmRetryException implements Exception {
   final List<String> errors;
@@ -37,6 +38,17 @@ class LlmService {
     print('[LLM] Base URL: ${apiPreset.baseUrl}');
     print('[LLM] 历史消息数量: ${history.length}');
 
+    // 记录 API 调用开始日志
+    await AppLogService.logApiCallStart(
+      provider: apiPreset.provider.name,
+      model: apiPreset.model,
+      endpoint: apiPreset.baseUrl.isEmpty
+          ? (apiPreset.provider == ApiProvider.openai
+              ? 'https://api.openai.com/v1'
+              : 'https://generativelanguage.googleapis.com')
+          : apiPreset.baseUrl,
+    );
+
     print('[LLM] 构建系统提示词...');
     final systemPrompt = _buildSystemPrompt(
       promptConfig,
@@ -62,9 +74,17 @@ class LlmService {
     print('[LLM] ID映射表: $idMapping');
     for (var i = 0; i < messages.length; i++) {
       final role = messages[i]['role'];
-      final content = messages[i]['content'] as String;
-      final preview =
-          content.length > 100 ? '${content.substring(0, 100)}...' : content;
+      final rawContent = messages[i]['content'];
+      String preview;
+      if (rawContent is String) {
+        preview = rawContent.length > 100
+            ? '${rawContent.substring(0, 100)}...'
+            : rawContent;
+      } else if (rawContent is List) {
+        preview = '[图片/多媒体内容]';
+      } else {
+        preview = rawContent?.toString() ?? '[空内容]';
+      }
       print('[LLM] Request Msg $i ($role): $preview');
     }
 
@@ -90,17 +110,32 @@ class LlmService {
         }
         print('[LLM] ✓ API 调用成功');
         print('[LLM] 原始响应长度: ${rawResponse.length} 字符');
-        print(
-          '[LLM] 原始响应内容: ${rawResponse.substring(0, rawResponse.length > 200 ? 200 : rawResponse.length)}...',
-        );
+        if (rawResponse.isNotEmpty) {
+          final previewLength =
+              rawResponse.length > 200 ? 200 : rawResponse.length;
+          print('[LLM] 原始响应内容: ${rawResponse.substring(0, previewLength)}...');
+        } else {
+          print('[LLM] 原始响应内容: [空]');
+        }
 
         // 记录成功的API调用
         stopwatch.stop();
+        final durationSeconds = stopwatch.elapsed.inMilliseconds / 1000.0;
+
         await _logApiCall(
           apiPreset: apiPreset,
           responseData: responseData,
-          durationSeconds: stopwatch.elapsed.inMilliseconds / 1000.0,
+          durationSeconds: durationSeconds,
           error: null,
+        );
+
+        // 记录 API 调用成功日志
+        await AppLogService.logApiCallSuccess(
+          provider: apiPreset.provider.name,
+          model: apiPreset.model,
+          durationSeconds: durationSeconds,
+          inputTokens: responseData?['inputTokens'] as int?,
+          outputTokens: responseData?['outputTokens'] as int?,
         );
 
         // 如果成功，跳出循环
@@ -116,11 +151,21 @@ class LlmService {
 
           // 记录失败的API调用
           stopwatch.stop();
+          final durationSeconds = stopwatch.elapsed.inMilliseconds / 1000.0;
+
           await _logApiCall(
             apiPreset: apiPreset,
             responseData: null,
-            durationSeconds: stopwatch.elapsed.inMilliseconds / 1000.0,
+            durationSeconds: durationSeconds,
             error: errorLogs.join('; '),
+          );
+
+          // 记录 API 调用失败日志
+          await AppLogService.logApiCallError(
+            provider: apiPreset.provider.name,
+            model: apiPreset.model,
+            error: errorLogs.join('; '),
+            durationSeconds: durationSeconds,
           );
 
           throw LlmRetryException(errorLogs);
@@ -135,24 +180,29 @@ class LlmService {
       throw LlmRetryException(errorLogs);
     }
 
-    // 解析 XML 响应为消息列表，传入ID映射表用于将简化ID转换回真实ID
-    print('[LLM] 解析 XML 响应...');
+    // 解析响应为消息列表，传入ID映射表用于将简化ID转换回真实ID
+    print('[LLM] 解析响应...');
     try {
-      final parsedMessages = XmlResponseParser.parse(
+      final parsedMessages = ResponseParser.parse(
         rawResponse,
         messageIdPrefix,
         simpleIdToRealId: idMapping,
       );
-      print('[LLM] ✓ XML 解析成功，得到 ${parsedMessages.length} 条消息');
+      print('[LLM] ✓ 解析成功，得到 ${parsedMessages.length} 条消息');
       for (var i = 0; i < parsedMessages.length; i++) {
+        final msgContent = parsedMessages[i].content;
+        final contentPreview = msgContent.isEmpty
+            ? '[空]'
+            : (msgContent.length > 50
+                ? '${msgContent.substring(0, 50)}...'
+                : msgContent);
         print(
-          '[LLM] 消息 $i: type=${parsedMessages[i].type}, content=${parsedMessages[i].content.substring(0, parsedMessages[i].content.length > 50 ? 50 : parsedMessages[i].content.length)}...',
-        );
+            '[LLM] 消息 $i: type=${parsedMessages[i].type}, content=$contentPreview');
       }
       print('[LLM] ========== 生成回复完成 ==========');
       return parsedMessages;
     } catch (e, stackTrace) {
-      print('[LLM] ❌ XML 解析失败: $e');
+      print('[LLM] ❌ 解析失败: $e');
       print('[LLM] ❌ 堆栈跟踪: $stackTrace');
       rethrow;
     }
@@ -260,8 +310,8 @@ class LlmService {
     for (final msg in recentHistory) {
       final simpleId = realIdToSimpleId[msg.id]!;
 
-      // 构建XML格式的消息内容，使用简化ID
-      final xmlContent = _buildXmlMessageContentWithSimpleId(
+      // 构建JSON格式的消息内容，使用简化ID
+      final jsonContent = _buildJsonMessageContentWithSimpleId(
         msg,
         simpleId,
         realIdToSimpleId,
@@ -273,7 +323,7 @@ class LlmService {
         if (base64Image != null) {
           messages.add({
             'role': msg.isMe ? 'user' : 'assistant',
-            'content': '<image id="$simpleId">[图片]</image>',
+            'content': '{"type":"image", "id":"$simpleId", "content":"[图片]"}',
             'image_data': base64Image,
             'mime_type': ImageUtils.getMimeType(msg.content),
             'type': 'image',
@@ -282,15 +332,16 @@ class LlmService {
           // 图片加载失败，作为文本提示
           messages.add({
             'role': msg.isMe ? 'user' : 'assistant',
-            'content': '<image id="$simpleId">[图片加载失败]</image>',
+            'content':
+                '{"type":"text", "id":"$simpleId", "content":"[图片加载失败]"}',
             'type': 'text',
           });
         }
       } else {
-        // 普通文本消息，使用XML格式
+        // 普通文本消息，使用JSON格式
         messages.add({
           'role': msg.isMe ? 'user' : 'assistant',
-          'content': xmlContent,
+          'content': jsonContent,
           'type': 'text',
         });
       }
@@ -302,18 +353,17 @@ class LlmService {
     };
   }
 
-  /// 将消息构建为XML格式，使用简化ID
-  static String _buildXmlMessageContentWithSimpleId(
+  /// 将消息构建为JSON格式，使用简化ID
+  static String _buildJsonMessageContentWithSimpleId(
     ChatMessage msg,
     String simpleId,
     Map<String, String> realIdToSimpleId,
   ) {
-    // 获取消息类型对应的标签名
-    final tagName = _getTagNameForType(msg.type);
-
-    // 构建属性字符串，使用简化ID
-    final attributes = StringBuffer();
-    attributes.write(' id="$simpleId"');
+    final Map<String, dynamic> jsonMap = {
+      'id': simpleId,
+      'type': _getTypeNameForJson(msg.type),
+      'content': msg.content,
+    };
 
     // 处理引用消息，将引用的真实ID转换为简化ID
     if (msg.metadata != null && msg.metadata!.containsKey('quote')) {
@@ -323,7 +373,7 @@ class LlmService {
         // 查找引用消息的简化ID
         final quoteSimpleId = realIdToSimpleId[quoteRealId];
         if (quoteSimpleId != null) {
-          attributes.write(' ref="$quoteSimpleId"');
+          jsonMap['ref'] = quoteSimpleId;
         }
       } catch (e) {
         // 忽略引用解析错误
@@ -337,38 +387,38 @@ class LlmService {
         case MessageType.transfer:
           final message = msg.metadata!['message'] as String? ?? '';
           if (message.isNotEmpty) {
-            attributes.write(' message="$message"');
+            jsonMap['message'] = message;
           }
           break;
         case MessageType.product:
           final name = msg.metadata!['name'] as String? ?? '';
           final price = msg.metadata!['price'] as String? ?? '';
-          if (name.isNotEmpty) attributes.write(' name="$name"');
-          if (price.isNotEmpty) attributes.write(' price="$price"');
+          if (name.isNotEmpty) jsonMap['name'] = name;
+          if (price.isNotEmpty) jsonMap['price'] = price;
           break;
         case MessageType.link:
           final title = msg.metadata!['title'] as String? ?? '';
           final url = msg.metadata!['url'] as String? ?? '';
-          if (title.isNotEmpty) attributes.write(' title="$title"');
-          if (url.isNotEmpty) attributes.write(' url="$url"');
+          if (title.isNotEmpty) jsonMap['title'] = title;
+          if (url.isNotEmpty) jsonMap['url'] = url;
           break;
         case MessageType.note:
           final title = msg.metadata!['title'] as String? ?? '';
-          if (title.isNotEmpty) attributes.write(' title="$title"');
+          if (title.isNotEmpty) jsonMap['title'] = title;
           break;
         default:
           break;
       }
     }
 
-    return '<$tagName$attributes>${msg.content}</$tagName>';
+    return jsonEncode(jsonMap);
   }
 
-  /// 获取消息类型对应的XML标签名
-  static String _getTagNameForType(MessageType type) {
+  /// 获取消息类型对应的JSON类型名
+  static String _getTypeNameForJson(MessageType type) {
     switch (type) {
       case MessageType.words:
-        return 'words';
+        return 'word';
       case MessageType.action:
         return 'action';
       case MessageType.thought:
@@ -385,6 +435,14 @@ class LlmService {
         return 'redpacket';
       case MessageType.transfer:
         return 'transfer';
+      case MessageType.acceptRedpacket:
+        return 'accept';
+      case MessageType.rejectRedpacket:
+        return 'reject';
+      case MessageType.acceptTransfer:
+        return 'accept';
+      case MessageType.rejectTransfer:
+        return 'reject';
       case MessageType.product:
         return 'product';
       case MessageType.link:
@@ -494,9 +552,9 @@ class LlmService {
         body: jsonEncode(requestBody),
       )
           .timeout(
-        const Duration(seconds: 60),
+        const Duration(seconds: 300),
         onTimeout: () {
-          print('[LLM-OpenAI] ❌ 请求超时（60秒）');
+          print('[LLM-OpenAI] ❌ 请求超时（300秒）');
           throw Exception('OpenAI API 请求超时');
         },
       );
@@ -506,8 +564,41 @@ class LlmService {
       if (response.statusCode == 200) {
         print('[LLM-OpenAI] ✓ 请求成功，解析响应...');
         final data = jsonDecode(utf8.decode(response.bodyBytes));
-        final content =
-            data['choices'][0]['message']['content'].toString().trim();
+
+        // 检查 choices 数组是否存在且非空
+        final choices = data['choices'] as List?;
+        if (choices == null || choices.isEmpty) {
+          // 检查是否有 finish_reason 或 error 信息
+          final finishReason =
+              choices?.isNotEmpty == true ? choices![0]['finish_reason'] : null;
+          print('[LLM-OpenAI] ❌ choices 数组为空或不存在');
+          print('[LLM-OpenAI] ❌ 完整响应: ${response.body}');
+          throw Exception(
+            'OpenAI API 返回空响应: choices 数组为空。可能原因: 内容被安全过滤器拦截、模型无法生成输出、或API异常。finish_reason: $finishReason',
+          );
+        }
+
+        // 检查 message 和 content 是否存在
+        final message = choices[0]['message'] as Map<String, dynamic>?;
+        if (message == null) {
+          print('[LLM-OpenAI] ❌ message 对象不存在');
+          print('[LLM-OpenAI] ❌ choice[0]: ${choices[0]}');
+          throw Exception('OpenAI API 返回异常: message 对象不存在');
+        }
+
+        final contentRaw = message['content'];
+        if (contentRaw == null) {
+          // 某些模型可能使用 function_call 或 tool_calls 而非 content
+          print('[LLM-OpenAI] ❌ content 为 null');
+          print('[LLM-OpenAI] ❌ message: $message');
+          throw Exception(
+              'OpenAI API 返回异常: content 为 null，可能是 function_call 响应');
+        }
+
+        final content = contentRaw.toString().trim();
+        if (content.isEmpty) {
+          print('[LLM-OpenAI] ⚠ 内容为空字符串');
+        }
         print('[LLM-OpenAI] ✓ 响应内容长度: ${content.length}');
 
         // 提取token使用信息
@@ -611,9 +702,9 @@ class LlmService {
         body: jsonEncode(requestBody),
       )
           .timeout(
-        const Duration(seconds: 60),
+        const Duration(seconds: 300),
         onTimeout: () {
-          print('[LLM-Gemini] ❌ 请求超时（60秒）');
+          print('[LLM-Gemini] ❌ 请求超时（300秒）');
           throw Exception('Gemini API 请求超时');
         },
       );
@@ -623,8 +714,37 @@ class LlmService {
       if (response.statusCode == 200) {
         print('[LLM-Gemini] ✓ 请求成功，解析响应...');
         final data = jsonDecode(utf8.decode(response.bodyBytes));
-        final text = data['candidates'][0]['content']['parts'][0]['text'];
-        final content = text.toString().trim();
+
+        // 检查 candidates 数组是否存在且非空
+        final candidates = data['candidates'] as List?;
+        if (candidates == null || candidates.isEmpty) {
+          print('[LLM-Gemini] ❌ candidates 数组为空或不存在');
+          print('[LLM-Gemini] ❌ 完整响应: ${response.body}');
+          throw Exception(
+            'Gemini API 返回空响应: candidates 数组为空。可能原因: 内容被安全过滤器拦截、模型无法生成输出、或API异常。',
+          );
+        }
+
+        // 检查 content 和 parts 是否存在
+        final contentObj = candidates[0]['content'] as Map<String, dynamic>?;
+        if (contentObj == null) {
+          print('[LLM-Gemini] ❌ content 对象不存在');
+          throw Exception('Gemini API 返回异常: content 对象不存在');
+        }
+
+        final parts = contentObj['parts'] as List?;
+        if (parts == null || parts.isEmpty) {
+          print('[LLM-Gemini] ❌ parts 数组为空或不存在');
+          throw Exception('Gemini API 返回异常: parts 数组为空');
+        }
+
+        final textRaw = parts[0]['text'];
+        if (textRaw == null) {
+          print('[LLM-Gemini] ❌ text 为 null');
+          throw Exception('Gemini API 返回异常: text 为 null');
+        }
+
+        final content = textRaw.toString().trim();
         print('[LLM-Gemini] ✓ 响应内容长度: ${content.length}');
 
         // 提取token使用信息
@@ -720,9 +840,9 @@ class LlmService {
         body: jsonEncode(requestBody),
       )
           .timeout(
-        const Duration(seconds: 60),
+        const Duration(seconds: 300),
         onTimeout: () {
-          print('[LLM-OpenAI] ❌ 请求超时（60秒）');
+          print('[LLM-OpenAI] ❌ 请求超时（300秒）');
           throw Exception('OpenAI API 请求超时');
         },
       );
@@ -732,8 +852,28 @@ class LlmService {
       if (response.statusCode == 200) {
         print('[LLM-OpenAI] ✓ 请求成功，解析响应...');
         final data = jsonDecode(utf8.decode(response.bodyBytes));
-        final content =
-            data['choices'][0]['message']['content'].toString().trim();
+
+        // 检查 choices 数组是否存在且非空
+        final choices = data['choices'] as List?;
+        if (choices == null || choices.isEmpty) {
+          print('[LLM-OpenAI] ❌ choices 数组为空或不存在');
+          print('[LLM-OpenAI] ❌ 完整响应: ${response.body}');
+          throw Exception(
+            'OpenAI API 返回空响应: choices 数组为空。可能原因: 内容被安全过滤器拦截、模型无法生成输出、或API异常。',
+          );
+        }
+
+        final message = choices[0]['message'] as Map<String, dynamic>?;
+        if (message == null) {
+          throw Exception('OpenAI API 返回异常: message 对象不存在');
+        }
+
+        final contentRaw = message['content'];
+        if (contentRaw == null) {
+          throw Exception('OpenAI API 返回异常: content 为 null');
+        }
+
+        final content = contentRaw.toString().trim();
         print('[LLM-OpenAI] ✓ 响应内容长度: ${content.length}');
         return content;
       } else {
@@ -818,9 +958,9 @@ class LlmService {
         body: jsonEncode(requestBody),
       )
           .timeout(
-        const Duration(seconds: 60),
+        const Duration(seconds: 300),
         onTimeout: () {
-          print('[LLM-Gemini] ❌ 请求超时（60秒）');
+          print('[LLM-Gemini] ❌ 请求超时（300秒）');
           throw Exception('Gemini API 请求超时');
         },
       );
@@ -830,8 +970,33 @@ class LlmService {
       if (response.statusCode == 200) {
         print('[LLM-Gemini] ✓ 请求成功，解析响应...');
         final data = jsonDecode(utf8.decode(response.bodyBytes));
-        final text = data['candidates'][0]['content']['parts'][0]['text'];
-        final content = text.toString().trim();
+
+        // 检查 candidates 数组是否存在且非空
+        final candidates = data['candidates'] as List?;
+        if (candidates == null || candidates.isEmpty) {
+          print('[LLM-Gemini] ❌ candidates 数组为空或不存在');
+          print('[LLM-Gemini] ❌ 完整响应: ${response.body}');
+          throw Exception(
+            'Gemini API 返回空响应: candidates 数组为空。',
+          );
+        }
+
+        final contentObj = candidates[0]['content'] as Map<String, dynamic>?;
+        if (contentObj == null) {
+          throw Exception('Gemini API 返回异常: content 对象不存在');
+        }
+
+        final parts = contentObj['parts'] as List?;
+        if (parts == null || parts.isEmpty) {
+          throw Exception('Gemini API 返回异常: parts 数组为空');
+        }
+
+        final textRaw = parts[0]['text'];
+        if (textRaw == null) {
+          throw Exception('Gemini API 返回异常: text 为 null');
+        }
+
+        final content = textRaw.toString().trim();
         print('[LLM-Gemini] ✓ 响应内容长度: ${content.length}');
         return content;
       } else {

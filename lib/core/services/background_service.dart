@@ -11,6 +11,7 @@ import '../models/moments_model.dart';
 import '../models/chat_model.dart';
 import '../models/prompt_config.dart';
 import '../services/llm_service.dart';
+import '../services/app_log_service.dart';
 import 'package:drift/drift.dart' as drift;
 
 // 超时异常类
@@ -89,6 +90,9 @@ class BackgroundService {
     // 在后台 Isolate 中初始化通知插件
     await _initBackgroundNotifications();
 
+    // 记录后台服务启动日志
+    await AppLogService.logBackgroundServiceStart();
+
     if (service is AndroidServiceInstance) {
       service.on('setAsForeground').listen((event) {
         service.setAsForegroundService();
@@ -137,6 +141,9 @@ class BackgroundService {
     try {
       debugPrint('[BG] ========== 后台检查开始 (Force: $force) ==========');
 
+      // 记录后台检查开始日志
+      await AppLogService.logBackgroundCheckStart(force: force);
+
       // 注意：所有设置现在从数据库读取，SharedPreferences 已被弃用
       final db = AppDatabase();
 
@@ -146,6 +153,7 @@ class BackgroundService {
       debugPrint('[BG] 后台主动回复开关: $enableActiveReply');
       if (!enableActiveReply && !force) {
         debugPrint('[BG] 后台主动回复已关闭，跳过检查');
+        await AppLogService.logBackgroundSkip('后台主动回复已关闭');
         return;
       }
 
@@ -162,6 +170,14 @@ class BackgroundService {
       debugPrint('[BG] 上次活跃时间: $lastActiveTime');
       debugPrint('[BG] 当前时间: $currentTime');
       debugPrint('[BG] 不活跃时长: ${inactiveTime ~/ 1000} 秒');
+
+      // 记录后台检查设置日志
+      await AppLogService.logBackgroundCheckSettings(
+        enableActiveReply: enableActiveReply,
+        intervalMinutes: intervalMinutes,
+        lastActiveTime: lastActiveTime,
+        currentTime: currentTime,
+      );
 
       // 4. 检查是否满足触发条件：当前时间 - 上次活跃时间 > 间隔时间
       // 如果是强制检查，则忽略全局活跃时间限制，但仍然检查会话的最后消息时间（或者也忽略？）
@@ -197,7 +213,18 @@ class BackgroundService {
               debugPrint('[BG] 会话 ${session.id} 用户未回应 AI，准备追问');
             }
 
-            if (currentTime - lastMessageTime > effectiveInterval) {
+            final willTrigger =
+                currentTime - lastMessageTime > effectiveInterval;
+
+            // 记录会话检查日志
+            await AppLogService.logBackgroundSessionCheck(
+              sessionId: session.id,
+              lastMessageTime: lastMessageTime,
+              currentTime: currentTime,
+              willTrigger: willTrigger,
+            );
+
+            if (willTrigger) {
               debugPrint('[BG] 会话 ${session.id} 满足条件，触发 AI 回复');
               // 触发 AI 回复
               await _triggerAiReply(db, session);
@@ -211,11 +238,14 @@ class BackgroundService {
         debugPrint('[BG] 所有会话检查完成');
       } else {
         debugPrint('[BG] 不满足触发条件（需要不活跃 ${intervalMinutes} 分钟），跳过检查');
+        await AppLogService.logBackgroundSkip('用户活跃时间未达到间隔阈值');
       }
       debugPrint('[BG] ========== 后台检查结束 ==========');
+      await AppLogService.logBackgroundCheckEnd();
     } catch (e, stackTrace) {
       debugPrint('[BG] ❌ 后台检查出错: $e');
       debugPrint('[BG] ❌ 堆栈跟踪: $stackTrace');
+      await AppLogService.logBackgroundError('后台检查出错', e, stackTrace);
     }
   }
 
@@ -336,6 +366,17 @@ class BackgroundService {
       );
 
       final timestamp = DateTime.now().millisecondsSinceEpoch;
+      // 记录后台 API 调用开始
+      await AppLogService.logApiCallStart(
+        provider: apiPreset.provider.name,
+        model: apiPreset.model,
+        endpoint: apiPreset.baseUrl,
+        sessionId: session.id,
+        isBackground: true,
+      );
+
+      final apiStartTime = DateTime.now();
+
       final aiMessages = await LlmService.generateResponse(
         apiPreset: apiPreset,
         promptConfig: activePromptConfig, // 使用带有主动回复指令的配置
@@ -347,11 +388,30 @@ class BackgroundService {
         const Duration(seconds: 60),
         onTimeout: () {
           debugPrint('[BG] ❌ API 调用超时（60秒）');
+          // 记录超时日志
+          AppLogService.logApiCallTimeout(
+            provider: apiPreset!.provider.name,
+            model: apiPreset.model,
+            timeoutSeconds: 60,
+            isBackground: true,
+          );
           throw TimeoutException('LLM API 调用超时');
         },
       );
 
+      final apiDuration =
+          DateTime.now().difference(apiStartTime).inMilliseconds / 1000.0;
+
       debugPrint('[BG] ✓ API 调用完成，返回 ${aiMessages.length} 条消息');
+
+      // 记录 API 调用成功
+      await AppLogService.logApiCallSuccess(
+        provider: apiPreset.provider.name,
+        model: apiPreset.model,
+        durationSeconds: apiDuration,
+        messageCount: aiMessages.length,
+        isBackground: true,
+      );
 
       if (aiMessages.isNotEmpty) {
         debugPrint('[BG] 开始处理和保存消息...');
@@ -374,9 +434,12 @@ class BackgroundService {
             continue;
           }
 
-          debugPrint(
-            '[BG] 保存消息到数据库: ${msg.content.substring(0, msg.content.length > 50 ? 50 : msg.content.length)}...',
-          );
+          final contentPreview = msg.content.isEmpty
+              ? '[空内容]'
+              : (msg.content.length > 50
+                  ? '${msg.content.substring(0, 50)}...'
+                  : msg.content);
+          debugPrint('[BG] 保存消息到数据库: $contentPreview');
 
           // 插入消息到数据库
           await db.insertMessage(
@@ -426,16 +489,30 @@ class BackgroundService {
         }
 
         debugPrint('[BG] ✓ 已保存 $savedCount 条消息');
+
+        // 记录 AI 回复保存日志
+        await AppLogService.logAiReplySaved(
+          sessionId: session.id,
+          messageCount: savedCount,
+          isBackground: true,
+        );
+
         // 注意：不再手动调用 insertChatSession 更新会话时间戳
         // 因为 insertMessage 内部已经会自动更新 lastUpdated
         // 使用 insertChatSession(InsertMode.insertOrReplace) 会导致级联删除消息！
         debugPrint('[BG] <<< AI 回复处理完成');
       } else {
         debugPrint('[BG] ⚠️ API 返回了空消息列表');
+        await AppLogService.warning(
+          'API 返回空消息列表',
+          category: 'Background',
+          data: {'sessionId': session.id},
+        );
       }
     } catch (e, stackTrace) {
       debugPrint('[BG] ❌ 生成 AI 回复时出错: $e');
       debugPrint('[BG] ❌ 堆栈跟踪: $stackTrace');
+      await AppLogService.logBackgroundError('生成 AI 回复时出错', e, stackTrace);
     }
   }
 
@@ -547,9 +624,23 @@ class BackgroundService {
 
       await _bgNotificationsPlugin!.show(id, title, message, details);
       debugPrint('[BG] ✓ 通知已直接发送: id=$id, title=$title');
+
+      // 记录通知发送成功
+      await AppLogService.logNotificationSent(
+        title: title,
+        notificationId: id,
+        success: true,
+      );
     } catch (e, stackTrace) {
       debugPrint('[BG] ❌ 直接发送通知失败: $e');
       debugPrint('[BG] 堆栈: $stackTrace');
+
+      // 记录通知发送失败
+      await AppLogService.logNotificationSent(
+        title: title,
+        notificationId: id,
+        success: false,
+      );
     }
   }
 }

@@ -41,6 +41,25 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                           onChanged: provider.updateRoleplayPrompt,
                           maxLines: 4,
                         ),
+                        const SizedBox(height: 10),
+                        Center(
+                          child: CupertinoButton(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 12),
+                            color: Colors.red.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            onPressed: () =>
+                                _showResetConfirmation(context, provider),
+                            child: const Text(
+                              '重置为默认提示词',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
                         const SizedBox(height: 16),
                         _buildRealityPromptSection(provider, isDark),
                         const SizedBox(height: 30),
@@ -101,6 +120,45 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
               fontSize: 28,
               fontWeight: FontWeight.bold,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showResetConfirmation(
+      BuildContext context, PromptSettingsProvider provider) {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('重置提示词'),
+        content: const Text('确定要将所有提示词重置为默认值吗？这将覆盖当前的修改。'),
+        actions: [
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await provider.resetToDefaults();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('提示词已重置为默认值')),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('重置失败: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('重置'),
           ),
         ],
       ),

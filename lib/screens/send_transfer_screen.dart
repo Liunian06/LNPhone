@@ -220,6 +220,7 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
                                     color: context.primaryTextColor,
                                   ),
                                   decoration: InputDecoration(
+                                    filled: false,
                                     border: InputBorder.none,
                                     hintText: '0.00',
                                     hintStyle: TextStyle(
@@ -297,6 +298,7 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
                               color: context.primaryTextColor,
                             ),
                             decoration: InputDecoration(
+                              filled: false,
                               border: InputBorder.none,
                               hintText: '填写转账说明',
                               hintStyle:

@@ -22,6 +22,13 @@ class RedPacketResultScreen extends StatelessWidget {
     final messageText = message.metadata?['message'] ?? '恭喜发财，大吉大利';
     final senderName = message.isMe ? me.name : role.name;
     final avatarPath = message.isMe ? me.avatarPath : role.avatarPath;
+    final status = message.metadata?['status'] ?? 'unclaimed';
+
+    // 判断领取人信息
+    // - 如果是用户发的红包 (isMe=true)，领取人是AI角色
+    // - 如果是AI发的红包 (isMe=false)，领取人是用户
+    final claimerName = message.isMe ? role.name : me.name;
+    final claimerAvatar = message.isMe ? role.avatarPath : me.avatarPath;
 
     final isDark = context.isDarkMode;
     final bgColor = isDark ? context.chatBackground : const Color(0xFFF1F1F1);
@@ -144,94 +151,112 @@ class RedPacketResultScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          // 已存入零钱提示
-          GestureDetector(
-            onTap: () {
-              // TODO: 跳转到零钱页面
-            },
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '已存入零钱，可直接消费',
-                  style: TextStyle(
-                    fontSize: 12,
+          // 状态提示
+          if (status == 'opened')
+            GestureDetector(
+              onTap: () {
+                // TODO: 跳转到零钱页面
+              },
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '已存入零钱，可直接消费',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFFD95940),
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 10,
                     color: Color(0xFFD95940),
                   ),
-                ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 10,
-                  color: Color(0xFFD95940),
-                ),
-              ],
+                ],
+              ),
+            )
+          else if (status == 'refunded')
+            Text(
+              '红包已退还',
+              style: TextStyle(
+                fontSize: 12,
+                color: secondaryColor,
+              ),
+            )
+          else
+            Text(
+              '等待领取',
+              style: TextStyle(
+                fontSize: 12,
+                color: secondaryColor,
+              ),
             ),
-          ),
           const SizedBox(height: 30),
-          // 领取记录（居中显示）
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            color: cardColor,
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
-                    color: Colors.grey[300],
+          // 领取记录（仅当红包已被领取时显示）
+          if (status == 'opened')
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              color: cardColor,
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(4),
+                      color: Colors.grey[300],
+                    ),
+                    child: claimerAvatar != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: Image.file(
+                              File(claimerAvatar),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(Icons.person,
+                                    color: Colors.grey);
+                              },
+                            ),
+                          )
+                        : const Icon(Icons.person, color: Colors.grey),
                   ),
-                  child: me.avatarPath != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: Image.file(
-                            File(me.avatarPath!),
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return const Icon(Icons.person,
-                                  color: Colors.grey);
-                            },
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          claimerName,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: textColor,
                           ),
-                        )
-                      : const Icon(Icons.person, color: Colors.grey),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        me.name,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                          color: textColor,
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        // 格式化时间 HH:mm
-                        '${DateTime.fromMillisecondsSinceEpoch(message.timestamp).hour.toString().padLeft(2, '0')}:${DateTime.fromMillisecondsSinceEpoch(message.timestamp).minute.toString().padLeft(2, '0')}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: secondaryColor,
+                        const SizedBox(height: 2),
+                        Text(
+                          // 格式化时间 HH:mm
+                          '${DateTime.fromMillisecondsSinceEpoch(message.timestamp).hour.toString().padLeft(2, '0')}:${DateTime.fromMillisecondsSinceEpoch(message.timestamp).minute.toString().padLeft(2, '0')}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: secondaryColor,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                Text(
-                  '$amount元',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
+                  Text(
+                    '$amount元',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );

@@ -13,9 +13,11 @@ import '../core/providers/system_state_provider.dart';
 import '../core/providers/chat_provider.dart';
 import '../core/data/grid_default_apps.dart';
 import '../core/services/api_log_service.dart';
+import '../core/services/app_log_service.dart';
 import '../widgets/ios_wallpaper.dart';
 import 'api_settings_screen.dart';
 import 'prompt_settings_screen.dart';
+import 'lock_screen_style_screen.dart';
 
 /// 设置界面
 class SettingsScreen extends StatefulWidget {
@@ -187,6 +189,18 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
                               _showWallpaperSettings(isLockScreen: true),
                         ),
                         SettingsTile(
+                          title: '锁屏时间样式',
+                          subtitle: '自定义时间颜色',
+                          icon: CupertinoIcons.time,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const LockScreenStyleScreen(),
+                            ),
+                          ),
+                        ),
+                        SettingsTile(
                           title: '应用图标',
                           subtitle: '自定义应用图标样式',
                           icon: CupertinoIcons.app_fill,
@@ -313,10 +327,30 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
                           onTap: _exportApiLogs,
                         ),
                         SettingsTile(
+                          title: '导出软件日志',
+                          subtitle: '导出用户操作和后台活动日志（用于问题排查）',
+                          icon: CupertinoIcons.doc_plaintext,
+                          onTap: _exportAppLogs,
+                          iconGradient: const [
+                            Color(0xFF00B4DB),
+                            Color(0xFF0083B0)
+                          ],
+                        ),
+                        SettingsTile(
                           title: '清空 API 日志',
                           subtitle: '删除所有 API 调用记录',
                           icon: CupertinoIcons.trash_fill,
                           onTap: _clearApiLogs,
+                          iconGradient: const [
+                            Color(0xFFFF6B6B),
+                            Color(0xFFEE5A6F)
+                          ],
+                        ),
+                        SettingsTile(
+                          title: '清空软件日志',
+                          subtitle: '删除所有软件操作日志',
+                          icon: CupertinoIcons.trash,
+                          onTap: _clearAppLogs,
                           iconGradient: const [
                             Color(0xFFFF6B6B),
                             Color(0xFFEE5A6F)
@@ -770,6 +804,212 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
       );
     }
   }
+
+  void _exportAppLogs() async {
+    try {
+      // 先获取日志信息
+      final logCount = await AppLogService.getLogCount();
+      final logSize = await AppLogService.getLogFileSize();
+
+      if (logCount == 0) {
+        if (!mounted) return;
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('无日志记录'),
+            content: const Text('当前没有软件操作日志可以导出'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('确定'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      // 显示日志信息
+      final sizeInKB = (logSize / 1024).toStringAsFixed(2);
+      final confirmExport = await showCupertinoDialog<bool>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('导出软件日志'),
+          content: Text(
+              '共有 $logCount 条日志记录\n文件大小: $sizeInKB KB\n\n此日志包含用户操作、后台服务活动、API 调用等详细信息，可用于问题排查。\n\n确定要导出吗？'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('取消'),
+              onPressed: () => Navigator.pop(context, false),
+            ),
+            CupertinoDialogAction(
+              child: const Text('导出'),
+              onPressed: () => Navigator.pop(context, true),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmExport != true) return;
+
+      // 导出日志
+      final exportPath = await AppLogService.exportLogs();
+
+      if (!mounted) return;
+
+      // 显示选择导出方式
+      final action = await showCupertinoModalPopup<int>(
+        context: context,
+        builder: (context) => CupertinoActionSheet(
+          title: const Text('导出软件日志'),
+          message: const Text('选择导出方式'),
+          actions: [
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, 0),
+              child: const Text('系统分享'),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, 1),
+              child: const Text('保存到文件'),
+            ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+        ),
+      );
+
+      if (action == null || !mounted) return;
+
+      if (action == 0) {
+        // 系统分享
+        await Share.shareXFiles(
+          [XFile(exportPath)],
+          subject: '软件操作日志',
+          text: '这是软件操作日志文件，包含用户操作、后台服务活动和 API 调用等详细信息',
+        );
+      } else {
+        // 保存到文件
+        final params = SaveFileDialogParams(sourceFilePath: exportPath);
+        final savedPath = await FlutterFileDialog.saveFile(params: params);
+
+        if (savedPath != null && mounted) {
+          showCupertinoDialog(
+            context: context,
+            builder: (context) => CupertinoAlertDialog(
+              title: const Text('导出成功'),
+              content: const Text('软件日志已保存'),
+              actions: [
+                CupertinoDialogAction(
+                  child: const Text('确定'),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      showCupertinoDialog(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('导出失败'),
+          content: Text('错误：$e'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('确定'),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  void _clearAppLogs() async {
+    try {
+      // 先获取日志信息
+      final logCount = await AppLogService.getLogCount();
+
+      if (logCount == 0) {
+        if (!mounted) return;
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('无日志记录'),
+            content: const Text('当前没有软件操作日志'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('确定'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      // 确认删除
+      final confirmClear = await showCupertinoDialog<bool>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('清空软件日志'),
+          content: Text('确定要删除所有 $logCount 条日志记录吗？\n此操作不可撤销。'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('取消'),
+              onPressed: () => Navigator.pop(context, false),
+            ),
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              child: const Text('删除'),
+              onPressed: () => Navigator.pop(context, true),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmClear != true) return;
+
+      // 清空日志
+      await AppLogService.clearLogs();
+
+      if (!mounted) return;
+
+      showCupertinoDialog(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('清空成功'),
+          content: const Text('所有软件日志已删除'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('确定'),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      showCupertinoDialog(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('清空失败'),
+          content: Text('错误：$e'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('确定'),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      );
+    }
+  }
 }
 
 class SettingsSection extends StatelessWidget {
@@ -1013,6 +1253,70 @@ class _WallpaperSettingsSheetState extends State<_WallpaperSettingsSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTimeColorPicker(BuildContext context) {
+    final provider = context.watch<SystemStateProvider>();
+    final colors = [
+      0xFFFFFFFF, // 白色
+      0xFF000000, // 黑色
+      0xFFFF3B30, // 红色
+      0xFFFF9500, // 橙色
+      0xFFFFCC00, // 黄色
+      0xFF34C759, // 绿色
+      0xFF007AFF, // 蓝色
+      0xFF5856D6, // 紫色
+      0xFFAF52DE, // 粉色
+    ];
+
+    return Container(
+      height: 60,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        scrollDirection: Axis.horizontal,
+        itemCount: colors.length,
+        itemBuilder: (context, index) {
+          final color = Color(colors[index]);
+          final isSelected = provider.lockScreenTimeColor == colors[index];
+
+          return GestureDetector(
+            onTap: () => provider.setLockScreenTimeColor(colors[index]),
+            child: Container(
+              width: 40,
+              height: 40,
+              margin: const EdgeInsets.only(right: 16),
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.grey.withOpacity(0.3),
+                  width: 1,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: color.withOpacity(0.5),
+                          blurRadius: 8,
+                          spreadRadius: 2,
+                        )
+                      ]
+                    : null,
+              ),
+              child: isSelected
+                  ? Icon(
+                      CupertinoIcons.checkmark,
+                      color: color.computeLuminance() > 0.5
+                          ? Colors.black
+                          : Colors.white,
+                      size: 20,
+                    )
+                  : null,
+            ),
+          );
+        },
       ),
     );
   }

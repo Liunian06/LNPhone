@@ -17,10 +17,41 @@ class TransferResultScreen extends StatelessWidget {
     final transferTimeStr =
         '${timestamp.year}年${timestamp.month.toString().padLeft(2, '0')}月${timestamp.day.toString().padLeft(2, '0')}日 ${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}:${timestamp.second.toString().padLeft(2, '0')}';
 
-    // 模拟收款时间（比转账时间晚一点）
-    final receiveTime = timestamp.add(const Duration(minutes: 32, seconds: 7));
-    final receiveTimeStr =
-        '${receiveTime.year}年${receiveTime.month.toString().padLeft(2, '0')}月${receiveTime.day.toString().padLeft(2, '0')}日 ${receiveTime.hour.toString().padLeft(2, '0')}:${receiveTime.minute.toString().padLeft(2, '0')}:${receiveTime.second.toString().padLeft(2, '0')}';
+    final status = message.metadata?['status'] ?? 'pending';
+    final acceptedTimeMs = message.metadata?['acceptedTime'];
+
+    String? receiveTimeStr;
+    if (acceptedTimeMs != null) {
+      final receiveTime = DateTime.fromMillisecondsSinceEpoch(acceptedTimeMs);
+      receiveTimeStr =
+          '${receiveTime.year}年${receiveTime.month.toString().padLeft(2, '0')}月${receiveTime.day.toString().padLeft(2, '0')}日 ${receiveTime.hour.toString().padLeft(2, '0')}:${receiveTime.minute.toString().padLeft(2, '0')}:${receiveTime.second.toString().padLeft(2, '0')}';
+    }
+
+    final isMe = message.isMe;
+    String statusText = '';
+    IconData statusIcon = Icons.check;
+    Color statusColor = const Color(0xFF07C160);
+
+    if (status == 'accepted') {
+      if (isMe) {
+        statusText = '对方已收款';
+      } else {
+        statusText = '你已收款，资金已存入零钱';
+      }
+    } else if (status == 'rejected') {
+      statusText = '已退还';
+      statusIcon = Icons.assignment_return;
+      statusColor = Colors.orange;
+    } else {
+      if (isMe) {
+        statusText = '等待对方收款';
+        statusIcon = Icons.access_time;
+        statusColor = Colors.orange;
+      } else {
+        // 理论上接收者在 pending 状态下应该在 TransferReceiveScreen，不应该到这里
+        statusText = '待收款';
+      }
+    }
 
     final bgColor = context.chatBackground;
     final textColor = context.primaryTextColor;
@@ -41,17 +72,17 @@ class TransferResultScreen extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 40),
-            // 成功图标
+            // 状态图标
             Container(
               width: 60,
               height: 60,
-              decoration: const BoxDecoration(
-                color: Color(0xFF07C160),
+              decoration: BoxDecoration(
+                color: statusColor,
                 shape: BoxShape.circle,
               ),
-              child: const Center(
+              child: Center(
                 child: Icon(
-                  Icons.check,
+                  statusIcon,
                   color: Colors.white,
                   size: 40,
                 ),
@@ -59,7 +90,7 @@ class TransferResultScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              '你已收款，资金已存入零钱',
+              statusText,
               style: TextStyle(
                 color: textColor,
                 fontSize: 16,
@@ -118,20 +149,22 @@ class TransferResultScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '收款时间',
-                        style: TextStyle(color: secondaryColor, fontSize: 14),
-                      ),
-                      Text(
-                        receiveTimeStr,
-                        style: TextStyle(color: secondaryColor, fontSize: 14),
-                      ),
-                    ],
-                  ),
+                  if (receiveTimeStr != null) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '收款时间',
+                          style: TextStyle(color: secondaryColor, fontSize: 14),
+                        ),
+                        Text(
+                          receiveTimeStr,
+                          style: TextStyle(color: secondaryColor, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
