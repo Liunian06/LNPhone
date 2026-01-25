@@ -12,6 +12,7 @@ class PromptSettingsProvider extends ChangeNotifier {
 
   String _roleplayPrompt = '';
   String _realityPrompt = '';
+  String _text2ImagePrompt = '';
   bool _enableRealityPrompt = true;
   int _contextLength = 10; // Number of messages
   int _delayedReplySeconds = 10; // 延迟回复时间（秒），0表示立即回复
@@ -20,6 +21,7 @@ class PromptSettingsProvider extends ChangeNotifier {
 
   String get roleplayPrompt => _roleplayPrompt;
   String get realityPrompt => _realityPrompt;
+  String get text2ImagePrompt => _text2ImagePrompt;
   bool get enableRealityPrompt => _enableRealityPrompt;
   int get contextLength => _contextLength;
   int get delayedReplySeconds => _delayedReplySeconds;
@@ -29,6 +31,7 @@ class PromptSettingsProvider extends ChangeNotifier {
   PromptConfig get config => PromptConfig(
         roleplayPrompt: _roleplayPrompt,
         realityPrompt: _realityPrompt,
+        text2ImagePrompt: _text2ImagePrompt,
         enableRealityPrompt: _enableRealityPrompt,
         contextLength: _contextLength,
       );
@@ -74,6 +77,17 @@ class PromptSettingsProvider extends ChangeNotifier {
           debugPrint('[PromptSettings] 已增量添加 reality_prompt');
         }
         await prefs.remove('reality_prompt');
+        hasMigrated = true;
+      }
+
+      // 迁移 text2image_prompt（增量更新）
+      final text2ImagePromptFromPrefs = prefs.getString('text2image_prompt');
+      if (text2ImagePromptFromPrefs != null) {
+        if (!(await _db.hasSetting('text2image_prompt'))) {
+          await _db.setSetting('text2image_prompt', text2ImagePromptFromPrefs);
+          debugPrint('[PromptSettings] 已增量添加 text2image_prompt');
+        }
+        await prefs.remove('text2image_prompt');
         hasMigrated = true;
       }
 
@@ -181,21 +195,15 @@ class PromptSettingsProvider extends ChangeNotifier {
 
   /// 从数据库加载设置
   Future<void> _loadFromDatabase() async {
-    // 加载 roleplay_prompt
-    String? roleplayPrompt = await _db.getSetting('roleplay_prompt');
-    if (roleplayPrompt == null) {
-      // 如果数据库中没有，加载默认值
-      try {
-        roleplayPrompt = await rootBundle.loadString(
-          'assets/prompts/roleplay_prompt.txt',
-        );
-      } catch (e) {
-        debugPrint('Error loading roleplay_prompt: $e');
-        roleplayPrompt = '你是一个AI助手，正在进行角色扮演任务。请完全沉浸在设定的角色中，不要暴露你是AI的身份。';
-      }
-      await _db.setSetting('roleplay_prompt', roleplayPrompt);
+    // 加载 roleplay_prompt (强制从 assets 加载)
+    try {
+      _roleplayPrompt = await rootBundle.loadString(
+        'assets/prompts/roleplay_prompt.txt',
+      );
+    } catch (e) {
+      debugPrint('Error loading roleplay_prompt: $e');
+      _roleplayPrompt = '你是一个AI助手，正在进行角色扮演任务。请完全沉浸在设定的角色中，不要暴露你是AI的身份。';
     }
-    _roleplayPrompt = roleplayPrompt;
 
     // 加载 reality_prompt
     String? realityPrompt = await _db.getSetting('reality_prompt');
@@ -212,6 +220,16 @@ class PromptSettingsProvider extends ChangeNotifier {
     }
     _realityPrompt = realityPrompt;
 
+    // 加载 text2image_prompt (强制从 assets 加载)
+    try {
+      _text2ImagePrompt = await rootBundle.loadString(
+        'assets/prompts/text2image_prompt.txt',
+      );
+    } catch (e) {
+      debugPrint('Error loading text2image_prompt: $e');
+      _text2ImagePrompt = '';
+    }
+
     // 加载其他设置
     _enableRealityPrompt = await _db.getSettingBool('enable_reality_prompt') ??
         _enableRealityPrompt;
@@ -226,13 +244,6 @@ class PromptSettingsProvider extends ChangeNotifier {
         await _db.getSettingInt('background_active_reply_interval') ??
             _backgroundActiveReplyInterval;
 
-    notifyListeners();
-  }
-
-  /// 更新角色扮演提示词
-  Future<void> updateRoleplayPrompt(String value) async {
-    _roleplayPrompt = value;
-    await _db.setSetting('roleplay_prompt', value);
     notifyListeners();
   }
 
@@ -281,17 +292,13 @@ class PromptSettingsProvider extends ChangeNotifier {
   /// 重置所有提示词为默认值（从 assets 重新加载）
   Future<void> resetToDefaults() async {
     try {
-      // 重新加载 roleplay_prompt
-      final roleplayPrompt = await rootBundle.loadString(
-        'assets/prompts/roleplay_prompt.txt',
-      );
-      await updateRoleplayPrompt(roleplayPrompt);
-
       // 重新加载 reality_prompt
       final realityPrompt = await rootBundle.loadString(
         'assets/prompts/reality_prompt.txt',
       );
       await updateRealityPrompt(realityPrompt);
+
+      // roleplay_prompt 和 text2image_prompt 现在总是从 assets 加载，无需重置
 
       debugPrint('[PromptSettings] 已重置为默认提示词');
     } catch (e) {

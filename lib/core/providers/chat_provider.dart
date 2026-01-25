@@ -11,10 +11,12 @@ import '../models/moments_model.dart';
 import '../models/world_info_model.dart';
 import '../models/text_preset_model.dart';
 import '../providers/prompt_settings_provider.dart';
+import '../providers/regex_settings_provider.dart';
 import '../services/llm_service.dart';
 import '../models/prompt_config.dart';
 import '../services/notification_service.dart';
 import '../services/background_service.dart';
+import '../services/image_generation_service.dart';
 import '../database/database.dart' as db;
 
 class ChatProvider extends ChangeNotifier {
@@ -354,11 +356,13 @@ class ChatProvider extends ChangeNotifier {
   Future<void> updateChatSettings(
     String chatId, {
     bool? enableExtendedChat,
+    bool? enableTextToImage,
     bool? enableIndependentSendButton,
   }) async {
     await _database.updateSessionSettings(
       chatId,
       enableExtendedChat: enableExtendedChat,
+      enableTextToImage: enableTextToImage,
       enableIndependentSendButton: enableIndependentSendButton,
     );
     await _refreshChats();
@@ -397,9 +401,11 @@ class ChatProvider extends ChangeNotifier {
     required Function(String content, MomentsUser user) onAddMoment,
     Function(String error)? onError,
     bool enableExtendedChat = true,
+    bool enableTextToImage = false,
     int delayedReplySeconds = 0,
     List<String> roleMemories = const [], // 角色记忆列表
     Function(String content, String? categoryStr)? onAddMemory, // 添加记忆的回调（带分类）
+    RegexSettingsProvider? regexProvider, // 正则设置提供者
   }) async {
     // 取消该会话之前的延迟任务（防抖）
     _debounceTimers[chatId]?.cancel();
@@ -452,16 +458,27 @@ class ChatProvider extends ChangeNotifier {
         }
 
         final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+        // 重新从数据库获取最新的角色和用户信息，确保包含最新的参考图
+        final currentRole = (await _database.getContactRole(role.id)) ?? role;
+        final currentMe = (await _database.getContactMe(me.id)) ?? me;
+
+        // 关键修复：在调用 LLM 生成回复之前，必须先设置 ImageGenerationService 的上下文
+        // 否则在解析 LLM 响应并触发图片生成时，ImageGenerationService 拿不到最新的参考图数据
+        ImageGenerationService().setCurrentContext(currentRole, currentMe);
+
         final aiMessages = await LlmService.generateResponse(
           apiPreset: apiPreset,
           promptConfig: promptConfig,
           history: chat.messages,
-          role: role,
-          me: me,
+          role: currentRole,
+          me: currentMe,
           messageIdPrefix: 'ai-$timestamp',
           worldInfos: worldInfos,
           textPresets: textPresets,
           roleMemories: roleMemories, // 传入角色记忆
+          enableTextToImage: enableTextToImage,
+          regexProvider: regexProvider, // 传入正则提供者
         );
 
         _typingStates[chatId] = false;
@@ -558,13 +575,19 @@ class ChatProvider extends ChangeNotifier {
           if (filteredMessages.isNotEmpty) {
             for (final message in filteredMessages) {
               // 计算延迟时间
-              final textLength = message.content.length;
-              final delayMs = _calculateTypingDelay(textLength);
+              // 如果是图片消息，不计算延迟，直接发送
+              int delayMs = 0;
+              if (message.type != MessageType.image) {
+                final textLength = message.content.length;
+                delayMs = _calculateTypingDelay(textLength);
+              }
 
               _typingStates[chatId] = true;
               notifyListeners();
 
-              await Future.delayed(Duration(milliseconds: delayMs));
+              if (delayMs > 0) {
+                await Future.delayed(Duration(milliseconds: delayMs));
+              }
 
               // 处理 AI 回复中的引用
               Map<String, dynamic>? metadata = message.metadata;

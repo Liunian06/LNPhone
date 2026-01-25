@@ -1,10 +1,13 @@
 import 'dart:convert';
 
-enum ApiProvider { openai, gemini }
+enum ApiProvider { openai, gemini, volcengine, openaicompatible }
+
+enum ApiPresetType { chat, image }
 
 class ApiPreset {
   String id;
   String name;
+  ApiPresetType type;
   ApiProvider provider;
   String baseUrl;
   String apiKey;
@@ -17,6 +20,7 @@ class ApiPreset {
   ApiPreset({
     required this.id,
     required this.name,
+    this.type = ApiPresetType.chat,
     required this.provider,
     required this.baseUrl,
     required this.apiKey,
@@ -31,6 +35,7 @@ class ApiPreset {
     return {
       'id': id,
       'name': name,
+      'type': type.index,
       'provider': provider.index,
       'baseUrl': baseUrl,
       'apiKey': apiKey,
@@ -46,6 +51,7 @@ class ApiPreset {
     return ApiPreset(
       id: json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
       name: json['name'] ?? 'New Preset',
+      type: ApiPresetType.values[json['type'] ?? 0],
       provider: ApiProvider.values[json['provider'] ?? 0],
       baseUrl: json['baseUrl'] ?? '',
       apiKey: json['apiKey'] ?? '',
@@ -60,6 +66,7 @@ class ApiPreset {
   ApiPreset copyWith({
     String? id,
     String? name,
+    ApiPresetType? type,
     ApiProvider? provider,
     String? baseUrl,
     String? apiKey,
@@ -72,6 +79,7 @@ class ApiPreset {
     return ApiPreset(
       id: id ?? this.id,
       name: name ?? this.name,
+      type: type ?? this.type,
       provider: provider ?? this.provider,
       baseUrl: baseUrl ?? this.baseUrl,
       apiKey: apiKey ?? this.apiKey,

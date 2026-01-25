@@ -77,7 +77,7 @@ class AppDatabase extends _$AppDatabase {
   static bool get hasActiveConnection => _instance != null;
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 17;
 
   // Migration Strategy
   @override
@@ -130,6 +130,9 @@ class AppDatabase extends _$AppDatabase {
           await m.createTable(contactRoles);
           await m.createTable(contactMes);
           await m.createTable(apiPresets);
+
+          // 注意：这里只创建了表，数据迁移逻辑在 ContactProvider 中处理
+          // 因为 Drift 的 migration 主要是 schema 变更，而数据迁移可能涉及复杂的逻辑（如读取 SharedPreferences）
         }
         if (from < 12) {
           // 添加朋友圈用户设置表
@@ -142,6 +145,56 @@ class AppDatabase extends _$AppDatabase {
         if (from < 14) {
           // 添加钱包交易记录表
           await m.createTable(walletTransactions);
+        }
+        if (from < 15) {
+          // 添加 API 预设类型字段
+          try {
+            await m.addColumn(apiPresets, apiPresets.type);
+          } catch (e) {
+            print('[Migration] Warning: failed to add type to apiPresets: $e');
+          }
+        }
+        if (from < 16) {
+          // 添加文生图开关
+          try {
+            await m.addColumn(chatSessions, chatSessions.enableTextToImage);
+          } catch (e) {
+            print(
+                '[Migration] Warning: failed to add enableTextToImage to chatSessions: $e');
+          }
+        }
+        if (from < 17) {
+          // 添加外貌和参考图字段
+          // 使用 try-catch 包裹以防止列已存在时导致迁移失败
+          // (例如从旧版本跨版本升级时，createTable 已经创建了包含新列的表，再次 addColumn 会导致 duplicate column 错误)
+          try {
+            await m.addColumn(contactRoles,
+                contactRoles.appearance as GeneratedColumn<Object>);
+          } catch (e) {
+            print(
+                '[Migration] Warning: failed to add appearance to contactRoles: $e');
+          }
+          try {
+            await m.addColumn(contactRoles,
+                contactRoles.referenceImages as GeneratedColumn<Object>);
+          } catch (e) {
+            print(
+                '[Migration] Warning: failed to add referenceImages to contactRoles: $e');
+          }
+          try {
+            await m.addColumn(
+                contactMes, contactMes.appearance as GeneratedColumn<Object>);
+          } catch (e) {
+            print(
+                '[Migration] Warning: failed to add appearance to contactMes: $e');
+          }
+          try {
+            await m.addColumn(contactMes,
+                contactMes.referenceImages as GeneratedColumn<Object>);
+          } catch (e) {
+            print(
+                '[Migration] Warning: failed to add referenceImages to contactMes: $e');
+          }
         }
       },
     );
@@ -193,6 +246,7 @@ class AppDatabase extends _$AppDatabase {
               .toList(),
           lastUpdated: s.lastUpdated,
           enableExtendedChat: s.enableExtendedChat,
+          enableTextToImage: s.enableTextToImage,
           enableIndependentSendButton: s.enableIndependentSendButton,
           currentState: s.currentState,
           isPinned: s.isPinned,
@@ -244,6 +298,7 @@ class AppDatabase extends _$AppDatabase {
           .toList(),
       lastUpdated: s.lastUpdated,
       enableExtendedChat: s.enableExtendedChat,
+      enableTextToImage: s.enableTextToImage,
       enableIndependentSendButton: s.enableIndependentSendButton,
       currentState: s.currentState,
       isPinned: s.isPinned,
@@ -333,6 +388,29 @@ class AppDatabase extends _$AppDatabase {
     return (delete(chatMessages)..where((t) => t.id.isIn(ids))).go();
   }
 
+  /// 获取所有图片类型的消息
+  Future<List<ChatMessage>> getAllImageMessages() async {
+    final query = select(chatMessages)
+      ..where((t) => t.type.equals(MessageType.image.index));
+
+    final entities = await query.get();
+
+    return entities
+        .map(
+          (m) => ChatMessage(
+            id: m.id,
+            isMe: m.isMe,
+            sender: m.sender,
+            type: m.type,
+            content: m.content,
+            timestamp: m.timestamp,
+            metadata: m.metadata,
+            isRead: m.isRead,
+          ),
+        )
+        .toList();
+  }
+
   /// 删除指定时间之后的消息 (用于回溯)
   Future<void> deleteMessagesAfter(String sessionId, int timestamp) {
     return (delete(chatMessages)
@@ -345,12 +423,16 @@ class AppDatabase extends _$AppDatabase {
   Future<void> updateSessionSettings(
     String id, {
     bool? enableExtendedChat,
+    bool? enableTextToImage,
     bool? enableIndependentSendButton,
   }) {
     return (update(chatSessions)..where((t) => t.id.equals(id))).write(
       ChatSessionsCompanion(
         enableExtendedChat: enableExtendedChat != null
             ? Value(enableExtendedChat)
+            : const Value.absent(),
+        enableTextToImage: enableTextToImage != null
+            ? Value(enableTextToImage)
             : const Value.absent(),
         enableIndependentSendButton: enableIndependentSendButton != null
             ? Value(enableIndependentSendButton)
@@ -681,6 +763,8 @@ class AppDatabase extends _$AppDatabase {
             name: e.name,
             avatarPath: e.avatarPath,
             description: e.description,
+            appearance: e.appearance,
+            referenceImages: e.referenceImages,
           ),
         )
         .toList();
@@ -694,6 +778,8 @@ class AppDatabase extends _$AppDatabase {
         name: Value(role.name),
         avatarPath: Value(role.avatarPath),
         description: Value(role.description),
+        appearance: Value(role.appearance),
+        referenceImages: Value(role.referenceImages),
       ),
       mode: InsertMode.insertOrReplace,
     );
@@ -714,6 +800,8 @@ class AppDatabase extends _$AppDatabase {
       name: e.name,
       avatarPath: e.avatarPath,
       description: e.description,
+      appearance: e.appearance,
+      referenceImages: e.referenceImages,
     );
   }
 
@@ -729,6 +817,8 @@ class AppDatabase extends _$AppDatabase {
             name: e.name,
             avatarPath: e.avatarPath,
             info: e.info,
+            appearance: e.appearance,
+            referenceImages: e.referenceImages,
           ),
         )
         .toList();
@@ -742,6 +832,8 @@ class AppDatabase extends _$AppDatabase {
         name: Value(me.name),
         avatarPath: Value(me.avatarPath),
         info: Value(me.info),
+        appearance: Value(me.appearance),
+        referenceImages: Value(me.referenceImages),
       ),
       mode: InsertMode.insertOrReplace,
     );
@@ -762,6 +854,8 @@ class AppDatabase extends _$AppDatabase {
       name: e.name,
       avatarPath: e.avatarPath,
       info: e.info,
+      appearance: e.appearance,
+      referenceImages: e.referenceImages,
     );
   }
 
@@ -775,6 +869,7 @@ class AppDatabase extends _$AppDatabase {
           (e) => ApiPreset(
             id: e.id,
             name: e.name,
+            type: e.type,
             provider: e.provider,
             baseUrl: e.baseUrl,
             apiKey: e.apiKey,
@@ -794,6 +889,7 @@ class AppDatabase extends _$AppDatabase {
       ApiPresetsCompanion(
         id: Value(preset.id),
         name: Value(preset.name),
+        type: Value(preset.type),
         provider: Value(preset.provider),
         baseUrl: Value(preset.baseUrl),
         apiKey: Value(preset.apiKey),
@@ -820,6 +916,7 @@ class AppDatabase extends _$AppDatabase {
     return ApiPreset(
       id: e.id,
       name: e.name,
+      type: e.type,
       provider: e.provider,
       baseUrl: e.baseUrl,
       apiKey: e.apiKey,

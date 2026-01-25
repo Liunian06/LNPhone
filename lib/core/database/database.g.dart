@@ -40,6 +40,16 @@ class $ChatSessionsTable extends ChatSessions
       defaultConstraints: GeneratedColumn.constraintIsAlways(
           'CHECK ("enable_extended_chat" IN (0, 1))'),
       defaultValue: const Constant(true));
+  static const VerificationMeta _enableTextToImageMeta =
+      const VerificationMeta('enableTextToImage');
+  @override
+  late final GeneratedColumn<bool> enableTextToImage = GeneratedColumn<bool>(
+      'enable_text_to_image', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("enable_text_to_image" IN (0, 1))'),
+      defaultValue: const Constant(false));
   static const VerificationMeta _enableIndependentSendButtonMeta =
       const VerificationMeta('enableIndependentSendButton');
   @override
@@ -104,6 +114,7 @@ class $ChatSessionsTable extends ChatSessions
         meId,
         lastUpdated,
         enableExtendedChat,
+        enableTextToImage,
         enableIndependentSendButton,
         currentState,
         isPinned,
@@ -153,6 +164,12 @@ class $ChatSessionsTable extends ChatSessions
           enableExtendedChat.isAcceptableOrUnknown(
               data['enable_extended_chat']!, _enableExtendedChatMeta));
     }
+    if (data.containsKey('enable_text_to_image')) {
+      context.handle(
+          _enableTextToImageMeta,
+          enableTextToImage.isAcceptableOrUnknown(
+              data['enable_text_to_image']!, _enableTextToImageMeta));
+    }
     if (data.containsKey('enable_independent_send_button')) {
       context.handle(
           _enableIndependentSendButtonMeta,
@@ -201,6 +218,8 @@ class $ChatSessionsTable extends ChatSessions
           .read(DriftSqlType.int, data['${effectivePrefix}last_updated'])!,
       enableExtendedChat: attachedDatabase.typeMapping.read(
           DriftSqlType.bool, data['${effectivePrefix}enable_extended_chat'])!,
+      enableTextToImage: attachedDatabase.typeMapping.read(
+          DriftSqlType.bool, data['${effectivePrefix}enable_text_to_image'])!,
       enableIndependentSendButton: attachedDatabase.typeMapping.read(
           DriftSqlType.bool,
           data['${effectivePrefix}enable_independent_send_button'])!,
@@ -239,6 +258,7 @@ class ChatSessionEntity extends DataClass
   final String meId;
   final int lastUpdated;
   final bool enableExtendedChat;
+  final bool enableTextToImage;
   final bool enableIndependentSendButton;
   final String? currentState;
   final bool isPinned;
@@ -252,6 +272,7 @@ class ChatSessionEntity extends DataClass
       required this.meId,
       required this.lastUpdated,
       required this.enableExtendedChat,
+      required this.enableTextToImage,
       required this.enableIndependentSendButton,
       this.currentState,
       required this.isPinned,
@@ -267,6 +288,7 @@ class ChatSessionEntity extends DataClass
     map['me_id'] = Variable<String>(meId);
     map['last_updated'] = Variable<int>(lastUpdated);
     map['enable_extended_chat'] = Variable<bool>(enableExtendedChat);
+    map['enable_text_to_image'] = Variable<bool>(enableTextToImage);
     map['enable_independent_send_button'] =
         Variable<bool>(enableIndependentSendButton);
     if (!nullToAbsent || currentState != null) {
@@ -297,6 +319,7 @@ class ChatSessionEntity extends DataClass
       meId: Value(meId),
       lastUpdated: Value(lastUpdated),
       enableExtendedChat: Value(enableExtendedChat),
+      enableTextToImage: Value(enableTextToImage),
       enableIndependentSendButton: Value(enableIndependentSendButton),
       currentState: currentState == null && nullToAbsent
           ? const Value.absent()
@@ -322,6 +345,7 @@ class ChatSessionEntity extends DataClass
       meId: serializer.fromJson<String>(json['meId']),
       lastUpdated: serializer.fromJson<int>(json['lastUpdated']),
       enableExtendedChat: serializer.fromJson<bool>(json['enableExtendedChat']),
+      enableTextToImage: serializer.fromJson<bool>(json['enableTextToImage']),
       enableIndependentSendButton:
           serializer.fromJson<bool>(json['enableIndependentSendButton']),
       currentState: serializer.fromJson<String?>(json['currentState']),
@@ -341,6 +365,7 @@ class ChatSessionEntity extends DataClass
       'meId': serializer.toJson<String>(meId),
       'lastUpdated': serializer.toJson<int>(lastUpdated),
       'enableExtendedChat': serializer.toJson<bool>(enableExtendedChat),
+      'enableTextToImage': serializer.toJson<bool>(enableTextToImage),
       'enableIndependentSendButton':
           serializer.toJson<bool>(enableIndependentSendButton),
       'currentState': serializer.toJson<String?>(currentState),
@@ -358,6 +383,7 @@ class ChatSessionEntity extends DataClass
           String? meId,
           int? lastUpdated,
           bool? enableExtendedChat,
+          bool? enableTextToImage,
           bool? enableIndependentSendButton,
           Value<String?> currentState = const Value.absent(),
           bool? isPinned,
@@ -371,6 +397,7 @@ class ChatSessionEntity extends DataClass
         meId: meId ?? this.meId,
         lastUpdated: lastUpdated ?? this.lastUpdated,
         enableExtendedChat: enableExtendedChat ?? this.enableExtendedChat,
+        enableTextToImage: enableTextToImage ?? this.enableTextToImage,
         enableIndependentSendButton:
             enableIndependentSendButton ?? this.enableIndependentSendButton,
         currentState:
@@ -393,6 +420,9 @@ class ChatSessionEntity extends DataClass
       enableExtendedChat: data.enableExtendedChat.present
           ? data.enableExtendedChat.value
           : this.enableExtendedChat,
+      enableTextToImage: data.enableTextToImage.present
+          ? data.enableTextToImage.value
+          : this.enableTextToImage,
       enableIndependentSendButton: data.enableIndependentSendButton.present
           ? data.enableIndependentSendButton.value
           : this.enableIndependentSendButton,
@@ -422,6 +452,7 @@ class ChatSessionEntity extends DataClass
           ..write('meId: $meId, ')
           ..write('lastUpdated: $lastUpdated, ')
           ..write('enableExtendedChat: $enableExtendedChat, ')
+          ..write('enableTextToImage: $enableTextToImage, ')
           ..write('enableIndependentSendButton: $enableIndependentSendButton, ')
           ..write('currentState: $currentState, ')
           ..write('isPinned: $isPinned, ')
@@ -440,6 +471,7 @@ class ChatSessionEntity extends DataClass
       meId,
       lastUpdated,
       enableExtendedChat,
+      enableTextToImage,
       enableIndependentSendButton,
       currentState,
       isPinned,
@@ -456,6 +488,7 @@ class ChatSessionEntity extends DataClass
           other.meId == this.meId &&
           other.lastUpdated == this.lastUpdated &&
           other.enableExtendedChat == this.enableExtendedChat &&
+          other.enableTextToImage == this.enableTextToImage &&
           other.enableIndependentSendButton ==
               this.enableIndependentSendButton &&
           other.currentState == this.currentState &&
@@ -472,6 +505,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
   final Value<String> meId;
   final Value<int> lastUpdated;
   final Value<bool> enableExtendedChat;
+  final Value<bool> enableTextToImage;
   final Value<bool> enableIndependentSendButton;
   final Value<String?> currentState;
   final Value<bool> isPinned;
@@ -486,6 +520,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     this.meId = const Value.absent(),
     this.lastUpdated = const Value.absent(),
     this.enableExtendedChat = const Value.absent(),
+    this.enableTextToImage = const Value.absent(),
     this.enableIndependentSendButton = const Value.absent(),
     this.currentState = const Value.absent(),
     this.isPinned = const Value.absent(),
@@ -501,6 +536,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     required String meId,
     required int lastUpdated,
     this.enableExtendedChat = const Value.absent(),
+    this.enableTextToImage = const Value.absent(),
     this.enableIndependentSendButton = const Value.absent(),
     this.currentState = const Value.absent(),
     this.isPinned = const Value.absent(),
@@ -519,6 +555,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     Expression<String>? meId,
     Expression<int>? lastUpdated,
     Expression<bool>? enableExtendedChat,
+    Expression<bool>? enableTextToImage,
     Expression<bool>? enableIndependentSendButton,
     Expression<String>? currentState,
     Expression<bool>? isPinned,
@@ -535,6 +572,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       if (lastUpdated != null) 'last_updated': lastUpdated,
       if (enableExtendedChat != null)
         'enable_extended_chat': enableExtendedChat,
+      if (enableTextToImage != null) 'enable_text_to_image': enableTextToImage,
       if (enableIndependentSendButton != null)
         'enable_independent_send_button': enableIndependentSendButton,
       if (currentState != null) 'current_state': currentState,
@@ -553,6 +591,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       Value<String>? meId,
       Value<int>? lastUpdated,
       Value<bool>? enableExtendedChat,
+      Value<bool>? enableTextToImage,
       Value<bool>? enableIndependentSendButton,
       Value<String?>? currentState,
       Value<bool>? isPinned,
@@ -567,6 +606,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       meId: meId ?? this.meId,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       enableExtendedChat: enableExtendedChat ?? this.enableExtendedChat,
+      enableTextToImage: enableTextToImage ?? this.enableTextToImage,
       enableIndependentSendButton:
           enableIndependentSendButton ?? this.enableIndependentSendButton,
       currentState: currentState ?? this.currentState,
@@ -596,6 +636,9 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     }
     if (enableExtendedChat.present) {
       map['enable_extended_chat'] = Variable<bool>(enableExtendedChat.value);
+    }
+    if (enableTextToImage.present) {
+      map['enable_text_to_image'] = Variable<bool>(enableTextToImage.value);
     }
     if (enableIndependentSendButton.present) {
       map['enable_independent_send_button'] =
@@ -636,6 +679,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
           ..write('meId: $meId, ')
           ..write('lastUpdated: $lastUpdated, ')
           ..write('enableExtendedChat: $enableExtendedChat, ')
+          ..write('enableTextToImage: $enableTextToImage, ')
           ..write('enableIndependentSendButton: $enableIndependentSendButton, ')
           ..write('currentState: $currentState, ')
           ..write('isPinned: $isPinned, ')
@@ -2583,8 +2627,24 @@ class $ContactRolesTable extends ContactRoles
   late final GeneratedColumn<String> description = GeneratedColumn<String>(
       'description', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _appearanceMeta =
+      const VerificationMeta('appearance');
   @override
-  List<GeneratedColumn> get $columns => [id, name, avatarPath, description];
+  late final GeneratedColumn<String> appearance = GeneratedColumn<String>(
+      'appearance', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  late final GeneratedColumnWithTypeConverter<List<String>, String>
+      referenceImages = GeneratedColumn<String>(
+              'reference_images', aliasedName, false,
+              type: DriftSqlType.string,
+              requiredDuringInsert: false,
+              defaultValue: const Constant('[]'))
+          .withConverter<List<String>>(
+              $ContactRolesTable.$converterreferenceImages);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, name, avatarPath, description, appearance, referenceImages];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -2620,6 +2680,12 @@ class $ContactRolesTable extends ContactRoles
     } else if (isInserting) {
       context.missing(_descriptionMeta);
     }
+    if (data.containsKey('appearance')) {
+      context.handle(
+          _appearanceMeta,
+          appearance.isAcceptableOrUnknown(
+              data['appearance']!, _appearanceMeta));
+    }
     return context;
   }
 
@@ -2637,6 +2703,11 @@ class $ContactRolesTable extends ContactRoles
           .read(DriftSqlType.string, data['${effectivePrefix}avatar_path']),
       description: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}description'])!,
+      appearance: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}appearance']),
+      referenceImages: $ContactRolesTable.$converterreferenceImages.fromSql(
+          attachedDatabase.typeMapping.read(DriftSqlType.string,
+              data['${effectivePrefix}reference_images'])!),
     );
   }
 
@@ -2644,6 +2715,9 @@ class $ContactRolesTable extends ContactRoles
   $ContactRolesTable createAlias(String alias) {
     return $ContactRolesTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<List<String>, String> $converterreferenceImages =
+      const StringListConverter();
 }
 
 class ContactRoleEntity extends DataClass
@@ -2652,11 +2726,15 @@ class ContactRoleEntity extends DataClass
   final String name;
   final String? avatarPath;
   final String description;
+  final String? appearance;
+  final List<String> referenceImages;
   const ContactRoleEntity(
       {required this.id,
       required this.name,
       this.avatarPath,
-      required this.description});
+      required this.description,
+      this.appearance,
+      required this.referenceImages});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2666,6 +2744,13 @@ class ContactRoleEntity extends DataClass
       map['avatar_path'] = Variable<String>(avatarPath);
     }
     map['description'] = Variable<String>(description);
+    if (!nullToAbsent || appearance != null) {
+      map['appearance'] = Variable<String>(appearance);
+    }
+    {
+      map['reference_images'] = Variable<String>(
+          $ContactRolesTable.$converterreferenceImages.toSql(referenceImages));
+    }
     return map;
   }
 
@@ -2677,6 +2762,10 @@ class ContactRoleEntity extends DataClass
           ? const Value.absent()
           : Value(avatarPath),
       description: Value(description),
+      appearance: appearance == null && nullToAbsent
+          ? const Value.absent()
+          : Value(appearance),
+      referenceImages: Value(referenceImages),
     );
   }
 
@@ -2688,6 +2777,9 @@ class ContactRoleEntity extends DataClass
       name: serializer.fromJson<String>(json['name']),
       avatarPath: serializer.fromJson<String?>(json['avatarPath']),
       description: serializer.fromJson<String>(json['description']),
+      appearance: serializer.fromJson<String?>(json['appearance']),
+      referenceImages:
+          serializer.fromJson<List<String>>(json['referenceImages']),
     );
   }
   @override
@@ -2698,6 +2790,8 @@ class ContactRoleEntity extends DataClass
       'name': serializer.toJson<String>(name),
       'avatarPath': serializer.toJson<String?>(avatarPath),
       'description': serializer.toJson<String>(description),
+      'appearance': serializer.toJson<String?>(appearance),
+      'referenceImages': serializer.toJson<List<String>>(referenceImages),
     };
   }
 
@@ -2705,12 +2799,16 @@ class ContactRoleEntity extends DataClass
           {String? id,
           String? name,
           Value<String?> avatarPath = const Value.absent(),
-          String? description}) =>
+          String? description,
+          Value<String?> appearance = const Value.absent(),
+          List<String>? referenceImages}) =>
       ContactRoleEntity(
         id: id ?? this.id,
         name: name ?? this.name,
         avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
         description: description ?? this.description,
+        appearance: appearance.present ? appearance.value : this.appearance,
+        referenceImages: referenceImages ?? this.referenceImages,
       );
   ContactRoleEntity copyWithCompanion(ContactRolesCompanion data) {
     return ContactRoleEntity(
@@ -2720,6 +2818,11 @@ class ContactRoleEntity extends DataClass
           data.avatarPath.present ? data.avatarPath.value : this.avatarPath,
       description:
           data.description.present ? data.description.value : this.description,
+      appearance:
+          data.appearance.present ? data.appearance.value : this.appearance,
+      referenceImages: data.referenceImages.present
+          ? data.referenceImages.value
+          : this.referenceImages,
     );
   }
 
@@ -2729,13 +2832,16 @@ class ContactRoleEntity extends DataClass
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('avatarPath: $avatarPath, ')
-          ..write('description: $description')
+          ..write('description: $description, ')
+          ..write('appearance: $appearance, ')
+          ..write('referenceImages: $referenceImages')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, avatarPath, description);
+  int get hashCode => Object.hash(
+      id, name, avatarPath, description, appearance, referenceImages);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2743,7 +2849,9 @@ class ContactRoleEntity extends DataClass
           other.id == this.id &&
           other.name == this.name &&
           other.avatarPath == this.avatarPath &&
-          other.description == this.description);
+          other.description == this.description &&
+          other.appearance == this.appearance &&
+          other.referenceImages == this.referenceImages);
 }
 
 class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
@@ -2751,12 +2859,16 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
   final Value<String> name;
   final Value<String?> avatarPath;
   final Value<String> description;
+  final Value<String?> appearance;
+  final Value<List<String>> referenceImages;
   final Value<int> rowid;
   const ContactRolesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.avatarPath = const Value.absent(),
     this.description = const Value.absent(),
+    this.appearance = const Value.absent(),
+    this.referenceImages = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ContactRolesCompanion.insert({
@@ -2764,6 +2876,8 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
     required String name,
     this.avatarPath = const Value.absent(),
     required String description,
+    this.appearance = const Value.absent(),
+    this.referenceImages = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name),
@@ -2773,6 +2887,8 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
     Expression<String>? name,
     Expression<String>? avatarPath,
     Expression<String>? description,
+    Expression<String>? appearance,
+    Expression<String>? referenceImages,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2780,6 +2896,8 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
       if (name != null) 'name': name,
       if (avatarPath != null) 'avatar_path': avatarPath,
       if (description != null) 'description': description,
+      if (appearance != null) 'appearance': appearance,
+      if (referenceImages != null) 'reference_images': referenceImages,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2789,12 +2907,16 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
       Value<String>? name,
       Value<String?>? avatarPath,
       Value<String>? description,
+      Value<String?>? appearance,
+      Value<List<String>>? referenceImages,
       Value<int>? rowid}) {
     return ContactRolesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       avatarPath: avatarPath ?? this.avatarPath,
       description: description ?? this.description,
+      appearance: appearance ?? this.appearance,
+      referenceImages: referenceImages ?? this.referenceImages,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2814,6 +2936,14 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
+    if (appearance.present) {
+      map['appearance'] = Variable<String>(appearance.value);
+    }
+    if (referenceImages.present) {
+      map['reference_images'] = Variable<String>($ContactRolesTable
+          .$converterreferenceImages
+          .toSql(referenceImages.value));
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2827,6 +2957,8 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
           ..write('name: $name, ')
           ..write('avatarPath: $avatarPath, ')
           ..write('description: $description, ')
+          ..write('appearance: $appearance, ')
+          ..write('referenceImages: $referenceImages, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2860,8 +2992,24 @@ class $ContactMesTable extends ContactMes
   late final GeneratedColumn<String> info = GeneratedColumn<String>(
       'info', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _appearanceMeta =
+      const VerificationMeta('appearance');
   @override
-  List<GeneratedColumn> get $columns => [id, name, avatarPath, info];
+  late final GeneratedColumn<String> appearance = GeneratedColumn<String>(
+      'appearance', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  late final GeneratedColumnWithTypeConverter<List<String>, String>
+      referenceImages = GeneratedColumn<String>(
+              'reference_images', aliasedName, false,
+              type: DriftSqlType.string,
+              requiredDuringInsert: false,
+              defaultValue: const Constant('[]'))
+          .withConverter<List<String>>(
+              $ContactMesTable.$converterreferenceImages);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, name, avatarPath, info, appearance, referenceImages];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -2895,6 +3043,12 @@ class $ContactMesTable extends ContactMes
     } else if (isInserting) {
       context.missing(_infoMeta);
     }
+    if (data.containsKey('appearance')) {
+      context.handle(
+          _appearanceMeta,
+          appearance.isAcceptableOrUnknown(
+              data['appearance']!, _appearanceMeta));
+    }
     return context;
   }
 
@@ -2912,6 +3066,11 @@ class $ContactMesTable extends ContactMes
           .read(DriftSqlType.string, data['${effectivePrefix}avatar_path']),
       info: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}info'])!,
+      appearance: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}appearance']),
+      referenceImages: $ContactMesTable.$converterreferenceImages.fromSql(
+          attachedDatabase.typeMapping.read(DriftSqlType.string,
+              data['${effectivePrefix}reference_images'])!),
     );
   }
 
@@ -2919,6 +3078,9 @@ class $ContactMesTable extends ContactMes
   $ContactMesTable createAlias(String alias) {
     return $ContactMesTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<List<String>, String> $converterreferenceImages =
+      const StringListConverter();
 }
 
 class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
@@ -2926,11 +3088,15 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
   final String name;
   final String? avatarPath;
   final String info;
+  final String? appearance;
+  final List<String> referenceImages;
   const ContactMeEntity(
       {required this.id,
       required this.name,
       this.avatarPath,
-      required this.info});
+      required this.info,
+      this.appearance,
+      required this.referenceImages});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2940,6 +3106,13 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
       map['avatar_path'] = Variable<String>(avatarPath);
     }
     map['info'] = Variable<String>(info);
+    if (!nullToAbsent || appearance != null) {
+      map['appearance'] = Variable<String>(appearance);
+    }
+    {
+      map['reference_images'] = Variable<String>(
+          $ContactMesTable.$converterreferenceImages.toSql(referenceImages));
+    }
     return map;
   }
 
@@ -2951,6 +3124,10 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
           ? const Value.absent()
           : Value(avatarPath),
       info: Value(info),
+      appearance: appearance == null && nullToAbsent
+          ? const Value.absent()
+          : Value(appearance),
+      referenceImages: Value(referenceImages),
     );
   }
 
@@ -2962,6 +3139,9 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
       name: serializer.fromJson<String>(json['name']),
       avatarPath: serializer.fromJson<String?>(json['avatarPath']),
       info: serializer.fromJson<String>(json['info']),
+      appearance: serializer.fromJson<String?>(json['appearance']),
+      referenceImages:
+          serializer.fromJson<List<String>>(json['referenceImages']),
     );
   }
   @override
@@ -2972,6 +3152,8 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
       'name': serializer.toJson<String>(name),
       'avatarPath': serializer.toJson<String?>(avatarPath),
       'info': serializer.toJson<String>(info),
+      'appearance': serializer.toJson<String?>(appearance),
+      'referenceImages': serializer.toJson<List<String>>(referenceImages),
     };
   }
 
@@ -2979,12 +3161,16 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
           {String? id,
           String? name,
           Value<String?> avatarPath = const Value.absent(),
-          String? info}) =>
+          String? info,
+          Value<String?> appearance = const Value.absent(),
+          List<String>? referenceImages}) =>
       ContactMeEntity(
         id: id ?? this.id,
         name: name ?? this.name,
         avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
         info: info ?? this.info,
+        appearance: appearance.present ? appearance.value : this.appearance,
+        referenceImages: referenceImages ?? this.referenceImages,
       );
   ContactMeEntity copyWithCompanion(ContactMesCompanion data) {
     return ContactMeEntity(
@@ -2993,6 +3179,11 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
       avatarPath:
           data.avatarPath.present ? data.avatarPath.value : this.avatarPath,
       info: data.info.present ? data.info.value : this.info,
+      appearance:
+          data.appearance.present ? data.appearance.value : this.appearance,
+      referenceImages: data.referenceImages.present
+          ? data.referenceImages.value
+          : this.referenceImages,
     );
   }
 
@@ -3002,13 +3193,16 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('avatarPath: $avatarPath, ')
-          ..write('info: $info')
+          ..write('info: $info, ')
+          ..write('appearance: $appearance, ')
+          ..write('referenceImages: $referenceImages')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, avatarPath, info);
+  int get hashCode =>
+      Object.hash(id, name, avatarPath, info, appearance, referenceImages);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3016,7 +3210,9 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
           other.id == this.id &&
           other.name == this.name &&
           other.avatarPath == this.avatarPath &&
-          other.info == this.info);
+          other.info == this.info &&
+          other.appearance == this.appearance &&
+          other.referenceImages == this.referenceImages);
 }
 
 class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
@@ -3024,12 +3220,16 @@ class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
   final Value<String> name;
   final Value<String?> avatarPath;
   final Value<String> info;
+  final Value<String?> appearance;
+  final Value<List<String>> referenceImages;
   final Value<int> rowid;
   const ContactMesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.avatarPath = const Value.absent(),
     this.info = const Value.absent(),
+    this.appearance = const Value.absent(),
+    this.referenceImages = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ContactMesCompanion.insert({
@@ -3037,6 +3237,8 @@ class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
     required String name,
     this.avatarPath = const Value.absent(),
     required String info,
+    this.appearance = const Value.absent(),
+    this.referenceImages = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name),
@@ -3046,6 +3248,8 @@ class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
     Expression<String>? name,
     Expression<String>? avatarPath,
     Expression<String>? info,
+    Expression<String>? appearance,
+    Expression<String>? referenceImages,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3053,6 +3257,8 @@ class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
       if (name != null) 'name': name,
       if (avatarPath != null) 'avatar_path': avatarPath,
       if (info != null) 'info': info,
+      if (appearance != null) 'appearance': appearance,
+      if (referenceImages != null) 'reference_images': referenceImages,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3062,12 +3268,16 @@ class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
       Value<String>? name,
       Value<String?>? avatarPath,
       Value<String>? info,
+      Value<String?>? appearance,
+      Value<List<String>>? referenceImages,
       Value<int>? rowid}) {
     return ContactMesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       avatarPath: avatarPath ?? this.avatarPath,
       info: info ?? this.info,
+      appearance: appearance ?? this.appearance,
+      referenceImages: referenceImages ?? this.referenceImages,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3087,6 +3297,14 @@ class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
     if (info.present) {
       map['info'] = Variable<String>(info.value);
     }
+    if (appearance.present) {
+      map['appearance'] = Variable<String>(appearance.value);
+    }
+    if (referenceImages.present) {
+      map['reference_images'] = Variable<String>($ContactMesTable
+          .$converterreferenceImages
+          .toSql(referenceImages.value));
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3100,6 +3318,8 @@ class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
           ..write('name: $name, ')
           ..write('avatarPath: $avatarPath, ')
           ..write('info: $info, ')
+          ..write('appearance: $appearance, ')
+          ..write('referenceImages: $referenceImages, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3122,6 +3342,13 @@ class $ApiPresetsTable extends ApiPresets
   late final GeneratedColumn<String> name = GeneratedColumn<String>(
       'name', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  late final GeneratedColumnWithTypeConverter<ApiPresetType, int> type =
+      GeneratedColumn<int>('type', aliasedName, false,
+              type: DriftSqlType.int,
+              requiredDuringInsert: false,
+              defaultValue: const Constant(0))
+          .withConverter<ApiPresetType>($ApiPresetsTable.$convertertype);
   @override
   late final GeneratedColumnWithTypeConverter<ApiProvider, int> provider =
       GeneratedColumn<int>('provider', aliasedName, false,
@@ -3182,6 +3409,7 @@ class $ApiPresetsTable extends ApiPresets
   List<GeneratedColumn> get $columns => [
         id,
         name,
+        type,
         provider,
         baseUrl,
         apiKey,
@@ -3263,6 +3491,8 @@ class $ApiPresetsTable extends ApiPresets
           .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
       name: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      type: $ApiPresetsTable.$convertertype.fromSql(attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}type'])!),
       provider: $ApiPresetsTable.$converterprovider.fromSql(attachedDatabase
           .typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}provider'])!),
@@ -3288,6 +3518,8 @@ class $ApiPresetsTable extends ApiPresets
     return $ApiPresetsTable(attachedDatabase, alias);
   }
 
+  static TypeConverter<ApiPresetType, int> $convertertype =
+      const ApiPresetTypeConverter();
   static TypeConverter<ApiProvider, int> $converterprovider =
       const ApiProviderConverter();
 }
@@ -3295,6 +3527,7 @@ class $ApiPresetsTable extends ApiPresets
 class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
   final String id;
   final String name;
+  final ApiPresetType type;
   final ApiProvider provider;
   final String baseUrl;
   final String apiKey;
@@ -3306,6 +3539,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
   const ApiPresetEntity(
       {required this.id,
       required this.name,
+      required this.type,
       required this.provider,
       required this.baseUrl,
       required this.apiKey,
@@ -3319,6 +3553,9 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
+    {
+      map['type'] = Variable<int>($ApiPresetsTable.$convertertype.toSql(type));
+    }
     {
       map['provider'] =
           Variable<int>($ApiPresetsTable.$converterprovider.toSql(provider));
@@ -3337,6 +3574,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
     return ApiPresetsCompanion(
       id: Value(id),
       name: Value(name),
+      type: Value(type),
       provider: Value(provider),
       baseUrl: Value(baseUrl),
       apiKey: Value(apiKey),
@@ -3354,6 +3592,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
     return ApiPresetEntity(
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
+      type: serializer.fromJson<ApiPresetType>(json['type']),
       provider: serializer.fromJson<ApiProvider>(json['provider']),
       baseUrl: serializer.fromJson<String>(json['baseUrl']),
       apiKey: serializer.fromJson<String>(json['apiKey']),
@@ -3370,6 +3609,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
+      'type': serializer.toJson<ApiPresetType>(type),
       'provider': serializer.toJson<ApiProvider>(provider),
       'baseUrl': serializer.toJson<String>(baseUrl),
       'apiKey': serializer.toJson<String>(apiKey),
@@ -3384,6 +3624,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
   ApiPresetEntity copyWith(
           {String? id,
           String? name,
+          ApiPresetType? type,
           ApiProvider? provider,
           String? baseUrl,
           String? apiKey,
@@ -3395,6 +3636,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       ApiPresetEntity(
         id: id ?? this.id,
         name: name ?? this.name,
+        type: type ?? this.type,
         provider: provider ?? this.provider,
         baseUrl: baseUrl ?? this.baseUrl,
         apiKey: apiKey ?? this.apiKey,
@@ -3408,6 +3650,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
     return ApiPresetEntity(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
+      type: data.type.present ? data.type.value : this.type,
       provider: data.provider.present ? data.provider.value : this.provider,
       baseUrl: data.baseUrl.present ? data.baseUrl.value : this.baseUrl,
       apiKey: data.apiKey.present ? data.apiKey.value : this.apiKey,
@@ -3427,6 +3670,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
     return (StringBuffer('ApiPresetEntity(')
           ..write('id: $id, ')
           ..write('name: $name, ')
+          ..write('type: $type, ')
           ..write('provider: $provider, ')
           ..write('baseUrl: $baseUrl, ')
           ..write('apiKey: $apiKey, ')
@@ -3440,14 +3684,15 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
   }
 
   @override
-  int get hashCode => Object.hash(id, name, provider, baseUrl, apiKey, model,
-      temperature, topP, isStream, enableThinking);
+  int get hashCode => Object.hash(id, name, type, provider, baseUrl, apiKey,
+      model, temperature, topP, isStream, enableThinking);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is ApiPresetEntity &&
           other.id == this.id &&
           other.name == this.name &&
+          other.type == this.type &&
           other.provider == this.provider &&
           other.baseUrl == this.baseUrl &&
           other.apiKey == this.apiKey &&
@@ -3461,6 +3706,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
 class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
   final Value<String> id;
   final Value<String> name;
+  final Value<ApiPresetType> type;
   final Value<ApiProvider> provider;
   final Value<String> baseUrl;
   final Value<String> apiKey;
@@ -3473,6 +3719,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
   const ApiPresetsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
+    this.type = const Value.absent(),
     this.provider = const Value.absent(),
     this.baseUrl = const Value.absent(),
     this.apiKey = const Value.absent(),
@@ -3486,6 +3733,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
   ApiPresetsCompanion.insert({
     required String id,
     required String name,
+    this.type = const Value.absent(),
     required ApiProvider provider,
     required String baseUrl,
     required String apiKey,
@@ -3504,6 +3752,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
   static Insertable<ApiPresetEntity> custom({
     Expression<String>? id,
     Expression<String>? name,
+    Expression<int>? type,
     Expression<int>? provider,
     Expression<String>? baseUrl,
     Expression<String>? apiKey,
@@ -3517,6 +3766,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
+      if (type != null) 'type': type,
       if (provider != null) 'provider': provider,
       if (baseUrl != null) 'base_url': baseUrl,
       if (apiKey != null) 'api_key': apiKey,
@@ -3532,6 +3782,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
   ApiPresetsCompanion copyWith(
       {Value<String>? id,
       Value<String>? name,
+      Value<ApiPresetType>? type,
       Value<ApiProvider>? provider,
       Value<String>? baseUrl,
       Value<String>? apiKey,
@@ -3544,6 +3795,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     return ApiPresetsCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
+      type: type ?? this.type,
       provider: provider ?? this.provider,
       baseUrl: baseUrl ?? this.baseUrl,
       apiKey: apiKey ?? this.apiKey,
@@ -3564,6 +3816,10 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
+    }
+    if (type.present) {
+      map['type'] =
+          Variable<int>($ApiPresetsTable.$convertertype.toSql(type.value));
     }
     if (provider.present) {
       map['provider'] = Variable<int>(
@@ -3601,6 +3857,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     return (StringBuffer('ApiPresetsCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
+          ..write('type: $type, ')
           ..write('provider: $provider, ')
           ..write('baseUrl: $baseUrl, ')
           ..write('apiKey: $apiKey, ')
@@ -4720,6 +4977,7 @@ typedef $$ChatSessionsTableCreateCompanionBuilder = ChatSessionsCompanion
   required String meId,
   required int lastUpdated,
   Value<bool> enableExtendedChat,
+  Value<bool> enableTextToImage,
   Value<bool> enableIndependentSendButton,
   Value<String?> currentState,
   Value<bool> isPinned,
@@ -4736,6 +4994,7 @@ typedef $$ChatSessionsTableUpdateCompanionBuilder = ChatSessionsCompanion
   Value<String> meId,
   Value<int> lastUpdated,
   Value<bool> enableExtendedChat,
+  Value<bool> enableTextToImage,
   Value<bool> enableIndependentSendButton,
   Value<String?> currentState,
   Value<bool> isPinned,
@@ -4789,6 +5048,10 @@ class $$ChatSessionsTableFilterComposer
 
   ColumnFilters<bool> get enableExtendedChat => $composableBuilder(
       column: $table.enableExtendedChat,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get enableTextToImage => $composableBuilder(
+      column: $table.enableTextToImage,
       builder: (column) => ColumnFilters(column));
 
   ColumnFilters<bool> get enableIndependentSendButton => $composableBuilder(
@@ -4865,6 +5128,10 @@ class $$ChatSessionsTableOrderingComposer
       column: $table.enableExtendedChat,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<bool> get enableTextToImage => $composableBuilder(
+      column: $table.enableTextToImage,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<bool> get enableIndependentSendButton => $composableBuilder(
       column: $table.enableIndependentSendButton,
       builder: (column) => ColumnOrderings(column));
@@ -4915,6 +5182,9 @@ class $$ChatSessionsTableAnnotationComposer
 
   GeneratedColumn<bool> get enableExtendedChat => $composableBuilder(
       column: $table.enableExtendedChat, builder: (column) => column);
+
+  GeneratedColumn<bool> get enableTextToImage => $composableBuilder(
+      column: $table.enableTextToImage, builder: (column) => column);
 
   GeneratedColumn<bool> get enableIndependentSendButton => $composableBuilder(
       column: $table.enableIndependentSendButton, builder: (column) => column);
@@ -4989,6 +5259,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             Value<String> meId = const Value.absent(),
             Value<int> lastUpdated = const Value.absent(),
             Value<bool> enableExtendedChat = const Value.absent(),
+            Value<bool> enableTextToImage = const Value.absent(),
             Value<bool> enableIndependentSendButton = const Value.absent(),
             Value<String?> currentState = const Value.absent(),
             Value<bool> isPinned = const Value.absent(),
@@ -5004,6 +5275,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             meId: meId,
             lastUpdated: lastUpdated,
             enableExtendedChat: enableExtendedChat,
+            enableTextToImage: enableTextToImage,
             enableIndependentSendButton: enableIndependentSendButton,
             currentState: currentState,
             isPinned: isPinned,
@@ -5019,6 +5291,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             required String meId,
             required int lastUpdated,
             Value<bool> enableExtendedChat = const Value.absent(),
+            Value<bool> enableTextToImage = const Value.absent(),
             Value<bool> enableIndependentSendButton = const Value.absent(),
             Value<String?> currentState = const Value.absent(),
             Value<bool> isPinned = const Value.absent(),
@@ -5034,6 +5307,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             meId: meId,
             lastUpdated: lastUpdated,
             enableExtendedChat: enableExtendedChat,
+            enableTextToImage: enableTextToImage,
             enableIndependentSendButton: enableIndependentSendButton,
             currentState: currentState,
             isPinned: isPinned,
@@ -6214,6 +6488,8 @@ typedef $$ContactRolesTableCreateCompanionBuilder = ContactRolesCompanion
   required String name,
   Value<String?> avatarPath,
   required String description,
+  Value<String?> appearance,
+  Value<List<String>> referenceImages,
   Value<int> rowid,
 });
 typedef $$ContactRolesTableUpdateCompanionBuilder = ContactRolesCompanion
@@ -6222,6 +6498,8 @@ typedef $$ContactRolesTableUpdateCompanionBuilder = ContactRolesCompanion
   Value<String> name,
   Value<String?> avatarPath,
   Value<String> description,
+  Value<String?> appearance,
+  Value<List<String>> referenceImages,
   Value<int> rowid,
 });
 
@@ -6245,6 +6523,14 @@ class $$ContactRolesTableFilterComposer
 
   ColumnFilters<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get appearance => $composableBuilder(
+      column: $table.appearance, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<List<String>, List<String>, String>
+      get referenceImages => $composableBuilder(
+          column: $table.referenceImages,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
 }
 
 class $$ContactRolesTableOrderingComposer
@@ -6267,6 +6553,13 @@ class $$ContactRolesTableOrderingComposer
 
   ColumnOrderings<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get appearance => $composableBuilder(
+      column: $table.appearance, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get referenceImages => $composableBuilder(
+      column: $table.referenceImages,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$ContactRolesTableAnnotationComposer
@@ -6289,6 +6582,13 @@ class $$ContactRolesTableAnnotationComposer
 
   GeneratedColumn<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => column);
+
+  GeneratedColumn<String> get appearance => $composableBuilder(
+      column: $table.appearance, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<List<String>, String> get referenceImages =>
+      $composableBuilder(
+          column: $table.referenceImages, builder: (column) => column);
 }
 
 class $$ContactRolesTableTableManager extends RootTableManager<
@@ -6321,6 +6621,8 @@ class $$ContactRolesTableTableManager extends RootTableManager<
             Value<String> name = const Value.absent(),
             Value<String?> avatarPath = const Value.absent(),
             Value<String> description = const Value.absent(),
+            Value<String?> appearance = const Value.absent(),
+            Value<List<String>> referenceImages = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ContactRolesCompanion(
@@ -6328,6 +6630,8 @@ class $$ContactRolesTableTableManager extends RootTableManager<
             name: name,
             avatarPath: avatarPath,
             description: description,
+            appearance: appearance,
+            referenceImages: referenceImages,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -6335,6 +6639,8 @@ class $$ContactRolesTableTableManager extends RootTableManager<
             required String name,
             Value<String?> avatarPath = const Value.absent(),
             required String description,
+            Value<String?> appearance = const Value.absent(),
+            Value<List<String>> referenceImages = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ContactRolesCompanion.insert(
@@ -6342,6 +6648,8 @@ class $$ContactRolesTableTableManager extends RootTableManager<
             name: name,
             avatarPath: avatarPath,
             description: description,
+            appearance: appearance,
+            referenceImages: referenceImages,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -6371,6 +6679,8 @@ typedef $$ContactMesTableCreateCompanionBuilder = ContactMesCompanion Function({
   required String name,
   Value<String?> avatarPath,
   required String info,
+  Value<String?> appearance,
+  Value<List<String>> referenceImages,
   Value<int> rowid,
 });
 typedef $$ContactMesTableUpdateCompanionBuilder = ContactMesCompanion Function({
@@ -6378,6 +6688,8 @@ typedef $$ContactMesTableUpdateCompanionBuilder = ContactMesCompanion Function({
   Value<String> name,
   Value<String?> avatarPath,
   Value<String> info,
+  Value<String?> appearance,
+  Value<List<String>> referenceImages,
   Value<int> rowid,
 });
 
@@ -6401,6 +6713,14 @@ class $$ContactMesTableFilterComposer
 
   ColumnFilters<String> get info => $composableBuilder(
       column: $table.info, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get appearance => $composableBuilder(
+      column: $table.appearance, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<List<String>, List<String>, String>
+      get referenceImages => $composableBuilder(
+          column: $table.referenceImages,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
 }
 
 class $$ContactMesTableOrderingComposer
@@ -6423,6 +6743,13 @@ class $$ContactMesTableOrderingComposer
 
   ColumnOrderings<String> get info => $composableBuilder(
       column: $table.info, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get appearance => $composableBuilder(
+      column: $table.appearance, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get referenceImages => $composableBuilder(
+      column: $table.referenceImages,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$ContactMesTableAnnotationComposer
@@ -6445,6 +6772,13 @@ class $$ContactMesTableAnnotationComposer
 
   GeneratedColumn<String> get info =>
       $composableBuilder(column: $table.info, builder: (column) => column);
+
+  GeneratedColumn<String> get appearance => $composableBuilder(
+      column: $table.appearance, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<List<String>, String> get referenceImages =>
+      $composableBuilder(
+          column: $table.referenceImages, builder: (column) => column);
 }
 
 class $$ContactMesTableTableManager extends RootTableManager<
@@ -6477,6 +6811,8 @@ class $$ContactMesTableTableManager extends RootTableManager<
             Value<String> name = const Value.absent(),
             Value<String?> avatarPath = const Value.absent(),
             Value<String> info = const Value.absent(),
+            Value<String?> appearance = const Value.absent(),
+            Value<List<String>> referenceImages = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ContactMesCompanion(
@@ -6484,6 +6820,8 @@ class $$ContactMesTableTableManager extends RootTableManager<
             name: name,
             avatarPath: avatarPath,
             info: info,
+            appearance: appearance,
+            referenceImages: referenceImages,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -6491,6 +6829,8 @@ class $$ContactMesTableTableManager extends RootTableManager<
             required String name,
             Value<String?> avatarPath = const Value.absent(),
             required String info,
+            Value<String?> appearance = const Value.absent(),
+            Value<List<String>> referenceImages = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ContactMesCompanion.insert(
@@ -6498,6 +6838,8 @@ class $$ContactMesTableTableManager extends RootTableManager<
             name: name,
             avatarPath: avatarPath,
             info: info,
+            appearance: appearance,
+            referenceImages: referenceImages,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -6525,6 +6867,7 @@ typedef $$ContactMesTableProcessedTableManager = ProcessedTableManager<
 typedef $$ApiPresetsTableCreateCompanionBuilder = ApiPresetsCompanion Function({
   required String id,
   required String name,
+  Value<ApiPresetType> type,
   required ApiProvider provider,
   required String baseUrl,
   required String apiKey,
@@ -6538,6 +6881,7 @@ typedef $$ApiPresetsTableCreateCompanionBuilder = ApiPresetsCompanion Function({
 typedef $$ApiPresetsTableUpdateCompanionBuilder = ApiPresetsCompanion Function({
   Value<String> id,
   Value<String> name,
+  Value<ApiPresetType> type,
   Value<ApiProvider> provider,
   Value<String> baseUrl,
   Value<String> apiKey,
@@ -6563,6 +6907,11 @@ class $$ApiPresetsTableFilterComposer
 
   ColumnFilters<String> get name => $composableBuilder(
       column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<ApiPresetType, ApiPresetType, int> get type =>
+      $composableBuilder(
+          column: $table.type,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
 
   ColumnWithTypeConverterFilters<ApiProvider, ApiProvider, int> get provider =>
       $composableBuilder(
@@ -6607,6 +6956,9 @@ class $$ApiPresetsTableOrderingComposer
   ColumnOrderings<String> get name => $composableBuilder(
       column: $table.name, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<int> get type => $composableBuilder(
+      column: $table.type, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get provider => $composableBuilder(
       column: $table.provider, builder: (column) => ColumnOrderings(column));
 
@@ -6647,6 +6999,9 @@ class $$ApiPresetsTableAnnotationComposer
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<ApiPresetType, int> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
 
   GeneratedColumnWithTypeConverter<ApiProvider, int> get provider =>
       $composableBuilder(column: $table.provider, builder: (column) => column);
@@ -6701,6 +7056,7 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
           updateCompanionCallback: ({
             Value<String> id = const Value.absent(),
             Value<String> name = const Value.absent(),
+            Value<ApiPresetType> type = const Value.absent(),
             Value<ApiProvider> provider = const Value.absent(),
             Value<String> baseUrl = const Value.absent(),
             Value<String> apiKey = const Value.absent(),
@@ -6714,6 +7070,7 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
               ApiPresetsCompanion(
             id: id,
             name: name,
+            type: type,
             provider: provider,
             baseUrl: baseUrl,
             apiKey: apiKey,
@@ -6727,6 +7084,7 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
           createCompanionCallback: ({
             required String id,
             required String name,
+            Value<ApiPresetType> type = const Value.absent(),
             required ApiProvider provider,
             required String baseUrl,
             required String apiKey,
@@ -6740,6 +7098,7 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
               ApiPresetsCompanion.insert(
             id: id,
             name: name,
+            type: type,
             provider: provider,
             baseUrl: baseUrl,
             apiKey: apiKey,

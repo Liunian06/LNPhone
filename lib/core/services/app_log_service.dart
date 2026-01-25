@@ -50,8 +50,8 @@ class AppLogEntry {
 /// 使用 JSONL 格式存储，支持高并发写入
 class AppLogService {
   static const String _logFileName = 'app_logs.jsonl';
-  static const int _maxLogLines = 10000; // 最多保留10000行日志
-  static const int _maxLogSizeMB = 10; // 最大日志文件大小 10MB
+  static const int _maxLogLines = 50000; // 最多保留50000行日志
+  static const int _maxLogSizeMB = 50; // 最大日志文件大小 50MB
 
   // 使用队列实现高并发写入
   static final List<String> _pendingLogs = [];
@@ -128,7 +128,8 @@ class AppLogService {
         final file = File(filePath);
 
         // 追加写入（每行一个 JSON 对象）
-        final sink = file.openWrite(mode: FileMode.append);
+        // 使用 encoding: utf8 明确指定编码
+        final sink = file.openWrite(mode: FileMode.append, encoding: utf8);
         for (final log in logsToWrite) {
           sink.writeln(log);
         }
@@ -155,12 +156,15 @@ class AppLogService {
 
       if (size > maxSize) {
         // 读取文件内容
-        final lines = await file.readAsLines();
+        // 使用 readAsBytes 配合 allowMalformed: true 来处理可能的编码错误，防止崩溃
+        final bytes = await file.readAsBytes();
+        final content = utf8.decode(bytes, allowMalformed: true);
+        final lines = content.split('\n');
 
         // 只保留后半部分
         if (lines.length > _maxLogLines ~/ 2) {
           final newLines = lines.sublist(lines.length - _maxLogLines ~/ 2);
-          await file.writeAsString('${newLines.join('\n')}\n');
+          await file.writeAsString('${newLines.join('\n')}\n', encoding: utf8);
           debugPrint('[AppLogService] 日志文件已轮转，保留 ${newLines.length} 行');
         }
       }
@@ -508,7 +512,9 @@ class AppLogService {
       final file = File(filePath);
 
       if (await file.exists()) {
-        final lines = await file.readAsLines();
+        final bytes = await file.readAsBytes();
+        final content = utf8.decode(bytes, allowMalformed: true);
+        final lines = content.split('\n');
         return lines.where((line) => line.trim().isNotEmpty).length;
       }
       return 0;

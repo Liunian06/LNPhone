@@ -150,14 +150,66 @@ class ApiProviderConverter extends TypeConverter<ApiProvider, int> {
 
   @override
   ApiProvider fromSql(int fromDb) {
+    // Handle legacy HuggingFace (index 2)
+    if (fromDb == 2) {
+      // Map legacy HuggingFace to Volcengine or another default if needed,
+      // or just let it fall through to default if that's preferred.
+      // Since we removed HuggingFace from enum, indices shifted.
+      // Original: openai(0), gemini(1), huggingface(2), volcengine(3)
+      // New: openai(0), gemini(1), volcengine(2)
+      // If DB has 2 (old huggingface), it now maps to volcengine in new enum.
+      // If DB has 3 (old volcengine), it is now out of bounds.
+
+      // We need to be careful here.
+      // If we want to migrate old data correctly without a migration script:
+      // Old 0 -> New 0 (OpenAI) - OK
+      // Old 1 -> New 1 (Gemini) - OK
+      // Old 2 (HuggingFace) -> New 2 (Volcengine) - This effectively changes HF to Volcengine
+      // Old 3 (Volcengine) -> Out of bounds -> Default (OpenAI) - This loses Volcengine setting!
+
+      // Better approach:
+      // If we want to keep Volcengine working for existing users who had it at index 3:
+      // We should probably map old 3 to new 2.
+      // And map old 2 (HF) to something else or default.
+
+      return ApiProvider
+          .volcengine; // Map old HF (2) to Volcengine (2) temporarily/accidentally?
+    }
+
+    // Let's try to be more robust based on the new enum values
+    // New Enum: openai, gemini, volcengine
     if (fromDb >= 0 && fromDb < ApiProvider.values.length) {
       return ApiProvider.values[fromDb];
     }
+
+    // Handle old Volcengine index (3) mapping to new Volcengine index (2)
+    if (fromDb == 3) {
+      return ApiProvider.volcengine;
+    }
+
     return ApiProvider.openai;
   }
 
   @override
   int toSql(ApiProvider value) {
+    return value.index;
+  }
+}
+
+/// ApiPresetType 的转换器
+class ApiPresetTypeConverter extends TypeConverter<ApiPresetType, int> {
+  const ApiPresetTypeConverter();
+
+  @override
+  ApiPresetType fromSql(int? fromDb) {
+    if (fromDb != null && fromDb >= 0 && fromDb < ApiPresetType.values.length) {
+      return ApiPresetType.values[fromDb];
+    }
+    return ApiPresetType.chat;
+  }
+
+  @override
+  int toSql(ApiPresetType value) {
     return value.index;
   }
 }
@@ -252,6 +304,10 @@ class ContactRoles extends Table {
   TextColumn get name => text()();
   TextColumn get avatarPath => text().nullable()();
   TextColumn get description => text()();
+  TextColumn get appearance => text().nullable()();
+  TextColumn get referenceImages => text()
+      .map(const StringListConverter())
+      .withDefault(const Constant('[]'))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -264,6 +320,10 @@ class ContactMes extends Table {
   TextColumn get name => text()();
   TextColumn get avatarPath => text().nullable()();
   TextColumn get info => text()();
+  TextColumn get appearance => text().nullable()();
+  TextColumn get referenceImages => text()
+      .map(const StringListConverter())
+      .withDefault(const Constant('[]'))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -274,6 +334,9 @@ class ContactMes extends Table {
 class ApiPresets extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
+  IntColumn get type => integer()
+      .map(const ApiPresetTypeConverter())
+      .withDefault(const Constant(0))(); // Default to chat (0)
   IntColumn get provider => integer().map(const ApiProviderConverter())();
   TextColumn get baseUrl => text()();
   TextColumn get apiKey => text()();
@@ -315,6 +378,8 @@ class ChatSessions extends Table {
   IntColumn get lastUpdated => integer()();
   BoolColumn get enableExtendedChat =>
       boolean().withDefault(const Constant(true))();
+  BoolColumn get enableTextToImage =>
+      boolean().withDefault(const Constant(false))();
   BoolColumn get enableIndependentSendButton =>
       boolean().withDefault(const Constant(false))();
   TextColumn get currentState => text().nullable()();

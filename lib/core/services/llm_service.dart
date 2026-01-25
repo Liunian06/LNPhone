@@ -10,6 +10,7 @@ import '../utils/image_utils.dart';
 import 'xml_parser.dart';
 import 'api_log_service.dart';
 import 'app_log_service.dart';
+import '../providers/regex_settings_provider.dart';
 
 class LlmRetryException implements Exception {
   final List<String> errors;
@@ -31,12 +32,29 @@ class LlmService {
     List<String> worldInfos = const [],
     List<String> textPresets = const [],
     List<String> roleMemories = const [], // 角色记忆列表
+    bool enableTextToImage = false,
+    RegexSettingsProvider? regexProvider,
   }) async {
     print('[LLM] ========== 开始生成回复 ==========');
     print('[LLM] API Provider: ${apiPreset.provider.name}');
     print('[LLM] Model: ${apiPreset.model}');
     print('[LLM] Base URL: ${apiPreset.baseUrl}');
     print('[LLM] 历史消息数量: ${history.length}');
+
+    // 记录详细的调用参数
+    await AppLogService.log(
+      '开始生成回复',
+      category: 'LLM',
+      level: LogLevel.info,
+      data: {
+        'provider': apiPreset.provider.name,
+        'model': apiPreset.model,
+        'baseUrl': apiPreset.baseUrl,
+        'historyCount': history.length,
+        'roleName': role.name,
+        'userName': me.name,
+      },
+    );
 
     // 记录 API 调用开始日志
     await AppLogService.logApiCallStart(
@@ -61,6 +79,14 @@ class LlmService {
     );
     print('[LLM] 系统提示词长度: ${systemPrompt.length} 字符');
 
+    // 记录系统提示词
+    await AppLogService.log(
+      '系统提示词构建完成',
+      category: 'LLM',
+      level: LogLevel.debug,
+      data: {'systemPrompt': systemPrompt},
+    );
+
     print('[LLM] 构建消息列表（上下文长度: ${promptConfig.contextLength}）...');
     // 使用简化ID构建消息，并获取ID映射表
     final buildResult = await _buildMessagesWithSimpleIds(
@@ -72,6 +98,18 @@ class LlmService {
     final idMapping = buildResult['idMapping'] as Map<String, String>;
     print('[LLM] 消息列表构建完成，共 ${messages.length} 条');
     print('[LLM] ID映射表: $idMapping');
+
+    // 记录请求消息
+    await AppLogService.log(
+      '请求消息构建完成',
+      category: 'LLM',
+      level: LogLevel.debug,
+      data: {
+        'messages': messages,
+        'idMapping': idMapping,
+      },
+    );
+
     for (var i = 0; i < messages.length; i++) {
       final role = messages[i]['role'];
       final rawContent = messages[i]['content'];
@@ -89,13 +127,14 @@ class LlmService {
     }
 
     List<String> errorLogs = [];
-    String? rawResponse;
     final stopwatch = Stopwatch()..start();
-    Map<String, dynamic>? responseData;
 
     // 重试机制：最多尝试3次
     for (int attempt = 1; attempt <= 3; attempt++) {
       try {
+        String rawResponse;
+        Map<String, dynamic>? responseData;
+
         print('[LLM] 准备调用 API (第 $attempt 次尝试)...');
         if (apiPreset.provider == ApiProvider.openai) {
           print('[LLM] 调用 OpenAI API...');
@@ -108,14 +147,65 @@ class LlmService {
           rawResponse = result['content'] as String;
           responseData = result;
         }
+
+        if (rawResponse.trim().isEmpty) {
+          throw Exception('API返回内容为空');
+        }
+
         print('[LLM] ✓ API 调用成功');
         print('[LLM] 原始响应长度: ${rawResponse.length} 字符');
+
+        // 记录原始响应
+        await AppLogService.log(
+          '收到 API 原始响应',
+          category: 'LLM',
+          level: LogLevel.debug,
+          data: {'rawResponse': rawResponse},
+        );
+
         if (rawResponse.isNotEmpty) {
-          final previewLength =
-              rawResponse.length > 200 ? 200 : rawResponse.length;
-          print('[LLM] 原始响应内容: ${rawResponse.substring(0, previewLength)}...');
+          print('[LLM] 原始响应内容: $rawResponse');
         } else {
           print('[LLM] 原始响应内容: [空]');
+        }
+
+        // 解析响应为消息列表，传入ID映射表用于将简化ID转换回真实ID
+        // 将解析逻辑移入重试循环，以便在解析失败时也能重试
+        print('[LLM] 解析响应...');
+        final parsedMessages = await ResponseParser.parse(
+          rawResponse,
+          messageIdPrefix,
+          simpleIdToRealId: idMapping,
+          enableTextToImage: enableTextToImage,
+          regexProvider: regexProvider,
+        );
+        print('[LLM] ✓ 解析成功，得到 ${parsedMessages.length} 条消息');
+
+        // 记录解析结果
+        await AppLogService.log(
+          '响应解析完成',
+          category: 'LLM',
+          level: LogLevel.info,
+          data: {
+            'parsedMessages': parsedMessages
+                .map((m) => {
+                      'type': m.type.toString(),
+                      'content': m.content,
+                      'metadata': m.metadata,
+                    })
+                .toList(),
+          },
+        );
+
+        for (var i = 0; i < parsedMessages.length; i++) {
+          final msgContent = parsedMessages[i].content;
+          final contentPreview = msgContent.isEmpty
+              ? '[空]'
+              : (msgContent.length > 50
+                  ? '${msgContent.substring(0, 50)}...'
+                  : msgContent);
+          print(
+              '[LLM] 消息 $i: type=${parsedMessages[i].type}, content=$contentPreview');
         }
 
         // 记录成功的API调用
@@ -138,10 +228,10 @@ class LlmService {
           outputTokens: responseData?['outputTokens'] as int?,
         );
 
-        // 如果成功，跳出循环
-        break;
+        print('[LLM] ========== 生成回复完成 ==========');
+        return parsedMessages;
       } catch (e, stackTrace) {
-        final errorMsg = '第 $attempt 次请求失败: $e';
+        final errorMsg = '第 $attempt 次请求或解析失败: $e';
         print('[LLM] ❌ $errorMsg');
         print('[LLM] ❌ 堆栈跟踪: $stackTrace');
         errorLogs.add(errorMsg);
@@ -175,37 +265,7 @@ class LlmService {
       }
     }
 
-    if (rawResponse == null) {
-      // 理论上不会执行到这里，因为上面会 throw
-      throw LlmRetryException(errorLogs);
-    }
-
-    // 解析响应为消息列表，传入ID映射表用于将简化ID转换回真实ID
-    print('[LLM] 解析响应...');
-    try {
-      final parsedMessages = ResponseParser.parse(
-        rawResponse,
-        messageIdPrefix,
-        simpleIdToRealId: idMapping,
-      );
-      print('[LLM] ✓ 解析成功，得到 ${parsedMessages.length} 条消息');
-      for (var i = 0; i < parsedMessages.length; i++) {
-        final msgContent = parsedMessages[i].content;
-        final contentPreview = msgContent.isEmpty
-            ? '[空]'
-            : (msgContent.length > 50
-                ? '${msgContent.substring(0, 50)}...'
-                : msgContent);
-        print(
-            '[LLM] 消息 $i: type=${parsedMessages[i].type}, content=$contentPreview');
-      }
-      print('[LLM] ========== 生成回复完成 ==========');
-      return parsedMessages;
-    } catch (e, stackTrace) {
-      print('[LLM] ❌ 解析失败: $e');
-      print('[LLM] ❌ 堆栈跟踪: $stackTrace');
-      rethrow;
-    }
+    throw LlmRetryException(errorLogs);
   }
 
   static String _buildSystemPrompt(
@@ -219,12 +279,25 @@ class LlmService {
   ) {
     final buffer = StringBuffer();
 
-    // 1. Roleplay Prompt
+    // 1. Reality Prompt (Moved to top)
+    if (config.enableRealityPrompt && config.realityPrompt.isNotEmpty) {
+      // 强制使用 UTC+8 时间
+      final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+      final timeStr = DateFormat('HH:mm').format(now);
+      final dateStr = DateFormat('yyyy-MM-dd').format(now);
+      final reality = config.realityPrompt
+          .replaceAll('{time}', timeStr)
+          .replaceAll('{date}', dateStr);
+      buffer.writeln(reality);
+      buffer.writeln(); // Add a newline after reality prompt
+    }
+
+    // 2. Roleplay Prompt
     if (config.roleplayPrompt.isNotEmpty) {
       buffer.writeln(config.roleplayPrompt);
     }
 
-    // 2. World Info (世界书)
+    // 3. World Info (世界书)
     if (worldInfos.isNotEmpty) {
       buffer.writeln('\n[World Info]');
       for (final info in worldInfos) {
@@ -232,23 +305,12 @@ class LlmService {
       }
     }
 
-    // 3. Presets (预设)
+    // 4. Presets (预设)
     if (textPresets.isNotEmpty) {
       buffer.writeln('\n[Style Presets]');
       for (final preset in textPresets) {
         buffer.writeln(preset);
       }
-    }
-
-    // Reality Prompt
-    if (config.enableRealityPrompt && config.realityPrompt.isNotEmpty) {
-      final now = DateTime.now();
-      final timeStr = DateFormat('HH:mm').format(now);
-      final dateStr = DateFormat('yyyy-MM-dd').format(now);
-      final reality = config.realityPrompt
-          .replaceAll('{time}', timeStr)
-          .replaceAll('{date}', dateStr);
-      buffer.writeln(reality);
     }
 
     // Personas Prompt
@@ -272,6 +334,33 @@ class LlmService {
       for (final memory in roleMemories) {
         buffer.writeln('- $memory');
       }
+    }
+
+    // Text2Image Prompt (不再使用 config 中的 text2image_prompt，而是直接从 assets 读取)
+    // 但由于 _buildSystemPrompt 是同步方法，无法直接读取 assets
+    // 考虑到 text2image_prompt 主要用于生图时的 prompt 拼接，
+    // 在 system prompt 中是否需要包含它取决于是否希望 LLM 知道生图风格。
+    // 如果需要，应该在调用 _buildSystemPrompt 之前读取并传入，或者改为异步方法。
+    // 鉴于目前架构，我们暂时保留 config.text2ImagePrompt 的使用，
+    // 但在 PromptSettingsProvider 中我们已经将其强制设为从 assets 读取的内容（虽然是异步的，但在初始化时完成）。
+    // 不过，为了确保一致性，如果 config.text2ImagePrompt 为空（例如初始化未完成），
+    // 我们可能需要一种机制。
+    // 实际上，PromptSettingsProvider 初始化时会加载 assets 到 _text2ImagePrompt。
+    // 所以这里直接使用 config.text2ImagePrompt 应该是安全的，前提是 Provider 已初始化。
+
+    if (config.text2ImagePrompt.isNotEmpty) {
+      buffer.writeln('\n[Image Generation Style]');
+      buffer.writeln(config.text2ImagePrompt);
+    }
+
+    // Add Appearance Info for Image Generation
+    if (role.appearance != null && role.appearance!.isNotEmpty) {
+      buffer.writeln('\n[Character Appearance]');
+      buffer.writeln(role.appearance);
+    }
+    if (me.appearance != null && me.appearance!.isNotEmpty) {
+      buffer.writeln('\n[User Appearance]');
+      buffer.writeln(me.appearance);
     }
 
     return buffer.toString();

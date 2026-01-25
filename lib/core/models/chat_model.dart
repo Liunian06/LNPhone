@@ -127,6 +127,7 @@ class ChatSession {
   final List<ChatMessage> messages;
   final int lastUpdated;
   final bool enableExtendedChat; // 是否启用扩展聊天（解析action和thought）
+  final bool enableTextToImage; // 是否启用文生图
   final bool enableIndependentSendButton; // 是否启用独立发送/续写按钮
   final String? currentState; // 当前状态
   final bool isPinned; // 是否置顶
@@ -142,6 +143,7 @@ class ChatSession {
     required this.messages,
     required this.lastUpdated,
     this.enableExtendedChat = true, // 默认开启
+    this.enableTextToImage = false, // 默认关闭
     this.enableIndependentSendButton = false, // 默认关闭
     this.currentState,
     this.isPinned = false, // 默认不置顶
@@ -159,6 +161,7 @@ class ChatSession {
       'messages': messages.map((m) => m.toJson()).toList(),
       'lastUpdated': lastUpdated,
       'enableExtendedChat': enableExtendedChat,
+      'enableTextToImage': enableTextToImage,
       'enableIndependentSendButton': enableIndependentSendButton,
       'currentState': currentState,
       'isPinned': isPinned,
@@ -179,6 +182,7 @@ class ChatSession {
           .toList(),
       lastUpdated: json['lastUpdated'],
       enableExtendedChat: json['enableExtendedChat'] ?? true, // 默认开启
+      enableTextToImage: json['enableTextToImage'] ?? false, // 默认关闭
       enableIndependentSendButton:
           json['enableIndependentSendButton'] ?? false, // 默认关闭
       currentState: json['currentState'],

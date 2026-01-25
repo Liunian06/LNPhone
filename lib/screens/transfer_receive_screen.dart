@@ -8,6 +8,7 @@ class TransferReceiveScreen extends StatelessWidget {
   final ContactRole role;
   final ContactMe me;
   final void Function(BuildContext context) onAccept;
+  final void Function(BuildContext context)? onReject;
 
   const TransferReceiveScreen({
     super.key,
@@ -15,6 +16,7 @@ class TransferReceiveScreen extends StatelessWidget {
     required this.role,
     required this.me,
     required this.onAccept,
+    this.onReject,
   });
 
   @override
@@ -140,12 +142,28 @@ class TransferReceiveScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             // 退还提示
-            Text(
-              '1天内未确认，将退还给对方。 退还',
-              style: TextStyle(
-                color: secondaryColor,
-                fontSize: 12,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '1天内未确认，将退还给对方。',
+                  style: TextStyle(
+                    color: secondaryColor,
+                    fontSize: 12,
+                  ),
+                ),
+                if (onReject != null)
+                  GestureDetector(
+                    onTap: () => onReject!(context),
+                    child: const Text(
+                      ' 立即退还',
+                      style: TextStyle(
+                        color: Color(0xFF576B95),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 60),
           ],

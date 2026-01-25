@@ -9,6 +9,7 @@ class RedPacketDialog extends StatefulWidget {
   final ContactRole role;
   final ContactMe me;
   final VoidCallback onOpen;
+  final VoidCallback? onReject;
 
   const RedPacketDialog({
     super.key,
@@ -16,6 +17,7 @@ class RedPacketDialog extends StatefulWidget {
     required this.role,
     required this.me,
     required this.onOpen,
+    this.onReject,
   });
 
   @override
@@ -94,7 +96,7 @@ class _RedPacketDialogState extends State<RedPacketDialog>
         insetPadding: const EdgeInsets.symmetric(horizontal: 40),
         child: SizedBox(
           width: 300,
-          height: 480,
+          height: 500,
           child: Stack(
             children: [
               // 上半部分圆弧背景
@@ -109,23 +111,6 @@ class _RedPacketDialogState extends State<RedPacketDialog>
                     borderRadius: BorderRadius.vertical(
                       top: Radius.circular(12),
                       bottom: Radius.elliptical(300, 80),
-                    ),
-                  ),
-                ),
-              ),
-              // 关闭按钮
-              Positioned(
-                bottom: 20,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: IconButton(
-                    icon: const Icon(Icons.close_rounded,
-                        color: Color(0xFFFFE0B2), size: 32),
-                    onPressed: () => Navigator.pop(context),
-                    style: IconButton.styleFrom(
-                      side:
-                          const BorderSide(color: Color(0xFFFFE0B2), width: 1),
                     ),
                   ),
                 ),
@@ -227,7 +212,33 @@ class _RedPacketDialogState extends State<RedPacketDialog>
                         },
                       ),
                     ),
-                    const SizedBox(height: 100),
+                    const SizedBox(height: 30),
+                    // 关闭按钮
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded,
+                          color: Color(0xFFFFE0B2), size: 32),
+                      onPressed: () => Navigator.pop(context),
+                      style: IconButton.styleFrom(
+                        side: const BorderSide(
+                            color: Color(0xFFFFE0B2), width: 1),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // 退还红包链接
+                    if (widget.onReject != null)
+                      GestureDetector(
+                        onTap: widget.onReject,
+                        child: const Text(
+                          '退还红包',
+                          style: TextStyle(
+                            color: Color(0xFFFFE0B2),
+                            fontSize: 14,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Color(0xFFFFE0B2),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),

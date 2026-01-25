@@ -18,7 +18,9 @@ class _EditRoleScreenState extends State<EditRoleScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
+  late TextEditingController _appearanceController;
   String? _avatarPath;
+  List<String> _referenceImages = [];
 
   @override
   void initState() {
@@ -27,7 +29,9 @@ class _EditRoleScreenState extends State<EditRoleScreen> {
     final role = provider.roles.firstWhere((r) => r.id == widget.roleId);
     _nameController = TextEditingController(text: role.name);
     _descriptionController = TextEditingController(text: role.description);
+    _appearanceController = TextEditingController(text: role.appearance);
     _avatarPath = role.avatarPath;
+    _referenceImages = List.from(role.referenceImages);
   }
 
   Future<void> _pickImage() async {
@@ -38,6 +42,30 @@ class _EditRoleScreenState extends State<EditRoleScreen> {
         _avatarPath = pickedFile.path;
       });
     }
+  }
+
+  Future<void> _pickReferenceImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      if (_referenceImages.length >= 8) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('最多只能添加8张参考图')),
+          );
+        }
+        return;
+      }
+      setState(() {
+        _referenceImages.add(pickedFile.path);
+      });
+    }
+  }
+
+  void _removeReferenceImage(int index) {
+    setState(() {
+      _referenceImages.removeAt(index);
+    });
   }
 
   void _showDeleteConfirmation() {
@@ -322,6 +350,156 @@ class _EditRoleScreenState extends State<EditRoleScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            // 外貌描述卡片
+            Container(
+              decoration: BoxDecoration(
+                color: cardBgColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '外貌描述 (可选)',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: textColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: inputBgColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFF48484A)
+                            : Colors.transparent,
+                        width: 1,
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    child: TextFormField(
+                      controller: _appearanceController,
+                      decoration: InputDecoration(
+                        hintText: '输入外貌描述，用于辅助生图',
+                        hintStyle: TextStyle(color: hintColor),
+                        border: InputBorder.none,
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 12),
+                        filled: false,
+                        isDense: true,
+                      ),
+                      style: TextStyle(fontSize: 16, color: textColor),
+                      maxLines: 5,
+                      minLines: 3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            // 参考图卡片
+            Container(
+              decoration: BoxDecoration(
+                color: cardBgColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '参考图 (可选)',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: textColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '${_referenceImages.length}/8',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: hintColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                    ),
+                    itemCount: _referenceImages.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == _referenceImages.length) {
+                        return GestureDetector(
+                          onTap: _pickReferenceImage,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: inputBgColor,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.add,
+                              color: hintColor,
+                              size: 32,
+                            ),
+                          ),
+                        );
+                      }
+                      return Stack(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              image: DecorationImage(
+                                image: FileImage(File(_referenceImages[index])),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: GestureDetector(
+                              onTap: () => _removeReferenceImage(index),
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 32),
             // 保存按钮
             Padding(
@@ -335,6 +513,8 @@ class _EditRoleScreenState extends State<EditRoleScreen> {
                             _nameController.text,
                             _avatarPath,
                             _descriptionController.text,
+                            appearance: _appearanceController.text,
+                            referenceImages: _referenceImages,
                           );
                       if (context.mounted) {
                         Navigator.pop(context);

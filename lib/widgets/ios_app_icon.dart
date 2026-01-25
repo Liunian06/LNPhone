@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'package:provider/provider.dart';
 import '../core/constants/ios_constants.dart';
 import '../core/models/app_model.dart';
+import '../core/providers/system_state_provider.dart';
 
 /// iOS风格应用图标组件
 class IOSAppIcon extends StatefulWidget {
@@ -14,6 +16,8 @@ class IOSAppIcon extends StatefulWidget {
   final VoidCallback? onLongPress;
   final VoidCallback? onDelete;
   final String? customIconPath;
+  final Color? forceTextColor;
+  final bool? forceShowShadow;
 
   const IOSAppIcon({
     super.key,
@@ -25,6 +29,8 @@ class IOSAppIcon extends StatefulWidget {
     this.onLongPress,
     this.onDelete,
     this.customIconPath,
+    this.forceTextColor,
+    this.forceShowShadow,
   });
 
   @override
@@ -129,23 +135,32 @@ class _IOSAppIconState extends State<IOSAppIcon>
   Widget _buildIconContainer() {
     final borderRadius = widget.size * 0.225; // iOS标准圆角比例
 
-    return Container(
-      width: widget.size,
-      height: widget.size,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(borderRadius),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+    return Consumer<SystemStateProvider>(
+      builder: (context, provider, _) {
+        // 优先使用强制设置，否则使用全局设置
+        final showShadow = widget.forceShowShadow ?? provider.showIconShadow;
+
+        return Container(
+          width: widget.size,
+          height: widget.size,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(borderRadius),
+            boxShadow: showShadow
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: _buildIconContent(),
-      ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(borderRadius),
+            child: _buildIconContent(),
+          ),
+        );
+      },
     );
   }
 
@@ -348,17 +363,28 @@ class _IOSAppIconState extends State<IOSAppIcon>
   }
 
   Widget _buildLabel() {
-    return SizedBox(
-      width: widget.size + 10,
-      child: Text(
-        widget.app.name,
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: IOSTextStyles.appLabel.copyWith(
+    return Consumer<SystemStateProvider>(
+      builder: (context, provider, _) {
+        // 优先使用强制设置，否则使用全局设置
+        final textColor =
+            widget.forceTextColor ?? Color(provider.desktopTextColor);
+
+        TextStyle style = IOSTextStyles.appLabel.copyWith(
           fontSize: IOSConstants.appLabelSize,
-        ),
-      ),
+          color: textColor,
+        );
+
+        return SizedBox(
+          width: widget.size + 10,
+          child: Text(
+            widget.app.name,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          ),
+        );
+      },
     );
   }
 }
@@ -391,51 +417,66 @@ class IOSFolderIcon extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(borderRadius),
-              color: Colors.white.withOpacity(0.3),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
+          Consumer<SystemStateProvider>(
+            builder: (context, provider, _) {
+              return Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(borderRadius),
+                  color: Colors.white.withOpacity(0.3),
+                  boxShadow: provider.showIconShadow
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
                 ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(borderRadius),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: GridView.builder(
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: EdgeInsets.all(size * 0.12),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    mainAxisSpacing: size * 0.04,
-                    crossAxisSpacing: size * 0.04,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(borderRadius),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: GridView.builder(
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.all(size * 0.12),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: size * 0.04,
+                        crossAxisSpacing: size * 0.04,
+                      ),
+                      itemCount: apps.length.clamp(0, 9),
+                      itemBuilder: (context, index) {
+                        return _buildMiniIcon(apps[index], size * 0.2);
+                      },
+                    ),
                   ),
-                  itemCount: apps.length.clamp(0, 9),
-                  itemBuilder: (context, index) {
-                    return _buildMiniIcon(apps[index], size * 0.2);
-                  },
                 ),
-              ),
-            ),
+              );
+            },
           ),
           if (showLabel) ...[
             const SizedBox(height: 6),
-            SizedBox(
-              width: size + 10,
-              child: Text(
-                folder.name,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: IOSTextStyles.appLabel,
-              ),
+            Consumer<SystemStateProvider>(
+              builder: (context, provider, _) {
+                TextStyle style = IOSTextStyles.appLabel.copyWith(
+                  fontSize: IOSConstants.appLabelSize,
+                  color: Color(provider.desktopTextColor),
+                );
+
+                return SizedBox(
+                  width: size + 10,
+                  child: Text(
+                    folder.name,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: style,
+                  ),
+                );
+              },
             ),
           ],
         ],

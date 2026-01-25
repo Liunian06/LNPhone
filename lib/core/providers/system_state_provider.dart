@@ -43,6 +43,10 @@ class SystemStateProvider extends ChangeNotifier {
   int _currentWallpaperIndex = 0;
   String? _customWallpaperPath;
 
+  // 桌面样式
+  int _desktopTextColor = 0xFFFFFFFF; // 默认白色
+  bool _showIconShadow = true; // 默认显示阴影
+
   // 锁屏壁纸
   int _lockScreenWallpaperIndex = 0;
   String? _customLockScreenWallpaperPath;
@@ -96,6 +100,8 @@ class SystemStateProvider extends ChangeNotifier {
 
   int get currentWallpaperIndex => _currentWallpaperIndex;
   String? get customWallpaperPath => _customWallpaperPath;
+  int get desktopTextColor => _desktopTextColor;
+  bool get showIconShadow => _showIconShadow;
   int get lockScreenWallpaperIndex => _lockScreenWallpaperIndex;
   String? get customLockScreenWallpaperPath => _customLockScreenWallpaperPath;
   int get lockScreenTimeColor => _lockScreenTimeColor;
@@ -205,6 +211,20 @@ class SystemStateProvider extends ChangeNotifier {
   void setCustomWallpaper(String path) {
     _customWallpaperPath = path;
     _currentWallpaperIndex = 0; // 设置自定义壁纸时，将索引重置为 0，避免处于随机风景模式
+    _saveSettings();
+    notifyListeners();
+  }
+
+  // 设置桌面文字颜色
+  void setDesktopTextColor(int color) {
+    _desktopTextColor = color;
+    _saveSettings();
+    notifyListeners();
+  }
+
+  // 设置图标阴影开关
+  void setShowIconShadow(bool show) {
+    _showIconShadow = show;
     _saveSettings();
     notifyListeners();
   }
@@ -397,6 +417,10 @@ class SystemStateProvider extends ChangeNotifier {
       } else {
         await _db.deleteSetting('custom_wallpaper_path');
       }
+
+      // 保存桌面样式
+      await _db.setSettingInt('desktop_text_color', _desktopTextColor);
+      await _db.setSettingBool('show_icon_shadow', _showIconShadow);
 
       // 保存锁屏壁纸
       await _db.setSettingInt(
@@ -621,6 +645,11 @@ class SystemStateProvider extends ChangeNotifier {
     _currentWallpaperIndex = _currentWallpaperIndex.clamp(0, 6);
     _customWallpaperPath = await _db.getSetting('custom_wallpaper_path');
 
+    // 加载桌面样式
+    _desktopTextColor =
+        await _db.getSettingInt('desktop_text_color') ?? 0xFFFFFFFF;
+    _showIconShadow = await _db.getSettingBool('show_icon_shadow') ?? true;
+
     // 加载锁屏壁纸
     _lockScreenWallpaperIndex =
         await _db.getSettingInt('lockscreen_wallpaper_index') ?? 0;
@@ -702,6 +731,8 @@ class SystemStateProvider extends ChangeNotifier {
         'index': _currentWallpaperIndex,
         'customPath': _customWallpaperPath,
         'data': await _fileToBase64(_customWallpaperPath),
+        'textColor': _desktopTextColor,
+        'showShadow': _showIconShadow,
       },
       'lockScreenWallpaper': {
         'index': _lockScreenWallpaperIndex,
@@ -826,7 +857,21 @@ class SystemStateProvider extends ChangeNotifier {
       }
     }
 
-    // 2.9 收集朋友圈动态中的图片
+    // 2.9 收集聊天消息中的图片
+    final imageMessages = await db.getAllImageMessages();
+    for (final msg in imageMessages) {
+      if (msg.content.isNotEmpty && !msg.content.startsWith('http')) {
+        final imageFile = File(msg.content);
+        if (await imageFile.exists()) {
+          final ext = path.extension(msg.content);
+          // 使用消息ID作为唯一标识
+          final zipFileName = 'chat_image_${msg.id}$ext';
+          files[zipFileName] = msg.content;
+        }
+      }
+    }
+
+    // 2.10 收集朋友圈动态中的图片
     final momentsPosts = await db.getAllMoments();
     for (final post in momentsPosts) {
       // 收集动态媒体图片
@@ -913,6 +958,8 @@ class SystemStateProvider extends ChangeNotifier {
         'customPath': _customWallpaperPath != null
             ? 'wallpaper_home${path.extension(_customWallpaperPath!)}'
             : null,
+        'textColor': _desktopTextColor,
+        'showShadow': _showIconShadow,
       },
       'lockScreenWallpaper': {
         'index': _lockScreenWallpaperIndex,
@@ -966,6 +1013,8 @@ class SystemStateProvider extends ChangeNotifier {
       if (settings['homeWallpaper'] != null) {
         final wallpaper = settings['homeWallpaper'] as Map<String, dynamic>;
         _currentWallpaperIndex = wallpaper['index'] ?? 0;
+        _desktopTextColor = wallpaper['textColor'] ?? 0xFFFFFFFF;
+        _showIconShadow = wallpaper['showShadow'] ?? true;
 
         // 优先尝试从Base64数据恢复文件
         final base64Data = wallpaper['data'] as String?;
@@ -1093,6 +1142,8 @@ class SystemStateProvider extends ChangeNotifier {
       if (settings['homeWallpaper'] != null) {
         final wallpaper = settings['homeWallpaper'] as Map<String, dynamic>;
         _currentWallpaperIndex = wallpaper['index'] ?? 0;
+        _desktopTextColor = wallpaper['textColor'] ?? 0xFFFFFFFF;
+        _showIconShadow = wallpaper['showShadow'] ?? true;
 
         final customPathInZip = wallpaper['customPath'] as String?;
         if (customPathInZip != null) {
@@ -1197,6 +1248,10 @@ class SystemStateProvider extends ChangeNotifier {
       } else {
         await db.deleteSetting('custom_wallpaper_path');
       }
+
+      // 保存桌面样式
+      await db.setSettingInt('desktop_text_color', _desktopTextColor);
+      await db.setSettingBool('show_icon_shadow', _showIconShadow);
 
       // 保存锁屏壁纸
       await db.setSettingInt(
@@ -1429,7 +1484,25 @@ class SystemStateProvider extends ChangeNotifier {
         }
       }
 
-      // 5. 更新朋友圈动态中的图片路径
+      // 5. 更新聊天消息中的图片路径
+      final imageMessages = await db.getAllImageMessages();
+      for (final msg in imageMessages) {
+        String? newImagePath;
+        for (final entry in restoredImages.entries) {
+          if (entry.key.contains('chat_image_${msg.id}') ||
+              entry.value.contains('chat_image_${msg.id}')) {
+            newImagePath = entry.value;
+            break;
+          }
+        }
+
+        if (newImagePath != null && newImagePath != msg.content) {
+          await db.updateMessageContent(msg.id, newImagePath);
+          debugPrint('已更新消息 ${msg.id} 的图片路径');
+        }
+      }
+
+      // 6. 更新朋友圈动态中的图片路径
       final moments = await db.getAllMoments();
       for (final post in moments) {
         bool needsUpdate = false;

@@ -9,6 +9,7 @@ import '../core/providers/chat_provider.dart';
 import '../core/providers/contact_provider.dart';
 import '../core/providers/api_settings_provider.dart';
 import '../core/providers/prompt_settings_provider.dart';
+import '../core/providers/regex_settings_provider.dart';
 import '../core/providers/moments_provider.dart';
 import '../core/providers/memory_provider.dart';
 import '../core/providers/wallet_provider.dart';
@@ -406,6 +407,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
             );
           },
+          onReject: () {
+            // 更新消息状态为已退还
+            final chatProvider = context.read<ChatProvider>();
+            final newMetadata =
+                Map<String, dynamic>.from(message.metadata ?? {});
+            newMetadata['status'] = 'refunded';
+
+            chatProvider.updateMessageMetadata(message.id, newMetadata);
+
+            Navigator.pop(dialogContext); // 关闭弹窗
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => RedPacketResultScreen(
+                  message: message,
+                  role: role,
+                  me: me,
+                ),
+              ),
+            );
+          },
         ),
       );
     }
@@ -465,6 +487,22 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   messageId: message.id,
                 );
               }
+
+              // 跳转结果页
+              Navigator.pushReplacement(
+                receiveContext,
+                MaterialPageRoute(
+                  builder: (context) => TransferResultScreen(message: message),
+                ),
+              );
+            },
+            onReject: (receiveContext) {
+              // 更新消息状态为已拒收
+              final chatProvider = receiveContext.read<ChatProvider>();
+              final newMetadata =
+                  Map<String, dynamic>.from(message.metadata ?? {});
+              newMetadata['status'] = 'rejected';
+              chatProvider.updateMessageMetadata(message.id, newMetadata);
 
               // 跳转结果页
               Navigator.pushReplacement(
@@ -1059,6 +1097,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final chatProvider = context.read<ChatProvider>();
     final apiProvider = context.read<ApiSettingsProvider>();
     final promptProvider = context.read<PromptSettingsProvider>();
+    final regexProvider = context.read<RegexSettingsProvider>();
     final contactProvider = context.read<ContactProvider>();
     final momentsProvider = context.read<MomentsProvider>();
     final memoryProvider = context.read<MemoryProvider>();
@@ -1132,6 +1171,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         }
       },
       enableExtendedChat: chat.enableExtendedChat,
+      enableTextToImage: chat.enableTextToImage,
       delayedReplySeconds: promptProvider.delayedReplySeconds,
       roleMemories: memoryProvider
           .getMemoriesForRole(role.id)
@@ -1145,6 +1185,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           categoryStr: categoryStr,
         );
       },
+      regexProvider: regexProvider,
     );
   }
 
@@ -1156,6 +1197,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // 预先获取所有需要的上下文数据，防止 await 期间 context 失效导致无法触发 AI 回复
     final apiProvider = context.read<ApiSettingsProvider>();
     final promptProvider = context.read<PromptSettingsProvider>();
+    final regexProvider = context.read<RegexSettingsProvider>();
     final contactProvider = context.read<ContactProvider>();
     final momentsProvider = context.read<MomentsProvider>();
     final memoryProvider = context.read<MemoryProvider>();
@@ -1293,6 +1335,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         }
       },
       enableExtendedChat: chat.enableExtendedChat,
+      enableTextToImage: chat.enableTextToImage,
       delayedReplySeconds:
           forceImmediate ? 0 : promptProvider.delayedReplySeconds,
       roleMemories: memoryProvider
@@ -1307,6 +1350,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           categoryStr: categoryStr,
         );
       },
+      regexProvider: regexProvider,
     );
   }
 
@@ -1509,6 +1553,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final chatProvider = context.read<ChatProvider>();
     final apiProvider = context.read<ApiSettingsProvider>();
     final promptProvider = context.read<PromptSettingsProvider>();
+    final regexProvider = context.read<RegexSettingsProvider>();
     final contactProvider = context.read<ContactProvider>();
     final momentsProvider = context.read<MomentsProvider>();
     final memoryProvider = context.read<MemoryProvider>();
@@ -1569,6 +1614,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         }
       },
       enableExtendedChat: chat.enableExtendedChat,
+      enableTextToImage: chat.enableTextToImage,
       delayedReplySeconds: 0, // 回溯后通常立即回复
       roleMemories: memoryProvider
           .getMemoriesForRole(role.id)
@@ -1582,6 +1628,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           categoryStr: categoryStr,
         );
       },
+      regexProvider: regexProvider,
     );
   }
 
@@ -2203,21 +2250,51 @@ class _ImageBubble extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(4),
-          child: Image.file(
-            File(imagePath),
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                width: 100,
-                height: 100,
-                color: Colors.grey[300],
-                child: const Icon(Icons.broken_image, color: Colors.grey),
-              );
-            },
-          ),
+          child: _buildImage(),
         ),
       ),
     );
+  }
+
+  Widget _buildImage() {
+    // 检查是否是网络图片（AI生成的图片可能是URL）
+    if (imagePath.startsWith('http')) {
+      return Image.network(
+        imagePath,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            width: 100,
+            height: 100,
+            color: Colors.grey[300],
+            child: const Icon(Icons.broken_image, color: Colors.grey),
+          );
+        },
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            width: 100,
+            height: 100,
+            color: Colors.grey[200],
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        },
+      );
+    } else {
+      // 本地文件
+      return Image.file(
+        File(imagePath),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            width: 100,
+            height: 100,
+            color: Colors.grey[300],
+            child: const Icon(Icons.broken_image, color: Colors.grey),
+          );
+        },
+      );
+    }
   }
 }
 
@@ -2233,29 +2310,54 @@ class _FullScreenImageViewer extends StatelessWidget {
       backgroundColor: Colors.black,
       body: GestureDetector(
         onTap: () => Navigator.pop(context),
-        child: Center(
+        child: SizedBox.expand(
           child: InteractiveViewer(
             minScale: 0.5,
             maxScale: 4.0,
-            child: Image.file(
-              File(imagePath),
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.broken_image, color: Colors.white, size: 64),
-                      SizedBox(height: 16),
-                      Text('图片加载失败', style: TextStyle(color: Colors.white)),
-                    ],
-                  ),
-                );
-              },
+            child: Center(
+              child: _buildImage(),
             ),
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildImage() {
+    if (imagePath.startsWith('http')) {
+      return Image.network(
+        imagePath,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.broken_image, color: Colors.white, size: 64),
+                SizedBox(height: 16),
+                Text('图片加载失败', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+          );
+        },
+      );
+    } else {
+      return Image.file(
+        File(imagePath),
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) {
+          return const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.broken_image, color: Colors.white, size: 64),
+                SizedBox(height: 16),
+                Text('图片加载失败', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+          );
+        },
+      );
+    }
   }
 }

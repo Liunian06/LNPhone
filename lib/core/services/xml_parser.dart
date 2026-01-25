@@ -1,6 +1,10 @@
 import 'dart:convert';
 import 'package:xml/xml.dart';
 import '../models/chat_model.dart';
+import 'image_generation_service.dart';
+import '../database/database.dart';
+import '../providers/regex_settings_provider.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 /// 响应解析器
 /// 解析 AI 返回的 JSON 或 XML 格式回复，转换为多条聊天消息
@@ -10,103 +14,137 @@ class ResponseParser {
   ///
   /// [simpleIdToRealId] - 简化ID到真实ID的映射表，用于将AI回复中的简化ID转换回真实ID
   /// 返回解析后的消息列表。如果返回空列表，表示 AI 选择沉默（不回复）
-  static List<ChatMessage> parse(
+  static Future<List<ChatMessage>> parse(
     String rawResponse,
     String messageIdPrefix, {
     Map<String, String>? simpleIdToRealId,
-  }) {
+    bool enableTextToImage = false,
+    RegexSettingsProvider? regexProvider,
+  }) async {
     print('[ResponseParser] ========== 开始解析响应 ==========');
     print('[ResponseParser] 原始响应长度: ${rawResponse.length} 字符');
 
     String cleanResponse = rawResponse.trim();
 
-    // 1. 尝试去除 Markdown 代码块标记
-    final jsonCodeBlockRegex = RegExp(r'^```(?:json)?\s*([\s\S]*?)\s*```$',
-        caseSensitive: false, multiLine: false);
-    final match = jsonCodeBlockRegex.firstMatch(cleanResponse);
-    if (match != null) {
-      print('[ResponseParser] 检测到 Markdown 代码块，提取内容...');
-      cleanResponse = match.group(1)!.trim();
+    // 使用 RegexSettingsProvider 进行预处理
+    if (regexProvider != null) {
+      print('[ResponseParser] 使用自定义正则规则处理响应...');
+      cleanResponse = regexProvider.processText(cleanResponse).trim();
+    } else {
+      // 兼容旧逻辑：如果没有提供 provider，使用默认的硬编码逻辑
+      // 1. 尝试去除 Markdown 代码块标记
+      final jsonCodeBlockRegex = RegExp(r'^```(?:json)?\s*([\s\S]*?)\s*```$',
+          caseSensitive: false, multiLine: false);
+      final match = jsonCodeBlockRegex.firstMatch(cleanResponse);
+      if (match != null) {
+        print('[ResponseParser] 检测到 Markdown 代码块，提取内容...');
+        cleanResponse = match.group(1)!.trim();
+      }
     }
 
     // 2. 尝试解析为 JSON
     if (cleanResponse.startsWith('[') || cleanResponse.startsWith('{')) {
       try {
         print('[ResponseParser] 尝试解析为 JSON...');
-        return _parseJson(cleanResponse, messageIdPrefix,
-            simpleIdToRealId: simpleIdToRealId);
+        return await _parseJson(cleanResponse, messageIdPrefix,
+            simpleIdToRealId: simpleIdToRealId,
+            enableTextToImage: enableTextToImage);
       } catch (e) {
         print('[ResponseParser] ⚠️ JSON 解析失败: $e');
 
-        // 尝试修复常见的 JSON 格式错误：缺少逗号
-        // 例如: {"a":1}{"b":2} -> {"a":1},{"b":2}
-        // 注意：这只是一个简单的启发式修复，可能无法处理所有情况
-        if (cleanResponse.contains('}{')) {
-          print('[ResponseParser] 检测到可能的 JSON 格式错误 (缺少逗号)，尝试修复...');
-          final fixedJson = cleanResponse.replaceAll('}{', '},{');
+        // 如果使用了 provider，说明已经经过了正则处理，这里不再重复硬编码的修复逻辑
+        // 除非 provider 为空（兼容旧逻辑）
+        if (regexProvider == null) {
+          // 尝试修复常见的 JSON 格式错误：缺少逗号
+          final missingCommaRegex = RegExp(r'\}\s*\{');
+          if (missingCommaRegex.hasMatch(cleanResponse)) {
+            print('[ResponseParser] 检测到可能的 JSON 格式错误 (缺少逗号)，尝试修复...');
+            final fixedJson =
+                cleanResponse.replaceAll(missingCommaRegex, '},{');
+            try {
+              // 如果原始字符串不是数组包裹的，尝试包裹它
+              String jsonToParse = fixedJson;
+              if (!jsonToParse.startsWith('[')) {
+                jsonToParse = '[$jsonToParse]';
+              }
+
+              print('[ResponseParser] 尝试解析修复后的 JSON...');
+              return await _parseJson(jsonToParse, messageIdPrefix,
+                  simpleIdToRealId: simpleIdToRealId,
+                  enableTextToImage: enableTextToImage);
+            } catch (e2) {
+              print('[ResponseParser] ⚠️ 修复后的 JSON 解析仍然失败: $e2');
+            }
+          }
+
+          // 尝试修复其他常见的 JSON 错误
           try {
-            // 如果原始字符串不是数组包裹的，尝试包裹它
-            String jsonToParse = fixedJson;
-            if (!jsonToParse.startsWith('[')) {
-              jsonToParse = '[$jsonToParse]';
+            String fixedJson = cleanResponse;
+            bool modified = false;
+
+            // 1. 修复尾随逗号 (Trailing commas)
+            if (RegExp(r',\s*([\]}])').hasMatch(fixedJson)) {
+              fixedJson = fixedJson.replaceAllMapped(
+                  RegExp(r',\s*([\]}])'), (match) => match.group(1)!);
+              modified = true;
             }
 
-            print('[ResponseParser] 尝试解析修复后的 JSON...');
-            return _parseJson(jsonToParse, messageIdPrefix,
-                simpleIdToRealId: simpleIdToRealId);
-          } catch (e2) {
-            print('[ResponseParser] ⚠️ 修复后的 JSON 解析仍然失败: $e2');
+            if (modified) {
+              print('[ResponseParser] 尝试解析进一步修复的 JSON...');
+              return await _parseJson(fixedJson, messageIdPrefix,
+                  simpleIdToRealId: simpleIdToRealId,
+                  enableTextToImage: enableTextToImage);
+            }
+          } catch (e3) {
+            print('[ResponseParser] ⚠️ 进一步修复后的 JSON 解析仍然失败: $e3');
+          }
+
+          // 3. 尝试去除所有反斜杠 (针对某些过度转义的情况)
+          if (cleanResponse.contains(r'\')) {
+            try {
+              print('[ResponseParser] 尝试去除所有反斜杠后解析...');
+              final noBackslashJson = cleanResponse.replaceAll(r'\', '');
+              return await _parseJson(noBackslashJson, messageIdPrefix,
+                  simpleIdToRealId: simpleIdToRealId,
+                  enableTextToImage: enableTextToImage);
+            } catch (e4) {
+              print('[ResponseParser] ⚠️ 去除反斜杠后的 JSON 解析仍然失败: $e4');
+            }
+          }
+
+          // 4. 尝试去除所有空格 (针对包含大量空格的情况)
+          if (cleanResponse.contains(' ')) {
+            try {
+              print('[ResponseParser] 尝试去除所有空格后解析...');
+              final noSpaceJson = cleanResponse.replaceAll(' ', '');
+              return await _parseJson(noSpaceJson, messageIdPrefix,
+                  simpleIdToRealId: simpleIdToRealId,
+                  enableTextToImage: enableTextToImage);
+            } catch (e5) {
+              print('[ResponseParser] ⚠️ 去除空格后的 JSON 解析仍然失败: $e5');
+            }
           }
         }
 
-        // 尝试修复其他常见的 JSON 错误
-        try {
-          String fixedJson = cleanResponse;
-          bool modified = false;
-
-          // 1. 修复尾随逗号 (Trailing commas)
-          // e.g., [{"a":1},] -> [{"a":1}]
-          if (RegExp(r',\s*([\]}])').hasMatch(fixedJson)) {
-            fixedJson = fixedJson.replaceAllMapped(
-                RegExp(r',\s*([\]}])'), (match) => match.group(1)!);
-            modified = true;
-          }
-
-          // 2. 修复未转义的换行符 (Unescaped newlines)
-          // JSON 字符串中不允许直接换行，必须是 \n
-          if (fixedJson.contains('\n')) {
-            // 这是一个比较激进的修复，可能会破坏格式化的 JSON
-            // 我们只在解析失败后尝试
-            // 简单的策略：如果换行符不在引号内，保留；如果在引号内，替换为 \\n
-            // 但这很难用正则完美实现。
-            // 替代策略：直接将所有换行符替换为 \\n，但这会破坏多行 JSON 的结构
-            // 所以这里只处理明显的错误：比如 content 字段中的换行
-            // 暂时跳过这个复杂的修复，避免引入更多问题
-          }
-
-          if (modified) {
-            print('[ResponseParser] 尝试解析进一步修复的 JSON...');
-            return _parseJson(fixedJson, messageIdPrefix,
-                simpleIdToRealId: simpleIdToRealId);
-          }
-        } catch (e3) {
-          print('[ResponseParser] ⚠️ 进一步修复后的 JSON 解析仍然失败: $e3');
-        }
-
-        print('[ResponseParser] 尝试回退到 XML 解析...');
+        // 如果看起来像 JSON 但解析失败，直接抛出异常，触发重试
+        // 不再回退到 XML 解析，因为这通常会导致错误的文本输出
+        throw FormatException('JSON 解析失败，且无法修复: $e');
       }
     }
 
     // 3. 回退到 XML 解析
-    return _parseXml(rawResponse, messageIdPrefix,
-        simpleIdToRealId: simpleIdToRealId);
+    return await _parseXml(rawResponse, messageIdPrefix,
+        simpleIdToRealId: simpleIdToRealId,
+        enableTextToImage: enableTextToImage,
+        regexProvider: regexProvider);
   }
 
-  static List<ChatMessage> _parseJson(
+  static Future<List<ChatMessage>> _parseJson(
     String jsonString,
     String messageIdPrefix, {
     Map<String, String>? simpleIdToRealId,
-  }) {
+    bool enableTextToImage = false,
+  }) async {
     final messages = <ChatMessage>[];
     dynamic decoded;
 
@@ -135,10 +173,11 @@ class ResponseParser {
         return [];
       }
 
-      final message = _parseJsonItem(
+      final message = await _parseJsonItem(
         item,
         '$messageIdPrefix-$messageIndex',
         simpleIdToRealId: simpleIdToRealId,
+        enableTextToImage: enableTextToImage,
       );
 
       if (message != null) {
@@ -154,13 +193,20 @@ class ResponseParser {
     return messages;
   }
 
-  static ChatMessage? _parseJsonItem(
+  static Future<ChatMessage?> _parseJsonItem(
     Map<String, dynamic> item,
     String messageId, {
     Map<String, String>? simpleIdToRealId,
-  }) {
+    bool enableTextToImage = false,
+  }) async {
     final typeStr = item['type'] as String?;
-    final content = item['content'] as String? ?? '';
+    String content = item['content'] as String? ?? '';
+
+    // 自动删除内容中的空格
+    if (content.contains(' ')) {
+      content = content.replaceAll(' ', '');
+    }
+
     final timestamp = DateTime.now().millisecondsSinceEpoch;
 
     if (typeStr == null) return null;
@@ -203,6 +249,37 @@ class ResponseParser {
         break;
       case 'emoji':
         return null; // 暂不支持
+      case 'image':
+        if (!enableTextToImage) {
+          print(
+              '[ResponseParser] ⚠️ 检测到图片消息，但文生图功能未启用 (enableTextToImage=false)，已忽略');
+          return null; // 如果未启用文生图，则忽略图片消息
+        }
+        type = MessageType.image;
+        // 触发图片生成
+        String stylePrompt = '';
+        try {
+          stylePrompt = await rootBundle
+              .loadString('assets/prompts/text2image_prompt.txt');
+        } catch (e) {
+          // ignore
+        }
+        final includeCharacter = item['includeCharacter'] as bool? ?? false;
+        final includeUser = item['includeUser'] as bool? ?? false;
+
+        final imagePath = await ImageGenerationService().generateImage(
+          content,
+          stylePrompt,
+          includeCharacter: includeCharacter,
+          includeUser: includeUser,
+        );
+        if (imagePath != null) {
+          content = imagePath; // 替换内容为本地图片路径
+        } else {
+          content = '图片生成失败';
+          type = MessageType.words; // 降级为文本
+        }
+        break;
       case 'location':
         type = MessageType.location;
         break;
@@ -281,17 +358,34 @@ class ResponseParser {
     );
   }
 
-  static List<ChatMessage> _parseXml(
+  static Future<List<ChatMessage>> _parseXml(
     String xmlResponse,
     String messageIdPrefix, {
     Map<String, String>? simpleIdToRealId,
-  }) {
+    bool enableTextToImage = false,
+    RegexSettingsProvider? regexProvider,
+  }) async {
     print('[ResponseParser] (XML) 开始解析 XML...');
     final messages = <ChatMessage>[];
     int messageIndex = 0;
 
     try {
       String xmlToParse = xmlResponse.trim();
+
+      // 如果使用了 provider，说明已经经过了正则处理
+      if (regexProvider != null) {
+        // 已经处理过了，直接使用
+      } else {
+        // 兼容旧逻辑
+        final outputMatch = RegExp(
+          r'<output>(.*?)</output>',
+          dotAll: true,
+        ).firstMatch(xmlToParse);
+
+        if (outputMatch != null) {
+          xmlToParse = '<output>${outputMatch.group(1)}</output>';
+        }
+      }
 
       if (xmlToParse.isEmpty) {
         return messages;
@@ -302,14 +396,8 @@ class ResponseParser {
         return messages;
       }
 
-      final outputMatch = RegExp(
-        r'<output>(.*?)</output>',
-        dotAll: true,
-      ).firstMatch(xmlToParse);
-
-      if (outputMatch != null) {
-        xmlToParse = '<output>${outputMatch.group(1)}</output>';
-      } else {
+      // 检查是否包含 output 标签，如果不包含，尝试自动包裹
+      if (!xmlToParse.contains('<output>')) {
         final knownTags = [
           'words',
           'action',
@@ -347,7 +435,7 @@ class ResponseParser {
                 id: '$messageIdPrefix-0',
                 isMe: false,
                 type: MessageType.words,
-                content: xmlToParse,
+                content: xmlToParse.replaceAll(' ', ''),
                 timestamp: DateTime.now().millisecondsSinceEpoch,
                 isRead: false,
               ),
@@ -370,7 +458,7 @@ class ResponseParser {
               id: '$messageIdPrefix-0',
               isMe: false,
               type: MessageType.words,
-              content: content,
+              content: content.replaceAll(' ', ''),
               timestamp: DateTime.now().millisecondsSinceEpoch,
               isRead: false,
             ),
@@ -389,12 +477,13 @@ class ResponseParser {
           continue;
         }
 
-        final message = _parseXmlElement(
+        final message = await _parseXmlElement(
           tagName,
           content,
           element,
           '$messageIdPrefix-$messageIndex',
           simpleIdToRealId: simpleIdToRealId,
+          enableTextToImage: enableTextToImage,
         );
 
         if (message != null) {
@@ -412,7 +501,7 @@ class ResponseParser {
             id: '$messageIdPrefix-0',
             isMe: false,
             type: MessageType.words,
-            content: content,
+            content: content.replaceAll(' ', ''),
             timestamp: DateTime.now().millisecondsSinceEpoch,
             isRead: false,
           ),
@@ -427,13 +516,19 @@ class ResponseParser {
     return ['state', 'emoji', 'location'].contains(tagName);
   }
 
-  static ChatMessage? _parseXmlElement(
+  static Future<ChatMessage?> _parseXmlElement(
     String tagName,
     String content,
     XmlElement element,
     String messageId, {
     Map<String, String>? simpleIdToRealId,
-  }) {
+    bool enableTextToImage = false,
+  }) async {
+    // 自动删除内容中的空格
+    if (content.contains(' ')) {
+      content = content.replaceAll(' ', '');
+    }
+
     final timestamp = DateTime.now().millisecondsSinceEpoch;
 
     String? refId = element.getAttribute('ref');
@@ -446,7 +541,15 @@ class ResponseParser {
     if (refId == null || refId.isEmpty) {
       final idAttr = element.getAttribute('id');
       if (idAttr != null && idAttr.isNotEmpty) {
-        if (RegExp(r'^\d{4}$').hasMatch(idAttr)) {
+        // 默认校验规则
+        bool isValidId = RegExp(r'^\d{4}$').hasMatch(idAttr);
+
+        // 如果有自定义规则，尝试查找 ID 校验规则
+        // 注意：这里我们无法直接访问 provider，因为 _parseXmlElement 是静态方法且未传递 provider
+        // 但通常 ID 校验是硬编码的逻辑，如果需要自定义，可以在 provider 中添加一个专门的方法
+        // 目前保持原样，因为 ID 格式通常是固定的
+
+        if (isValidId) {
           refId = idAttr;
         }
       }
@@ -510,6 +613,51 @@ class ResponseParser {
 
       case 'emoji':
         return null;
+
+      case 'image':
+        if (!enableTextToImage) {
+          print(
+              '[ResponseParser] ⚠️ (XML) 检测到图片消息，但文生图功能未启用 (enableTextToImage=false)，已忽略');
+          return null; // 如果未启用文生图，则忽略图片消息
+        }
+        // 触发图片生成
+        String stylePrompt = '';
+        try {
+          stylePrompt = await rootBundle
+              .loadString('assets/prompts/text2image_prompt.txt');
+        } catch (e) {
+          // ignore
+        }
+        final includeCharacterStr = element.getAttribute('includeCharacter');
+        final includeUserStr = element.getAttribute('includeUser');
+        final includeCharacter = includeCharacterStr?.toLowerCase() == 'true';
+        final includeUser = includeUserStr?.toLowerCase() == 'true';
+
+        final imagePath = await ImageGenerationService().generateImage(
+          content,
+          stylePrompt,
+          includeCharacter: includeCharacter,
+          includeUser: includeUser,
+        );
+        String finalContent = content;
+        MessageType finalType = MessageType.image;
+
+        if (imagePath != null) {
+          finalContent = imagePath;
+        } else {
+          finalContent = '图片生成失败';
+          finalType = MessageType.words;
+        }
+
+        return ChatMessage(
+          id: messageId,
+          isMe: false,
+          type: finalType,
+          content: finalContent,
+          timestamp: timestamp,
+          metadata: metadata.isEmpty ? null : metadata,
+          isRead: false,
+        );
 
       case 'location':
         return ChatMessage(

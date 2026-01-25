@@ -47,7 +47,16 @@ class ContactProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     bool hasMigrated = false;
 
-    // 迁移角色数据（增量更新：只添加数据库中没有的）
+    // 检查数据库是否为空，如果为空则强制尝试恢复
+    final existingRoles = await _db.getAllContactRoles();
+    final existingMeList = await _db.getAllContactMes();
+    final isDbEmpty = existingRoles.isEmpty && existingMeList.isEmpty;
+
+    if (isDbEmpty) {
+      debugPrint('[ContactProvider] 数据库为空，尝试从 SharedPreferences 恢复数据...');
+    }
+
+    // 迁移角色数据
     final rolesJson = prefs.getString('contact_roles');
     if (rolesJson != null) {
       try {
@@ -55,11 +64,8 @@ class ContactProvider extends ChangeNotifier {
         final rolesFromPrefs =
             decoded.map((item) => ContactRole.fromJson(item)).toList();
 
-        // 获取数据库中已有的角色 ID
-        final existingRoles = await _db.getAllContactRoles();
         final existingRoleIds = existingRoles.map((r) => r.id).toSet();
 
-        // 只添加数据库中不存在的角色
         int addedCount = 0;
         for (final role in rolesFromPrefs) {
           if (!existingRoleIds.contains(role.id)) {
@@ -68,19 +74,21 @@ class ContactProvider extends ChangeNotifier {
           }
         }
 
-        // 迁移成功后清除旧数据
-        await prefs.remove('contact_roles');
-        hasMigrated = true;
+        // 只有在成功迁移且数据库不为空时才删除旧数据，或者如果数据库本来就是空的（首次迁移）
+        // 为了安全起见，我们暂时不删除 SharedPreferences 中的数据，直到确认迁移完全成功
+        // await prefs.remove('contact_roles');
+
         if (addedCount > 0) {
+          hasMigrated = true;
           debugPrint(
-              '[ContactProvider] 已从 SharedPreferences 增量添加 $addedCount 个角色');
+              '[ContactProvider] 已从 SharedPreferences 恢复 $addedCount 个角色');
         }
       } catch (e) {
         debugPrint('[ContactProvider] 迁移角色数据失败: $e');
       }
     }
 
-    // 迁移用户数据（增量更新：只添加数据库中没有的）
+    // 迁移用户数据
     final meListJson = prefs.getString('contact_me_list');
     if (meListJson != null) {
       try {
@@ -88,11 +96,8 @@ class ContactProvider extends ChangeNotifier {
         final meListFromPrefs =
             decoded.map((item) => ContactMe.fromJson(item)).toList();
 
-        // 获取数据库中已有的用户人设 ID
-        final existingMeList = await _db.getAllContactMes();
         final existingMeIds = existingMeList.map((m) => m.id).toSet();
 
-        // 只添加数据库中不存在的用户人设
         int addedCount = 0;
         for (final me in meListFromPrefs) {
           if (!existingMeIds.contains(me.id)) {
@@ -101,12 +106,12 @@ class ContactProvider extends ChangeNotifier {
           }
         }
 
-        // 迁移成功后清除旧数据
-        await prefs.remove('contact_me_list');
-        hasMigrated = true;
+        // await prefs.remove('contact_me_list');
+
         if (addedCount > 0) {
+          hasMigrated = true;
           debugPrint(
-              '[ContactProvider] 已从 SharedPreferences 增量添加 $addedCount 个用户人设');
+              '[ContactProvider] 已从 SharedPreferences 恢复 $addedCount 个用户人设');
         }
       } catch (e) {
         debugPrint('[ContactProvider] 迁移用户人设失败: $e');
@@ -114,8 +119,20 @@ class ContactProvider extends ChangeNotifier {
     }
 
     if (hasMigrated) {
-      debugPrint('[ContactProvider] 数据迁移完成');
+      debugPrint('[ContactProvider] 数据迁移/恢复完成');
+    } else if (isDbEmpty) {
+      debugPrint('[ContactProvider] 警告: 数据库为空且未从 SharedPreferences 找到可恢复的数据');
     }
+  }
+
+  /// 强制从旧版存储恢复数据（公开方法，用于设置界面手动触发）
+  Future<void> forceRestoreFromLegacy() async {
+    debugPrint('[ContactProvider] 手动触发旧版数据恢复...');
+    await _migrateFromSharedPreferences();
+    // 刷新内存中的数据
+    _roles = await _db.getAllContactRoles();
+    _meList = await _db.getAllContactMes();
+    notifyListeners();
   }
 
   Future<void> _saveRole(ContactRole role) async {
@@ -141,14 +158,22 @@ class ContactProvider extends ChangeNotifier {
   Future<void> addRole(
     String name,
     String? avatarPath,
-    String description,
-  ) async {
+    String description, {
+    String? appearance,
+    List<String> referenceImages = const [],
+  }) async {
     try {
+      final id = _generateId();
+      // 保存图片到持久化存储
+      final savedAvatarPath = await _saveProfileImage(avatarPath, id);
+
       final newRole = ContactRole(
-        id: _generateId(),
+        id: id,
         name: name,
-        avatarPath: avatarPath,
+        avatarPath: savedAvatarPath,
         description: description,
+        appearance: appearance,
+        referenceImages: referenceImages,
       );
       _roles.add(newRole);
       await _saveRole(newRole);
@@ -160,13 +185,25 @@ class ContactProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> addMe(String name, String? avatarPath, String info) async {
+  Future<void> addMe(
+    String name,
+    String? avatarPath,
+    String info, {
+    String? appearance,
+    List<String> referenceImages = const [],
+  }) async {
     try {
+      final id = _generateId();
+      // 保存图片到持久化存储
+      final savedAvatarPath = await _saveProfileImage(avatarPath, id);
+
       final newMe = ContactMe(
-        id: _generateId(),
+        id: id,
         name: name,
-        avatarPath: avatarPath,
+        avatarPath: savedAvatarPath,
         info: info,
+        appearance: appearance,
+        referenceImages: referenceImages,
       );
       _meList.add(newMe);
       await _saveMe(newMe);
@@ -182,16 +219,28 @@ class ContactProvider extends ChangeNotifier {
     String id,
     String name,
     String? avatarPath,
-    String description,
-  ) async {
+    String description, {
+    String? appearance,
+    List<String> referenceImages = const [],
+  }) async {
     try {
       final index = _roles.indexWhere((role) => role.id == id);
       if (index != -1) {
+        final oldRole = _roles[index];
+        String? finalAvatarPath = avatarPath;
+
+        // 如果头像路径变了，保存新图片
+        if (avatarPath != oldRole.avatarPath) {
+          finalAvatarPath = await _saveProfileImage(avatarPath, id);
+        }
+
         final updatedRole = ContactRole(
           id: id,
           name: name,
-          avatarPath: avatarPath,
+          avatarPath: finalAvatarPath,
           description: description,
+          appearance: appearance,
+          referenceImages: referenceImages,
         );
         _roles[index] = updatedRole;
         await _saveRole(updatedRole);
@@ -222,16 +271,28 @@ class ContactProvider extends ChangeNotifier {
     String id,
     String name,
     String? avatarPath,
-    String info,
-  ) async {
+    String info, {
+    String? appearance,
+    List<String> referenceImages = const [],
+  }) async {
     try {
       final index = _meList.indexWhere((me) => me.id == id);
       if (index != -1) {
+        final oldMe = _meList[index];
+        String? finalAvatarPath = avatarPath;
+
+        // 如果头像路径变了，保存新图片
+        if (avatarPath != oldMe.avatarPath) {
+          finalAvatarPath = await _saveProfileImage(avatarPath, id);
+        }
+
         final updatedMe = ContactMe(
           id: id,
           name: name,
-          avatarPath: avatarPath,
+          avatarPath: finalAvatarPath,
           info: info,
+          appearance: appearance,
+          referenceImages: referenceImages,
         );
         _meList[index] = updatedMe;
         await _saveMe(updatedMe);
@@ -262,6 +323,32 @@ class ContactProvider extends ChangeNotifier {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final random = Random().nextInt(10000);
     return '$timestamp-$random';
+  }
+
+  /// 将图片保存到应用文档目录，防止临时文件被清理
+  Future<String?> _saveProfileImage(String? sourcePath, String id) async {
+    if (sourcePath == null || sourcePath.isEmpty) return null;
+
+    try {
+      final sourceFile = File(sourcePath);
+      if (!await sourceFile.exists()) return null;
+
+      final appDir = await getApplicationDocumentsDirectory();
+      // 检查源文件是否已经在文档目录下（避免重复复制）
+      // 注意：在 iOS 上路径可能会变化，这里主要防止当次操作的重复复制
+      if (sourcePath.startsWith(appDir.path)) {
+        return sourcePath;
+      }
+
+      final fileName =
+          'avatar_${id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final savedImage = await sourceFile.copy('${appDir.path}/$fileName');
+      debugPrint('[ContactProvider] 图片已保存到持久化目录: ${savedImage.path}');
+      return savedImage.path;
+    } catch (e) {
+      debugPrint('[ContactProvider] 保存图片失败: $e');
+      return sourcePath; // 失败时返回原路径
+    }
   }
 
   // 辅助方法：读取文件为Base64
@@ -355,6 +442,8 @@ class ContactProvider extends ChangeNotifier {
                   name: role.name,
                   avatarPath: newPath,
                   description: role.description,
+                  appearance: role.appearance,
+                  referenceImages: role.referenceImages,
                 );
               }
             }
@@ -384,6 +473,8 @@ class ContactProvider extends ChangeNotifier {
                   name: me.name,
                   avatarPath: newPath,
                   info: me.info,
+                  appearance: me.appearance,
+                  referenceImages: me.referenceImages,
                 );
               }
             }

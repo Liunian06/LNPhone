@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import 'package:restart_app/restart_app.dart';
 import '../core/providers/system_state_provider.dart';
 import '../core/providers/chat_provider.dart';
+import '../core/providers/contact_provider.dart';
 import '../core/data/grid_default_apps.dart';
 import '../core/services/api_log_service.dart';
 import '../core/services/app_log_service.dart';
@@ -18,6 +19,8 @@ import '../widgets/ios_wallpaper.dart';
 import 'api_settings_screen.dart';
 import 'prompt_settings_screen.dart';
 import 'lock_screen_style_screen.dart';
+import 'desktop_style_screen.dart';
+import 'regex_settings_screen.dart';
 
 /// 设置界面
 class SettingsScreen extends StatefulWidget {
@@ -48,8 +51,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     SettingsSection(
                       children: [
                         SettingsTile(
-                          title: 'API 配置',
-                          subtitle: '管理 LLM 接口与模型',
+                          title: 'API 设置',
+                          subtitle: '管理聊天与生图模型',
                           icon: CupertinoIcons.settings,
                           onTap: () => Navigator.push(
                             context,
@@ -67,6 +70,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             MaterialPageRoute(
                               builder: (context) =>
                                   const PromptSettingsScreen(),
+                            ),
+                          ),
+                        ),
+                        SettingsTile(
+                          title: '正则设置',
+                          subtitle: '管理响应后处理规则',
+                          icon: CupertinoIcons.wand_stars,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const RegexSettingsScreen(),
                             ),
                           ),
                         ),
@@ -180,6 +194,17 @@ class _DisplaySettingsScreenState extends State<DisplaySettingsScreen> {
                           icon: CupertinoIcons.photo_fill,
                           onTap: () =>
                               _showWallpaperSettings(isLockScreen: false),
+                        ),
+                        SettingsTile(
+                          title: '桌面样式',
+                          subtitle: '自定义字体颜色与阴影',
+                          icon: CupertinoIcons.paintbrush,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const DesktopStyleScreen(),
+                            ),
+                          ),
                         ),
                         SettingsTile(
                           title: '锁屏壁纸',
@@ -319,6 +344,12 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
                           subtitle: '从文件恢复设置',
                           icon: CupertinoIcons.square_arrow_down_fill,
                           onTap: _importSettings,
+                        ),
+                        SettingsTile(
+                          title: '尝试恢复旧版数据',
+                          subtitle: '如果升级后数据丢失，请尝试此选项',
+                          icon: CupertinoIcons.arrow_2_circlepath,
+                          onTap: _tryRestoreLegacyData,
                         ),
                         SettingsTile(
                           title: '导出 API 日志',
@@ -597,6 +628,67 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
           ],
         ),
       );
+    }
+  }
+
+  void _tryRestoreLegacyData() async {
+    final confirm = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('恢复旧版数据'),
+        content:
+            const Text('此操作将尝试从旧版本的存储中查找并恢复联系人数据。\n\n仅当您升级应用后发现角色或人设丢失时使用。'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.pop(context, false),
+          ),
+          CupertinoDialogAction(
+            child: const Text('尝试恢复'),
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    try {
+      // 强制执行迁移逻辑
+      final provider = context.read<ContactProvider>();
+      await provider.forceRestoreFromLegacy();
+
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('恢复完成'),
+            content: const Text('已尝试恢复数据。如果数据仍然缺失，可能已被系统清除。'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('确定'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showCupertinoDialog(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('恢复失败'),
+            content: Text('错误：$e'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('确定'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      }
     }
   }
 

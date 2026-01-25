@@ -131,6 +131,30 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 isDark: isDark,
                 child: SwitchListTile(
                   title: Text(
+                    '启用文生图',
+                    style: TextStyle(
+                        fontSize: 16,
+                        color: textColor,
+                        fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    '开启后角色可以发送图片（需要配置生图模型）',
+                    style: TextStyle(fontSize: 13, color: subtitleColor),
+                  ),
+                  value: chat.enableTextToImage,
+                  activeColor: const Color(0xFF07C160),
+                  onChanged: (value) async {
+                    await chatProvider.updateChatSettings(
+                      widget.chatId,
+                      enableTextToImage: value,
+                    );
+                  },
+                ),
+              ),
+              _buildSettingItem(
+                isDark: isDark,
+                child: SwitchListTile(
+                  title: Text(
                     '启用独立发送/续写按钮',
                     style: TextStyle(
                         fontSize: 16,

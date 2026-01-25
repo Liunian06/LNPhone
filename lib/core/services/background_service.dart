@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'dart:isolate';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -276,7 +277,17 @@ class BackgroundService {
 
       // 加载 Prompt 设置（从数据库读取）
       debugPrint('[BG] 加载 Prompt 设置...');
-      final roleplayPrompt = await db.getSetting('roleplay_prompt') ?? '';
+      // roleplay_prompt 强制从 assets 读取
+      String roleplayPrompt = '';
+      try {
+        roleplayPrompt = await rootBundle.loadString(
+          'assets/prompts/roleplay_prompt.txt',
+        );
+      } catch (e) {
+        debugPrint('[BG] Error loading roleplay_prompt: $e');
+        roleplayPrompt = '你是一个AI助手，正在进行角色扮演任务。请完全沉浸在设定的角色中，不要暴露你是AI的身份。';
+      }
+
       final realityPrompt = await db.getSetting('reality_prompt') ?? '';
       final enableRealityPrompt =
           await db.getSettingBool('enable_reality_prompt') ?? true;

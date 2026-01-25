@@ -34,12 +34,23 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                         const SizedBox(height: 20),
                         _buildSectionTitle('系统提示词 (System Prompt)', isDark),
                         const SizedBox(height: 10),
-                        _PromptInputField(
-                          title: 'Roleplay Prompt',
-                          subtitle: '引导 AI 进行角色扮演任务',
-                          value: provider.roleplayPrompt,
-                          onChanged: provider.updateRoleplayPrompt,
-                          maxLines: 4,
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.1)
+                                : Colors.black.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            'Roleplay Prompt版本：${_extractVersion(provider.roleplayPrompt)}',
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 10),
                         Center(
@@ -62,6 +73,15 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                         ),
                         const SizedBox(height: 16),
                         _buildRealityPromptSection(provider, isDark),
+                        const SizedBox(height: 16),
+                        _PromptInputField(
+                          title: 'Text2Image Prompt',
+                          subtitle: '生图风格提示词（将拼接在图片描述前）(只读)',
+                          value: provider.text2ImagePrompt,
+                          onChanged: (_) {},
+                          maxLines: 3,
+                          readOnly: true,
+                        ),
                         const SizedBox(height: 30),
                         _buildSectionTitle('用户提示词 (User Prompt)', isDark),
                         const SizedBox(height: 10),
@@ -84,6 +104,15 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
         ),
       ),
     );
+  }
+
+  String _extractVersion(String content) {
+    final RegExp regex = RegExp(r'\*\*Version\*\*: (.*)');
+    final match = regex.firstMatch(content);
+    if (match != null) {
+      return match.group(1)?.trim() ?? '未知版本';
+    }
+    return '未知版本';
   }
 
   Widget _buildHeader(bool isDark) {
@@ -587,6 +616,7 @@ class _PromptInputField extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final int maxLines;
   final bool showHeader;
+  final bool readOnly;
 
   const _PromptInputField({
     required this.title,
@@ -595,6 +625,7 @@ class _PromptInputField extends StatefulWidget {
     required this.onChanged,
     this.maxLines = 1,
     this.showHeader = true,
+    this.readOnly = false,
   });
 
   @override
@@ -675,7 +706,12 @@ class _PromptInputFieldState extends State<_PromptInputField> {
             controller: _controller,
             onChanged: widget.onChanged,
             maxLines: widget.maxLines,
-            style: TextStyle(color: textColor),
+            readOnly: widget.readOnly,
+            style: TextStyle(
+              color: widget.readOnly
+                  ? textColor.withValues(alpha: 0.5)
+                  : textColor,
+            ),
             decoration: BoxDecoration(
               color: inputBgColor,
               borderRadius: BorderRadius.circular(8),
