@@ -14,6 +14,7 @@ import '../models/text_preset_model.dart';
 import '../models/memory_model.dart';
 import '../models/wallet_model.dart';
 import 'tables.dart';
+import '../models/emoji_model.dart';
 
 part 'database.g.dart';
 
@@ -30,6 +31,8 @@ part 'database.g.dart';
   MomentsUserSettings,
   AppSettings,
   WalletTransactions,
+  Emojis,
+  EmojiGroups,
 ])
 class AppDatabase extends _$AppDatabase {
   // Singleton instance
@@ -77,7 +80,7 @@ class AppDatabase extends _$AppDatabase {
   static bool get hasActiveConnection => _instance != null;
 
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 23;
 
   // Migration Strategy
   @override
@@ -194,6 +197,54 @@ class AppDatabase extends _$AppDatabase {
           } catch (e) {
             print(
                 '[Migration] Warning: failed to add referenceImages to contactMes: $e');
+          }
+        }
+        if (from < 18) {
+          // 添加表情包表
+          await m.createTable(emojis);
+        }
+        if (from < 19) {
+          // 强制检查并添加缺失的列，防止之前的迁移失败导致表结构不完整
+          try {
+            await m.addColumn(emojis, emojis.localPath);
+          } catch (e) {
+            print('[Migration] localPath column might already exist: $e');
+          }
+        }
+        if (from < 21) {
+          // 极其强健的修复逻辑：如果表已存在但缺少列，则添加列
+          // 如果表不存在，则创建表
+          try {
+            await m.createTable(emojis);
+          } catch (e) {
+            // 表可能已存在，尝试添加缺失的列
+            try {
+              await m.addColumn(emojis, emojis.localPath);
+            } catch (e2) {
+              print('[Migration] localPath column might already exist: $e2');
+            }
+            try {
+              await m.addColumn(emojis, emojis.meaning);
+            } catch (e2) {
+              print('[Migration] meaning column might already exist: $e2');
+            }
+          }
+        }
+        if (from < 22) {
+          // 添加 rawContent 列
+          try {
+            await m.addColumn(emojis, emojis.rawContent);
+          } catch (e) {
+            print('[Migration] rawContent column might already exist: $e');
+          }
+        }
+        if (from < 23) {
+          // 添加 groupId 列并创建 EmojiGroups 表
+          try {
+            await m.addColumn(emojis, emojis.groupId);
+            await m.createTable(emojiGroups);
+          } catch (e) {
+            print('[Migration] Error in version 23: $e');
           }
         }
       },
@@ -1258,6 +1309,93 @@ class AppDatabase extends _$AppDatabase {
   /// 清空所有钱包交易记录
   Future<void> clearAllWalletTransactions() async {
     await delete(walletTransactions).go();
+  }
+
+  // --- Emoji Queries ---
+
+  /// 获取所有表情包
+  Future<List<EmojiModel>> getAllEmojis() async {
+    final entities = await select(emojis).get();
+    return entities
+        .map(
+          (e) => EmojiModel(
+            id: e.id,
+            meaning: e.meaning,
+            rawContent: e.rawContent,
+            groupId: e.groupId,
+            localPath: e.localPath,
+            type: e.type,
+            roleId: e.roleId,
+            createdAt: e.createdAt,
+          ),
+        )
+        .toList();
+  }
+
+  /// 获取指定角色的表情包（包括全局表情和该角色的专属表情）
+  Future<List<EmojiModel>> getEmojisForRole(String roleId) async {
+    final query = select(emojis)
+      ..where((t) =>
+          t.type.equals(EmojiType.global.index) | t.roleId.equals(roleId))
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.id, mode: OrderingMode.asc),
+      ]);
+    final entities = await query.get();
+    return entities
+        .map(
+          (e) => EmojiModel(
+            id: e.id,
+            meaning: e.meaning,
+            rawContent: e.rawContent,
+            groupId: e.groupId,
+            localPath: e.localPath,
+            type: e.type,
+            roleId: e.roleId,
+            createdAt: e.createdAt,
+          ),
+        )
+        .toList();
+  }
+
+  /// 插入或更新表情包
+  Future<void> insertEmoji(EmojiModel emoji) {
+    return into(emojis).insert(
+      EmojisCompanion(
+        id: Value(emoji.id),
+        meaning: Value(emoji.meaning),
+        rawContent: Value(emoji.rawContent),
+        groupId: Value(emoji.groupId),
+        localPath: Value(emoji.localPath),
+        type: Value(emoji.type),
+        roleId: Value(emoji.roleId),
+        createdAt: Value(emoji.createdAt),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
+  /// 删除表情包
+  Future<void> deleteEmoji(String id) {
+    return (delete(emojis)..where((t) => t.id.equals(id))).go();
+  }
+
+  /// 批量删除表情包
+  Future<void> deleteEmojis(List<String> ids) {
+    return (delete(emojis)..where((t) => t.id.isIn(ids))).go();
+  }
+
+  // --- EmojiGroup Queries ---
+
+  Future<List<EmojiGroupEntity>> getAllEmojiGroups() async {
+    return await select(emojiGroups).get();
+  }
+
+  Future<void> insertEmojiGroup(EmojiGroupEntity group) {
+    return into(emojiGroups).insert(group, mode: InsertMode.insertOrReplace);
+  }
+
+  Future<void> deleteEmojiGroup(String id) {
+    return (delete(emojiGroups)..where((t) => t.id.equals(id))).go();
   }
 }
 

@@ -32,6 +32,7 @@ class LlmService {
     List<String> worldInfos = const [],
     List<String> textPresets = const [],
     List<String> roleMemories = const [], // 角色记忆列表
+    List<String> availableEmojis = const [], // 可用表情列表 (格式: id:meaning)
     bool enableTextToImage = false,
     RegexSettingsProvider? regexProvider,
   }) async {
@@ -76,6 +77,7 @@ class LlmService {
       textPresets,
       history,
       roleMemories,
+      availableEmojis,
     );
     print('[LLM] 系统提示词长度: ${systemPrompt.length} 字符');
 
@@ -276,6 +278,7 @@ class LlmService {
     List<String> textPresets,
     List<ChatMessage> history,
     List<String> roleMemories,
+    List<String> availableEmojis,
   ) {
     final buffer = StringBuffer();
 
@@ -333,6 +336,19 @@ class LlmService {
           'The following are important memories that ${role.name} has accumulated. Use these to maintain consistency and reference past events when relevant:');
       for (final memory in roleMemories) {
         buffer.writeln('- $memory');
+      }
+    }
+
+    // 8. Available Emojis (可用表情)
+    if (availableEmojis.isNotEmpty) {
+      buffer.writeln('\n[Available Emojis]');
+      buffer.writeln(
+          'You can use the following emojis to express emotions. Use the <emoji> tag with the emoji ID.');
+      buffer
+          .writeln('Format: <emoji id="emoji-id-xxxxx">simple content</emoji>');
+      buffer.writeln('List (Format: {id}: {simple content}: {raw content}):');
+      for (final emoji in availableEmojis) {
+        buffer.writeln(emoji);
       }
     }
 
@@ -1099,6 +1115,102 @@ class LlmService {
       print('[LLM-Gemini] ❌ 调用失败: $e');
       print('[LLM-Gemini] ❌ 堆栈跟踪: $stackTrace');
       throw Exception('Failed to call Gemini: $e');
+    }
+  }
+
+  /// 分析图片内容（用于表情包打标）
+  static Future<Map<String, String>> analyzeImage({
+    required ApiPreset apiPreset,
+    required String imagePath,
+    required String systemPrompt,
+  }) async {
+    print('[LLM] 开始分析图片: $imagePath');
+
+    final base64Image = await ImageUtils.imageToBase64(imagePath);
+    if (base64Image == null) {
+      throw Exception('无法读取图片文件');
+    }
+    String mimeType = ImageUtils.getMimeType(imagePath);
+
+    // 关键修复：处理 GIF 不支持的问题
+    // 大多数多模态 API 不支持 image/gif。
+    // 我们将其伪装成 image/png，后端通常会提取第一帧进行分析。
+    if (mimeType == 'image/gif') {
+      print('[LLM] 检测到 GIF，将其 MIME 类型转换为 image/png 以兼容 AI 分析');
+      mimeType = 'image/png';
+    }
+
+    final messages = [
+      {'role': 'system', 'content': systemPrompt},
+      {
+        'role': 'user',
+        'content': 'Please analyze this emoji.',
+        'type': 'image',
+        'image_data': base64Image,
+        'mime_type': mimeType,
+      }
+    ];
+
+    try {
+      String rawResponse;
+      if (apiPreset.provider == ApiProvider.openai) {
+        final result = await _callOpenAIWithMetadata(apiPreset, messages);
+        rawResponse = result['content'] as String;
+      } else {
+        final result = await _callGeminiWithMetadata(apiPreset, messages);
+        rawResponse = result['content'] as String;
+      }
+
+      print('[LLM] 图片分析结果: $rawResponse');
+
+      // 解析结果 (假设 Prompt 要求输出 simple_content 和 raw_content)
+      // 这里做一个简单的解析，实际可能需要更复杂的 XML 解析
+      // 假设输出格式为:
+      // <simple>开心</simple>
+      // <raw>一个黄色圆脸，笑得合不拢嘴，眼睛眯成一条缝</raw>
+
+      String simpleContent = rawResponse;
+      String? rawContent;
+
+      // 尝试提取 XML 标签
+      final simpleMatch = RegExp(r'<simple>(.*?)</simple>', dotAll: true)
+          .firstMatch(rawResponse);
+      if (simpleMatch != null) {
+        simpleContent = simpleMatch.group(1)!.trim();
+      }
+
+      final rawMatch =
+          RegExp(r'<raw>(.*?)</raw>', dotAll: true).firstMatch(rawResponse);
+      if (rawMatch != null) {
+        rawContent = rawMatch.group(1)!.trim();
+      } else {
+        // 如果没有 raw 标签，尝试把整个回复作为 rawContent (如果它比 simpleContent 长)
+        if (rawResponse.length > simpleContent.length) {
+          rawContent = rawResponse;
+        }
+      }
+
+      // 如果没有 XML 标签，尝试按行分割 (兼容旧 Prompt)
+      if (simpleMatch == null) {
+        final lines = rawResponse.split('\n');
+        if (lines.isNotEmpty) {
+          simpleContent = lines.first.trim();
+          if (lines.length > 1) {
+            rawContent = lines.sublist(1).join('\n').trim();
+          }
+        }
+      }
+
+      return {
+        'simple_content': simpleContent,
+        'raw_content': rawContent ?? '',
+      };
+    } catch (e) {
+      print('[LLM] 图片分析失败: $e');
+      return {
+        'simple_content': '表情',
+        'raw_content': '',
+      };
     }
   }
 }

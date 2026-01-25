@@ -28,6 +28,16 @@ class ContactProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 加载联系人数据（公开方法，用于外部调用）
+  Future<void> loadContacts() async {
+    if (!_isLoaded) {
+      await _loadData();
+    } else {
+      // 如果已经加载过，直接刷新
+      await reload();
+    }
+  }
+
   Future<void> _loadData() async {
     // 无论数据库是否有数据，都尝试从 SharedPreferences 迁移
     // 这样可以确保从任何中间版本升级时都不会丢失数据

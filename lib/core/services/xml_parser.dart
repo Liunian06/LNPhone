@@ -248,7 +248,14 @@ class ResponseParser {
         type = MessageType.state;
         break;
       case 'emoji':
-        return null; // 暂不支持
+        type = MessageType.emoji;
+        // 尝试从 content 中提取 ID，如果 content 本身就是 ID
+        if (content.startsWith('emoji-id-')) {
+          metadata['emoji_id'] = content;
+        } else if (item.containsKey('id')) {
+          metadata['emoji_id'] = item['id'];
+        }
+        break;
       case 'image':
         if (!enableTextToImage) {
           print(
@@ -612,7 +619,19 @@ class ResponseParser {
         );
 
       case 'emoji':
-        return null;
+        final emojiId = element.getAttribute('id');
+        if (emojiId != null && emojiId.isNotEmpty) {
+          metadata['emoji_id'] = emojiId;
+        }
+        return ChatMessage(
+          id: messageId,
+          isMe: false,
+          type: MessageType.emoji,
+          content: content, // 这里 content 可能是含义，也可能是空的
+          timestamp: timestamp,
+          metadata: metadata,
+          isRead: false,
+        );
 
       case 'image':
         if (!enableTextToImage) {

@@ -13,6 +13,7 @@ import '../core/providers/regex_settings_provider.dart';
 import '../core/providers/moments_provider.dart';
 import '../core/providers/memory_provider.dart';
 import '../core/providers/wallet_provider.dart';
+import '../core/providers/emoji_provider.dart';
 import '../core/services/llm_service.dart';
 import '../core/services/notification_service.dart';
 import '../core/models/api_preset.dart';
@@ -29,6 +30,7 @@ import 'transfer_receive_screen.dart';
 import 'transfer_result_screen.dart';
 import 'send_red_packet_screen.dart';
 import 'send_transfer_screen.dart';
+import 'emoji_picker_sheet.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final String chatId;
@@ -49,6 +51,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _showAttachmentOptions = false; // 控制是否显示附件选项
   int _lastMessageCount = 0;
   ChatMessage? _replyingMessage; // 当前正在引用的消息
+  bool _showEmojiPicker = false; // 控制是否显示表情选择器
 
   @override
   void initState() {
@@ -136,6 +139,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           onTap: () {
             _removeOverlay();
             FocusScope.of(context).unfocus();
+            setState(() => _showEmojiPicker = false);
           },
           child: Scaffold(
             resizeToAvoidBottomInset: true,
@@ -576,11 +580,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   ),
                   IconButton(
                     icon: Icon(
-                      Icons.sentiment_satisfied_alt_outlined,
+                      _showEmojiPicker
+                          ? Icons.keyboard
+                          : Icons.sentiment_satisfied_alt_outlined,
                       color: context.primaryTextColor,
                     ),
                     onPressed: () {
-                      // TODO: Show emoji picker
+                      setState(() {
+                        _showEmojiPicker = !_showEmojiPicker;
+                        _showAttachmentOptions = false;
+                        if (_showEmojiPicker) {
+                          FocusScope.of(context).unfocus();
+                        } else {
+                          _focusNode.requestFocus();
+                        }
+                      });
                     },
                   ),
                   IconButton(
@@ -593,6 +607,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     onPressed: () {
                       setState(() {
                         _showAttachmentOptions = !_showAttachmentOptions;
+                        _showEmojiPicker = false;
+                        if (_showAttachmentOptions) {
+                          FocusScope.of(context).unfocus();
+                        } else {
+                          _focusNode.requestFocus();
+                        }
                       });
                     },
                   ),
@@ -713,6 +733,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               ),
             // 附件选项区域（可选显示，放在输入框下方）
             if (_showAttachmentOptions) _buildAttachmentOptionsPanel(),
+            // 表情选择器区域
+            if (_showEmojiPicker)
+              SizedBox(
+                height: 300,
+                child: EmojiPickerSheet(
+                  roleId: role.id,
+                  onEmojiSelected: (emoji) {
+                    _sendEmoji(emoji);
+                  },
+                ),
+              ),
           ],
         ),
       ),
@@ -1101,6 +1132,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final contactProvider = context.read<ContactProvider>();
     final momentsProvider = context.read<MomentsProvider>();
     final memoryProvider = context.read<MemoryProvider>();
+    final emojiProvider = context.read<EmojiProvider>();
     final chatId = widget.chatId;
 
     final chat = chatProvider.getChat(chatId);
@@ -1141,6 +1173,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ContactMe(id: 'unknown', name: '我', info: '', avatarPath: null),
     );
 
+    // 获取可用表情
+    final availableEmojis =
+        await emojiProvider.getAvailableEmojisForRole(role.id);
+    final emojiPrompts = availableEmojis
+        .map((e) => '${e.id}: ${e.meaning}: ${e.rawContent ?? ""}')
+        .toList();
+
     // 调用 Provider 生成回复
     chatProvider.generateAiResponse(
       chatId: chatId,
@@ -1177,6 +1216,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           .getMemoriesForRole(role.id)
           .map((m) => m.content)
           .toList(),
+      availableEmojis: emojiPrompts, // 注入表情提示
       onAddMemory: (content, categoryStr) {
         memoryProvider.addMemoryFromAiResponse(
           roleId: role.id,
@@ -1201,6 +1241,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final contactProvider = context.read<ContactProvider>();
     final momentsProvider = context.read<MomentsProvider>();
     final memoryProvider = context.read<MemoryProvider>();
+    final emojiProvider = context.read<EmojiProvider>();
     final chatId = widget.chatId;
 
     // 提前获取用户人设信息（用于发送消息和引用）
@@ -1305,6 +1346,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           ContactMe(id: 'unknown', name: '我', info: '', avatarPath: null),
     );
 
+    // 获取可用表情
+    final availableEmojis =
+        await emojiProvider.getAvailableEmojisForRole(role.id);
+    final emojiPrompts = availableEmojis
+        .map((e) => '${e.id}: ${e.meaning}: ${e.rawContent ?? ""}')
+        .toList();
+
     // 3. 调用 Provider 生成回复 (不 await，让其在后台运行)
     chatProvider.generateAiResponse(
       chatId: chatId,
@@ -1342,6 +1390,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           .getMemoriesForRole(role.id)
           .map((m) => m.content)
           .toList(),
+      availableEmojis: emojiPrompts, // 注入表情提示
       onAddMemory: (content, categoryStr) {
         memoryProvider.addMemoryFromAiResponse(
           roleId: role.id,
@@ -1557,6 +1606,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final contactProvider = context.read<ContactProvider>();
     final momentsProvider = context.read<MomentsProvider>();
     final memoryProvider = context.read<MemoryProvider>();
+    final emojiProvider = context.read<EmojiProvider>();
     final chatId = widget.chatId;
 
     await chatProvider.backtrack(chatId, message.timestamp);
@@ -1584,6 +1634,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       orElse: () =>
           ContactMe(id: 'unknown', name: '我', info: '', avatarPath: null),
     );
+
+    // 获取可用表情
+    final availableEmojis =
+        await emojiProvider.getAvailableEmojisForRole(role.id);
+    final emojiPrompts = availableEmojis
+        .map((e) => '${e.id}: ${e.meaning}: ${e.rawContent ?? ""}')
+        .toList();
 
     chatProvider.generateAiResponse(
       chatId: chatId,
@@ -1620,6 +1677,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           .getMemoriesForRole(role.id)
           .map((m) => m.content)
           .toList(),
+      availableEmojis: emojiPrompts, // 注入表情提示
       onAddMemory: (content, categoryStr) {
         memoryProvider.addMemoryFromAiResponse(
           roleId: role.id,
@@ -1630,6 +1688,34 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       },
       regexProvider: regexProvider,
     );
+  }
+
+  void _sendEmoji(dynamic emoji) async {
+    // emoji 是 EmojiModel
+    final chatProvider = context.read<ChatProvider>();
+    final chatId = widget.chatId;
+
+    // 发送表情消息
+    // content 存储表情含义，metadata 存储表情 ID
+    await chatProvider.addMessage(
+      chatId,
+      emoji.meaning,
+      MessageType.emoji,
+      true,
+      metadata: {'emoji_id': emoji.id},
+    );
+
+    // 标记会话为已读
+    await chatProvider.markSessionAsRead(chatId);
+
+    if (mounted) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) _scrollToBottom();
+      });
+    }
+
+    // 触发 AI 回复
+    _triggerAiResponse();
   }
 
   Widget _buildAttachmentOption({

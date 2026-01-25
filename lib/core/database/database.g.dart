@@ -4921,6 +4921,736 @@ class WalletTransactionsCompanion
   }
 }
 
+class $EmojisTable extends Emojis with TableInfo<$EmojisTable, EmojiEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EmojisTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _meaningMeta =
+      const VerificationMeta('meaning');
+  @override
+  late final GeneratedColumn<String> meaning = GeneratedColumn<String>(
+      'meaning', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _rawContentMeta =
+      const VerificationMeta('rawContent');
+  @override
+  late final GeneratedColumn<String> rawContent = GeneratedColumn<String>(
+      'raw_content', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _groupIdMeta =
+      const VerificationMeta('groupId');
+  @override
+  late final GeneratedColumn<String> groupId = GeneratedColumn<String>(
+      'group_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _localPathMeta =
+      const VerificationMeta('localPath');
+  @override
+  late final GeneratedColumn<String> localPath = GeneratedColumn<String>(
+      'local_path', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  late final GeneratedColumnWithTypeConverter<EmojiType, int> type =
+      GeneratedColumn<int>('type', aliasedName, false,
+              type: DriftSqlType.int, requiredDuringInsert: true)
+          .withConverter<EmojiType>($EmojisTable.$convertertype);
+  static const VerificationMeta _roleIdMeta = const VerificationMeta('roleId');
+  @override
+  late final GeneratedColumn<String> roleId = GeneratedColumn<String>(
+      'role_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, meaning, rawContent, groupId, localPath, type, roleId, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'emojis';
+  @override
+  VerificationContext validateIntegrity(Insertable<EmojiEntity> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('meaning')) {
+      context.handle(_meaningMeta,
+          meaning.isAcceptableOrUnknown(data['meaning']!, _meaningMeta));
+    } else if (isInserting) {
+      context.missing(_meaningMeta);
+    }
+    if (data.containsKey('raw_content')) {
+      context.handle(
+          _rawContentMeta,
+          rawContent.isAcceptableOrUnknown(
+              data['raw_content']!, _rawContentMeta));
+    }
+    if (data.containsKey('group_id')) {
+      context.handle(_groupIdMeta,
+          groupId.isAcceptableOrUnknown(data['group_id']!, _groupIdMeta));
+    }
+    if (data.containsKey('local_path')) {
+      context.handle(_localPathMeta,
+          localPath.isAcceptableOrUnknown(data['local_path']!, _localPathMeta));
+    } else if (isInserting) {
+      context.missing(_localPathMeta);
+    }
+    if (data.containsKey('role_id')) {
+      context.handle(_roleIdMeta,
+          roleId.isAcceptableOrUnknown(data['role_id']!, _roleIdMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  EmojiEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EmojiEntity(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      meaning: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}meaning'])!,
+      rawContent: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}raw_content']),
+      groupId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}group_id']),
+      localPath: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}local_path'])!,
+      type: $EmojisTable.$convertertype.fromSql(attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}type'])!),
+      roleId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}role_id']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $EmojisTable createAlias(String alias) {
+    return $EmojisTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<EmojiType, int> $convertertype =
+      const EmojiTypeConverter();
+}
+
+class EmojiEntity extends DataClass implements Insertable<EmojiEntity> {
+  final String id;
+  final String meaning;
+  final String? rawContent;
+  final String? groupId;
+  final String localPath;
+  final EmojiType type;
+  final String? roleId;
+  final int createdAt;
+  const EmojiEntity(
+      {required this.id,
+      required this.meaning,
+      this.rawContent,
+      this.groupId,
+      required this.localPath,
+      required this.type,
+      this.roleId,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['meaning'] = Variable<String>(meaning);
+    if (!nullToAbsent || rawContent != null) {
+      map['raw_content'] = Variable<String>(rawContent);
+    }
+    if (!nullToAbsent || groupId != null) {
+      map['group_id'] = Variable<String>(groupId);
+    }
+    map['local_path'] = Variable<String>(localPath);
+    {
+      map['type'] = Variable<int>($EmojisTable.$convertertype.toSql(type));
+    }
+    if (!nullToAbsent || roleId != null) {
+      map['role_id'] = Variable<String>(roleId);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  EmojisCompanion toCompanion(bool nullToAbsent) {
+    return EmojisCompanion(
+      id: Value(id),
+      meaning: Value(meaning),
+      rawContent: rawContent == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rawContent),
+      groupId: groupId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(groupId),
+      localPath: Value(localPath),
+      type: Value(type),
+      roleId:
+          roleId == null && nullToAbsent ? const Value.absent() : Value(roleId),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory EmojiEntity.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EmojiEntity(
+      id: serializer.fromJson<String>(json['id']),
+      meaning: serializer.fromJson<String>(json['meaning']),
+      rawContent: serializer.fromJson<String?>(json['rawContent']),
+      groupId: serializer.fromJson<String?>(json['groupId']),
+      localPath: serializer.fromJson<String>(json['localPath']),
+      type: serializer.fromJson<EmojiType>(json['type']),
+      roleId: serializer.fromJson<String?>(json['roleId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'meaning': serializer.toJson<String>(meaning),
+      'rawContent': serializer.toJson<String?>(rawContent),
+      'groupId': serializer.toJson<String?>(groupId),
+      'localPath': serializer.toJson<String>(localPath),
+      'type': serializer.toJson<EmojiType>(type),
+      'roleId': serializer.toJson<String?>(roleId),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  EmojiEntity copyWith(
+          {String? id,
+          String? meaning,
+          Value<String?> rawContent = const Value.absent(),
+          Value<String?> groupId = const Value.absent(),
+          String? localPath,
+          EmojiType? type,
+          Value<String?> roleId = const Value.absent(),
+          int? createdAt}) =>
+      EmojiEntity(
+        id: id ?? this.id,
+        meaning: meaning ?? this.meaning,
+        rawContent: rawContent.present ? rawContent.value : this.rawContent,
+        groupId: groupId.present ? groupId.value : this.groupId,
+        localPath: localPath ?? this.localPath,
+        type: type ?? this.type,
+        roleId: roleId.present ? roleId.value : this.roleId,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  EmojiEntity copyWithCompanion(EmojisCompanion data) {
+    return EmojiEntity(
+      id: data.id.present ? data.id.value : this.id,
+      meaning: data.meaning.present ? data.meaning.value : this.meaning,
+      rawContent:
+          data.rawContent.present ? data.rawContent.value : this.rawContent,
+      groupId: data.groupId.present ? data.groupId.value : this.groupId,
+      localPath: data.localPath.present ? data.localPath.value : this.localPath,
+      type: data.type.present ? data.type.value : this.type,
+      roleId: data.roleId.present ? data.roleId.value : this.roleId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EmojiEntity(')
+          ..write('id: $id, ')
+          ..write('meaning: $meaning, ')
+          ..write('rawContent: $rawContent, ')
+          ..write('groupId: $groupId, ')
+          ..write('localPath: $localPath, ')
+          ..write('type: $type, ')
+          ..write('roleId: $roleId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id, meaning, rawContent, groupId, localPath, type, roleId, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EmojiEntity &&
+          other.id == this.id &&
+          other.meaning == this.meaning &&
+          other.rawContent == this.rawContent &&
+          other.groupId == this.groupId &&
+          other.localPath == this.localPath &&
+          other.type == this.type &&
+          other.roleId == this.roleId &&
+          other.createdAt == this.createdAt);
+}
+
+class EmojisCompanion extends UpdateCompanion<EmojiEntity> {
+  final Value<String> id;
+  final Value<String> meaning;
+  final Value<String?> rawContent;
+  final Value<String?> groupId;
+  final Value<String> localPath;
+  final Value<EmojiType> type;
+  final Value<String?> roleId;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const EmojisCompanion({
+    this.id = const Value.absent(),
+    this.meaning = const Value.absent(),
+    this.rawContent = const Value.absent(),
+    this.groupId = const Value.absent(),
+    this.localPath = const Value.absent(),
+    this.type = const Value.absent(),
+    this.roleId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  EmojisCompanion.insert({
+    required String id,
+    required String meaning,
+    this.rawContent = const Value.absent(),
+    this.groupId = const Value.absent(),
+    required String localPath,
+    required EmojiType type,
+    this.roleId = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        meaning = Value(meaning),
+        localPath = Value(localPath),
+        type = Value(type),
+        createdAt = Value(createdAt);
+  static Insertable<EmojiEntity> custom({
+    Expression<String>? id,
+    Expression<String>? meaning,
+    Expression<String>? rawContent,
+    Expression<String>? groupId,
+    Expression<String>? localPath,
+    Expression<int>? type,
+    Expression<String>? roleId,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (meaning != null) 'meaning': meaning,
+      if (rawContent != null) 'raw_content': rawContent,
+      if (groupId != null) 'group_id': groupId,
+      if (localPath != null) 'local_path': localPath,
+      if (type != null) 'type': type,
+      if (roleId != null) 'role_id': roleId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  EmojisCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? meaning,
+      Value<String?>? rawContent,
+      Value<String?>? groupId,
+      Value<String>? localPath,
+      Value<EmojiType>? type,
+      Value<String?>? roleId,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return EmojisCompanion(
+      id: id ?? this.id,
+      meaning: meaning ?? this.meaning,
+      rawContent: rawContent ?? this.rawContent,
+      groupId: groupId ?? this.groupId,
+      localPath: localPath ?? this.localPath,
+      type: type ?? this.type,
+      roleId: roleId ?? this.roleId,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (meaning.present) {
+      map['meaning'] = Variable<String>(meaning.value);
+    }
+    if (rawContent.present) {
+      map['raw_content'] = Variable<String>(rawContent.value);
+    }
+    if (groupId.present) {
+      map['group_id'] = Variable<String>(groupId.value);
+    }
+    if (localPath.present) {
+      map['local_path'] = Variable<String>(localPath.value);
+    }
+    if (type.present) {
+      map['type'] =
+          Variable<int>($EmojisTable.$convertertype.toSql(type.value));
+    }
+    if (roleId.present) {
+      map['role_id'] = Variable<String>(roleId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EmojisCompanion(')
+          ..write('id: $id, ')
+          ..write('meaning: $meaning, ')
+          ..write('rawContent: $rawContent, ')
+          ..write('groupId: $groupId, ')
+          ..write('localPath: $localPath, ')
+          ..write('type: $type, ')
+          ..write('roleId: $roleId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $EmojiGroupsTable extends EmojiGroups
+    with TableInfo<$EmojiGroupsTable, EmojiGroupEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EmojiGroupsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  late final GeneratedColumnWithTypeConverter<EmojiType, int> type =
+      GeneratedColumn<int>('type', aliasedName, false,
+              type: DriftSqlType.int, requiredDuringInsert: true)
+          .withConverter<EmojiType>($EmojiGroupsTable.$convertertype);
+  static const VerificationMeta _roleIdMeta = const VerificationMeta('roleId');
+  @override
+  late final GeneratedColumn<String> roleId = GeneratedColumn<String>(
+      'role_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [id, name, type, roleId, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'emoji_groups';
+  @override
+  VerificationContext validateIntegrity(Insertable<EmojiGroupEntity> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('role_id')) {
+      context.handle(_roleIdMeta,
+          roleId.isAcceptableOrUnknown(data['role_id']!, _roleIdMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  EmojiGroupEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EmojiGroupEntity(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      type: $EmojiGroupsTable.$convertertype.fromSql(attachedDatabase
+          .typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}type'])!),
+      roleId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}role_id']),
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $EmojiGroupsTable createAlias(String alias) {
+    return $EmojiGroupsTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<EmojiType, int> $convertertype =
+      const EmojiTypeConverter();
+}
+
+class EmojiGroupEntity extends DataClass
+    implements Insertable<EmojiGroupEntity> {
+  final String id;
+  final String name;
+  final EmojiType type;
+  final String? roleId;
+  final int createdAt;
+  const EmojiGroupEntity(
+      {required this.id,
+      required this.name,
+      required this.type,
+      this.roleId,
+      required this.createdAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    {
+      map['type'] = Variable<int>($EmojiGroupsTable.$convertertype.toSql(type));
+    }
+    if (!nullToAbsent || roleId != null) {
+      map['role_id'] = Variable<String>(roleId);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  EmojiGroupsCompanion toCompanion(bool nullToAbsent) {
+    return EmojiGroupsCompanion(
+      id: Value(id),
+      name: Value(name),
+      type: Value(type),
+      roleId:
+          roleId == null && nullToAbsent ? const Value.absent() : Value(roleId),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory EmojiGroupEntity.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EmojiGroupEntity(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      type: serializer.fromJson<EmojiType>(json['type']),
+      roleId: serializer.fromJson<String?>(json['roleId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'type': serializer.toJson<EmojiType>(type),
+      'roleId': serializer.toJson<String?>(roleId),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  EmojiGroupEntity copyWith(
+          {String? id,
+          String? name,
+          EmojiType? type,
+          Value<String?> roleId = const Value.absent(),
+          int? createdAt}) =>
+      EmojiGroupEntity(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        type: type ?? this.type,
+        roleId: roleId.present ? roleId.value : this.roleId,
+        createdAt: createdAt ?? this.createdAt,
+      );
+  EmojiGroupEntity copyWithCompanion(EmojiGroupsCompanion data) {
+    return EmojiGroupEntity(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      type: data.type.present ? data.type.value : this.type,
+      roleId: data.roleId.present ? data.roleId.value : this.roleId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EmojiGroupEntity(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('type: $type, ')
+          ..write('roleId: $roleId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, type, roleId, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EmojiGroupEntity &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.type == this.type &&
+          other.roleId == this.roleId &&
+          other.createdAt == this.createdAt);
+}
+
+class EmojiGroupsCompanion extends UpdateCompanion<EmojiGroupEntity> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<EmojiType> type;
+  final Value<String?> roleId;
+  final Value<int> createdAt;
+  final Value<int> rowid;
+  const EmojiGroupsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.type = const Value.absent(),
+    this.roleId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  EmojiGroupsCompanion.insert({
+    required String id,
+    required String name,
+    required EmojiType type,
+    this.roleId = const Value.absent(),
+    required int createdAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        name = Value(name),
+        type = Value(type),
+        createdAt = Value(createdAt);
+  static Insertable<EmojiGroupEntity> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<int>? type,
+    Expression<String>? roleId,
+    Expression<int>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (type != null) 'type': type,
+      if (roleId != null) 'role_id': roleId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  EmojiGroupsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? name,
+      Value<EmojiType>? type,
+      Value<String?>? roleId,
+      Value<int>? createdAt,
+      Value<int>? rowid}) {
+    return EmojiGroupsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      roleId: roleId ?? this.roleId,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (type.present) {
+      map['type'] =
+          Variable<int>($EmojiGroupsTable.$convertertype.toSql(type.value));
+    }
+    if (roleId.present) {
+      map['role_id'] = Variable<String>(roleId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EmojiGroupsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('type: $type, ')
+          ..write('roleId: $roleId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4938,6 +5668,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $AppSettingsTable appSettings = $AppSettingsTable(this);
   late final $WalletTransactionsTable walletTransactions =
       $WalletTransactionsTable(this);
+  late final $EmojisTable emojis = $EmojisTable(this);
+  late final $EmojiGroupsTable emojiGroups = $EmojiGroupsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4954,7 +5686,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         apiPresets,
         momentsUserSettings,
         appSettings,
-        walletTransactions
+        walletTransactions,
+        emojis,
+        emojiGroups
       ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
@@ -7702,6 +8436,393 @@ typedef $$WalletTransactionsTableProcessedTableManager = ProcessedTableManager<
     ),
     WalletTransactionEntity,
     PrefetchHooks Function()>;
+typedef $$EmojisTableCreateCompanionBuilder = EmojisCompanion Function({
+  required String id,
+  required String meaning,
+  Value<String?> rawContent,
+  Value<String?> groupId,
+  required String localPath,
+  required EmojiType type,
+  Value<String?> roleId,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$EmojisTableUpdateCompanionBuilder = EmojisCompanion Function({
+  Value<String> id,
+  Value<String> meaning,
+  Value<String?> rawContent,
+  Value<String?> groupId,
+  Value<String> localPath,
+  Value<EmojiType> type,
+  Value<String?> roleId,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$EmojisTableFilterComposer
+    extends Composer<_$AppDatabase, $EmojisTable> {
+  $$EmojisTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get meaning => $composableBuilder(
+      column: $table.meaning, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get rawContent => $composableBuilder(
+      column: $table.rawContent, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get groupId => $composableBuilder(
+      column: $table.groupId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get localPath => $composableBuilder(
+      column: $table.localPath, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<EmojiType, EmojiType, int> get type =>
+      $composableBuilder(
+          column: $table.type,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<String> get roleId => $composableBuilder(
+      column: $table.roleId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$EmojisTableOrderingComposer
+    extends Composer<_$AppDatabase, $EmojisTable> {
+  $$EmojisTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get meaning => $composableBuilder(
+      column: $table.meaning, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get rawContent => $composableBuilder(
+      column: $table.rawContent, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get groupId => $composableBuilder(
+      column: $table.groupId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get localPath => $composableBuilder(
+      column: $table.localPath, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get type => $composableBuilder(
+      column: $table.type, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get roleId => $composableBuilder(
+      column: $table.roleId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$EmojisTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EmojisTable> {
+  $$EmojisTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get meaning =>
+      $composableBuilder(column: $table.meaning, builder: (column) => column);
+
+  GeneratedColumn<String> get rawContent => $composableBuilder(
+      column: $table.rawContent, builder: (column) => column);
+
+  GeneratedColumn<String> get groupId =>
+      $composableBuilder(column: $table.groupId, builder: (column) => column);
+
+  GeneratedColumn<String> get localPath =>
+      $composableBuilder(column: $table.localPath, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<EmojiType, int> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<String> get roleId =>
+      $composableBuilder(column: $table.roleId, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$EmojisTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $EmojisTable,
+    EmojiEntity,
+    $$EmojisTableFilterComposer,
+    $$EmojisTableOrderingComposer,
+    $$EmojisTableAnnotationComposer,
+    $$EmojisTableCreateCompanionBuilder,
+    $$EmojisTableUpdateCompanionBuilder,
+    (EmojiEntity, BaseReferences<_$AppDatabase, $EmojisTable, EmojiEntity>),
+    EmojiEntity,
+    PrefetchHooks Function()> {
+  $$EmojisTableTableManager(_$AppDatabase db, $EmojisTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EmojisTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EmojisTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EmojisTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> meaning = const Value.absent(),
+            Value<String?> rawContent = const Value.absent(),
+            Value<String?> groupId = const Value.absent(),
+            Value<String> localPath = const Value.absent(),
+            Value<EmojiType> type = const Value.absent(),
+            Value<String?> roleId = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              EmojisCompanion(
+            id: id,
+            meaning: meaning,
+            rawContent: rawContent,
+            groupId: groupId,
+            localPath: localPath,
+            type: type,
+            roleId: roleId,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String meaning,
+            Value<String?> rawContent = const Value.absent(),
+            Value<String?> groupId = const Value.absent(),
+            required String localPath,
+            required EmojiType type,
+            Value<String?> roleId = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              EmojisCompanion.insert(
+            id: id,
+            meaning: meaning,
+            rawContent: rawContent,
+            groupId: groupId,
+            localPath: localPath,
+            type: type,
+            roleId: roleId,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$EmojisTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $EmojisTable,
+    EmojiEntity,
+    $$EmojisTableFilterComposer,
+    $$EmojisTableOrderingComposer,
+    $$EmojisTableAnnotationComposer,
+    $$EmojisTableCreateCompanionBuilder,
+    $$EmojisTableUpdateCompanionBuilder,
+    (EmojiEntity, BaseReferences<_$AppDatabase, $EmojisTable, EmojiEntity>),
+    EmojiEntity,
+    PrefetchHooks Function()>;
+typedef $$EmojiGroupsTableCreateCompanionBuilder = EmojiGroupsCompanion
+    Function({
+  required String id,
+  required String name,
+  required EmojiType type,
+  Value<String?> roleId,
+  required int createdAt,
+  Value<int> rowid,
+});
+typedef $$EmojiGroupsTableUpdateCompanionBuilder = EmojiGroupsCompanion
+    Function({
+  Value<String> id,
+  Value<String> name,
+  Value<EmojiType> type,
+  Value<String?> roleId,
+  Value<int> createdAt,
+  Value<int> rowid,
+});
+
+class $$EmojiGroupsTableFilterComposer
+    extends Composer<_$AppDatabase, $EmojiGroupsTable> {
+  $$EmojiGroupsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<EmojiType, EmojiType, int> get type =>
+      $composableBuilder(
+          column: $table.type,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<String> get roleId => $composableBuilder(
+      column: $table.roleId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$EmojiGroupsTableOrderingComposer
+    extends Composer<_$AppDatabase, $EmojiGroupsTable> {
+  $$EmojiGroupsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get type => $composableBuilder(
+      column: $table.type, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get roleId => $composableBuilder(
+      column: $table.roleId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$EmojiGroupsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EmojiGroupsTable> {
+  $$EmojiGroupsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<EmojiType, int> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<String> get roleId =>
+      $composableBuilder(column: $table.roleId, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$EmojiGroupsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $EmojiGroupsTable,
+    EmojiGroupEntity,
+    $$EmojiGroupsTableFilterComposer,
+    $$EmojiGroupsTableOrderingComposer,
+    $$EmojiGroupsTableAnnotationComposer,
+    $$EmojiGroupsTableCreateCompanionBuilder,
+    $$EmojiGroupsTableUpdateCompanionBuilder,
+    (
+      EmojiGroupEntity,
+      BaseReferences<_$AppDatabase, $EmojiGroupsTable, EmojiGroupEntity>
+    ),
+    EmojiGroupEntity,
+    PrefetchHooks Function()> {
+  $$EmojiGroupsTableTableManager(_$AppDatabase db, $EmojiGroupsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EmojiGroupsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EmojiGroupsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EmojiGroupsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<EmojiType> type = const Value.absent(),
+            Value<String?> roleId = const Value.absent(),
+            Value<int> createdAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              EmojiGroupsCompanion(
+            id: id,
+            name: name,
+            type: type,
+            roleId: roleId,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String name,
+            required EmojiType type,
+            Value<String?> roleId = const Value.absent(),
+            required int createdAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              EmojiGroupsCompanion.insert(
+            id: id,
+            name: name,
+            type: type,
+            roleId: roleId,
+            createdAt: createdAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$EmojiGroupsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $EmojiGroupsTable,
+    EmojiGroupEntity,
+    $$EmojiGroupsTableFilterComposer,
+    $$EmojiGroupsTableOrderingComposer,
+    $$EmojiGroupsTableAnnotationComposer,
+    $$EmojiGroupsTableCreateCompanionBuilder,
+    $$EmojiGroupsTableUpdateCompanionBuilder,
+    (
+      EmojiGroupEntity,
+      BaseReferences<_$AppDatabase, $EmojiGroupsTable, EmojiGroupEntity>
+    ),
+    EmojiGroupEntity,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -7730,4 +8851,8 @@ class $AppDatabaseManager {
       $$AppSettingsTableTableManager(_db, _db.appSettings);
   $$WalletTransactionsTableTableManager get walletTransactions =>
       $$WalletTransactionsTableTableManager(_db, _db.walletTransactions);
+  $$EmojisTableTableManager get emojis =>
+      $$EmojisTableTableManager(_db, _db.emojis);
+  $$EmojiGroupsTableTableManager get emojiGroups =>
+      $$EmojiGroupsTableTableManager(_db, _db.emojiGroups);
 }

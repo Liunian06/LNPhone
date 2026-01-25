@@ -13,6 +13,7 @@ import 'wechat_main_screen.dart';
 import 'world_info_list_screen.dart';
 import 'text_preset_list_screen.dart';
 import 'memory_app_screen.dart';
+import 'emoji_management_screen.dart';
 
 /// iOS风格主屏幕
 class HomeScreen extends StatefulWidget {
@@ -126,6 +127,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const MemoryAppScreen()),
+      );
+      return;
+    }
+
+    // 表情库应用
+    if (appId == 'stickers') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const EmojiManagementScreen()),
       );
       return;
     }

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:drift/drift.dart';
+import '../models/emoji_model.dart';
 import '../models/chat_model.dart';
 import '../models/moments_model.dart';
 import '../models/memory_model.dart';
@@ -140,6 +141,24 @@ class MemoryCategoryConverter extends TypeConverter<MemoryCategory, int> {
 
   @override
   int toSql(MemoryCategory value) {
+    return value.index;
+  }
+}
+
+/// EmojiType 的转换器
+class EmojiTypeConverter extends TypeConverter<EmojiType, int> {
+  const EmojiTypeConverter();
+
+  @override
+  EmojiType fromSql(int fromDb) {
+    if (fromDb >= 0 && fromDb < EmojiType.values.length) {
+      return EmojiType.values[fromDb];
+    }
+    return EmojiType.global;
+  }
+
+  @override
+  int toSql(EmojiType value) {
     return value.index;
   }
 }
@@ -434,6 +453,35 @@ class MomentsPosts extends Table {
   TextColumn get likes => text().map(const LikesConverter())();
   TextColumn get comments => text().map(const CommentsConverter())();
   TextColumn get location => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 表情包表
+@DataClassName('EmojiEntity')
+class Emojis extends Table {
+  TextColumn get id => text()();
+  TextColumn get meaning => text()();
+  TextColumn get rawContent => text().nullable()();
+  TextColumn get groupId => text().nullable()();
+  TextColumn get localPath => text()();
+  IntColumn get type => integer().map(const EmojiTypeConverter())();
+  TextColumn get roleId => text().nullable()();
+  IntColumn get createdAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// 表情包分组表
+@DataClassName('EmojiGroupEntity')
+class EmojiGroups extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  IntColumn get type => integer().map(const EmojiTypeConverter())();
+  TextColumn get roleId => text().nullable()();
+  IntColumn get createdAt => integer()();
 
   @override
   Set<Column> get primaryKey => {id};

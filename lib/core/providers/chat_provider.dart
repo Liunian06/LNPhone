@@ -406,6 +406,7 @@ class ChatProvider extends ChangeNotifier {
     List<String> roleMemories = const [], // 角色记忆列表
     Function(String content, String? categoryStr)? onAddMemory, // 添加记忆的回调（带分类）
     RegexSettingsProvider? regexProvider, // 正则设置提供者
+    List<String> availableEmojis = const [], // 可用表情列表
   }) async {
     // 取消该会话之前的延迟任务（防抖）
     _debounceTimers[chatId]?.cancel();
@@ -477,6 +478,7 @@ class ChatProvider extends ChangeNotifier {
           worldInfos: worldInfos,
           textPresets: textPresets,
           roleMemories: roleMemories, // 传入角色记忆
+          availableEmojis: availableEmojis, // 传入可用表情
           enableTextToImage: enableTextToImage,
           regexProvider: regexProvider, // 传入正则提供者
         );

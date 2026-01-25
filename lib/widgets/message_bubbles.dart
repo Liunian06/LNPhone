@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../core/models/chat_model.dart';
 import '../core/theme/app_theme.dart';
+import '../core/providers/emoji_provider.dart';
 
 /// 红包气泡
 class RedpacketBubble extends StatelessWidget {
@@ -809,33 +812,63 @@ class EmojiBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final emojiId = message.content;
+    // 优先从 metadata 获取 emoji_id，如果不存在则尝试从 content 获取
+    // content 可能存储的是含义，也可能是 ID
+    final emojiId = message.metadata?['emoji_id'] ?? message.content;
 
+    return FutureBuilder(
+      future: context.read<EmojiProvider>().getEmojiById(emojiId),
+      builder: (context, snapshot) {
+        final emoji = snapshot.data;
+
+        if (emoji != null) {
+          return Container(
+            constraints: BoxConstraints(maxWidth: maxWidth * 0.5),
+            padding: const EdgeInsets.all(8),
+            child: Image.file(
+              File(emoji.localPath),
+              width: 120,
+              height: 120,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) =>
+                  _buildErrorPlaceholder(context, emojiId),
+            ),
+          );
+        }
+
+        // 加载中或失败
+        return Container(
+          constraints: BoxConstraints(maxWidth: maxWidth * 0.5),
+          padding: const EdgeInsets.all(8),
+          child: _buildErrorPlaceholder(context, emojiId),
+        );
+      },
+    );
+  }
+
+  Widget _buildErrorPlaceholder(BuildContext context, String text) {
     return Container(
-      constraints: BoxConstraints(maxWidth: maxWidth * 0.5),
-      padding: const EdgeInsets.all(8),
-      child: Container(
-        width: 120,
-        height: 120,
-        decoration: BoxDecoration(
-          color: context.isDarkMode ? Colors.grey[800] : Colors.grey[200],
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.emoji_emotions,
-                  size: 48, color: context.secondaryTextColor),
-              const SizedBox(height: 8),
-              Text(
-                emojiId,
-                style:
-                    TextStyle(fontSize: 12, color: context.secondaryTextColor),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+      width: 120,
+      height: 120,
+      decoration: BoxDecoration(
+        color: context.isDarkMode ? Colors.grey[800] : Colors.grey[200],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.emoji_emotions,
+                size: 48, color: context.secondaryTextColor),
+            const SizedBox(height: 8),
+            Text(
+              text,
+              style: TextStyle(fontSize: 12, color: context.secondaryTextColor),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ),
       ),
     );
