@@ -21,9 +21,38 @@ class RegexSettingsProvider extends ChangeNotifier {
       final rulesJson = await _db.getSetting('regex_rules');
       if (rulesJson != null) {
         final List<dynamic> decoded = jsonDecode(rulesJson);
-        _rules = decoded.map((e) => RegexRule.fromJson(e)).toList();
+        final savedRules = decoded.map((e) => RegexRule.fromJson(e)).toList();
+
+        // 检查是否有缺失的默认规则并自动补全
+        final defaultRules = _getDefaultRules();
+        bool modified = false;
+
+        for (final defaultRule in defaultRules) {
+          final index = savedRules.indexWhere((r) => r.id == defaultRule.id);
+          if (index == -1) {
+            savedRules.add(defaultRule);
+            modified = true;
+          } else {
+            // 强制同步默认规则的 order，确保顺序正确
+            if (savedRules[index].order != defaultRule.order) {
+              savedRules[index] =
+                  savedRules[index].copyWith(order: defaultRule.order);
+              modified = true;
+            }
+          }
+        }
+
+        _rules = savedRules;
         // 确保按 order 排序
         _rules.sort((a, b) => a.order.compareTo(b.order));
+
+        // 如果顺序发生了变化，重新分配连续的 order 以防冲突
+        if (modified) {
+          for (int i = 0; i < _rules.length; i++) {
+            _rules[i] = _rules[i].copyWith(order: i);
+          }
+          await _saveRules();
+        }
       } else {
         // 初始化默认规则
         _rules = _getDefaultRules();
@@ -60,12 +89,20 @@ class RegexSettingsProvider extends ChangeNotifier {
         order: 0,
       ),
       const RegexRule(
+        id: 'default_wrap_array',
+        name: 'JSON 数组包裹',
+        pattern: r'^(\{[\s\S]*\})$',
+        replacement: r'[$1]',
+        type: RegexRuleType.regex,
+        order: 1,
+      ),
+      const RegexRule(
         id: 'default_missing_comma',
         name: '缺少逗号修复',
         pattern: r'\}\s*\{',
         replacement: '},{',
         type: RegexRuleType.regex,
-        order: 1,
+        order: 2,
       ),
       const RegexRule(
         id: 'default_trailing_comma',
@@ -73,7 +110,7 @@ class RegexSettingsProvider extends ChangeNotifier {
         pattern: r',\s*([\]}])',
         replacement: r'$1',
         type: RegexRuleType.regex,
-        order: 2,
+        order: 3,
       ),
       const RegexRule(
         id: 'default_xml_output',
@@ -81,7 +118,7 @@ class RegexSettingsProvider extends ChangeNotifier {
         pattern: r'<output>(.*?)</output>',
         replacement: r'$1',
         type: RegexRuleType.regex,
-        order: 3,
+        order: 4,
       ),
       const RegexRule(
         id: 'default_id_check',
@@ -89,7 +126,7 @@ class RegexSettingsProvider extends ChangeNotifier {
         pattern: r'^\d{4}$',
         replacement: '', // 校验规则通常不用于替换，这里仅占位，实际逻辑在 Parser 中处理
         type: RegexRuleType.regex,
-        order: 4,
+        order: 5,
         isEnabled: true, // 默认开启，但在 Parser 中可能有特殊处理逻辑
       ),
       const RegexRule(
@@ -98,7 +135,8 @@ class RegexSettingsProvider extends ChangeNotifier {
         pattern: ' ',
         replacement: '',
         type: RegexRuleType.replace,
-        order: 5,
+        order: 6,
+        isEnabled: false, // 默认关闭
       ),
     ];
   }

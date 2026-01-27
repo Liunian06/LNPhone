@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:gal/gal.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -317,6 +318,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                 } else if (msg.type == MessageType.transfer) {
                                   _handleTransferTap(context, msg, r, m);
                                 }
+                              },
+                              onImageTap: () {
+                                _handleImageTap(chat, currentMessage);
                               },
                             ),
                           ],
@@ -1176,8 +1180,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // 获取可用表情
     final availableEmojis =
         await emojiProvider.getAvailableEmojisForRole(role.id);
+    // 注入格式：{id}：{简单含义}：{复杂含义}
     final emojiPrompts = availableEmojis
-        .map((e) => '${e.id}: ${e.meaning}: ${e.rawContent ?? ""}')
+        .map((e) => '${e.id}：${e.meaning}：${e.rawContent ?? ""}')
         .toList();
 
     // 调用 Provider 生成回复
@@ -1189,6 +1194,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       me: me,
       onAddMoment: (content, user) {
         momentsProvider.addMomentFromChat(content, user);
+      },
+      onMomentsChanged: () {
+        momentsProvider.refresh();
       },
       onError: (error) {
         if (mounted) {
@@ -1211,6 +1219,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       },
       enableExtendedChat: chat.enableExtendedChat,
       enableTextToImage: chat.enableTextToImage,
+      enableEmoji: chat.enableEmoji,
+      imageApiPresetId: chat.imageApiPresetId,
       delayedReplySeconds: promptProvider.delayedReplySeconds,
       roleMemories: memoryProvider
           .getMemoriesForRole(role.id)
@@ -1349,8 +1359,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // 获取可用表情
     final availableEmojis =
         await emojiProvider.getAvailableEmojisForRole(role.id);
+    // 注入格式：{id}：{简单含义}：{复杂含义}
     final emojiPrompts = availableEmojis
-        .map((e) => '${e.id}: ${e.meaning}: ${e.rawContent ?? ""}')
+        .map((e) => '${e.id}：${e.meaning}：${e.rawContent ?? ""}')
         .toList();
 
     // 3. 调用 Provider 生成回复 (不 await，让其在后台运行)
@@ -1362,6 +1373,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       me: me,
       onAddMoment: (content, user) {
         momentsProvider.addMomentFromChat(content, user);
+      },
+      onMomentsChanged: () {
+        momentsProvider.refresh();
       },
       onError: (error) {
         if (mounted) {
@@ -1384,6 +1398,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       },
       enableExtendedChat: chat.enableExtendedChat,
       enableTextToImage: chat.enableTextToImage,
+      enableEmoji: chat.enableEmoji,
+      imageApiPresetId: chat.imageApiPresetId,
       delayedReplySeconds:
           forceImmediate ? 0 : promptProvider.delayedReplySeconds,
       roleMemories: memoryProvider
@@ -1484,6 +1500,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   }
                 });
               },
+              onShowOriginal: (message.metadata != null &&
+                      message.metadata!.containsKey('original_prompt'))
+                  ? () {
+                      _removeOverlay();
+                      _showOriginalPromptDialog(
+                          message.metadata!['original_prompt']);
+                    }
+                  : null,
             ),
           ),
         ],
@@ -1519,6 +1543,35 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               Navigator.pop(context);
             },
             child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showOriginalPromptDialog(String prompt) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('原始生图输入'),
+        content: SingleChildScrollView(
+          child: SelectableText(
+            prompt,
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: prompt));
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(const SnackBar(content: Text('已复制到剪贴板')));
+            },
+            child: const Text('复制'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('关闭'),
           ),
         ],
       ),
@@ -1638,8 +1691,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     // 获取可用表情
     final availableEmojis =
         await emojiProvider.getAvailableEmojisForRole(role.id);
+    // 注入格式：{id}：{简单含义}：{复杂含义}
     final emojiPrompts = availableEmojis
-        .map((e) => '${e.id}: ${e.meaning}: ${e.rawContent ?? ""}')
+        .map((e) => '${e.id}：${e.meaning}：${e.rawContent ?? ""}')
         .toList();
 
     chatProvider.generateAiResponse(
@@ -1650,6 +1704,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       me: me,
       onAddMoment: (content, user) {
         momentsProvider.addMomentFromChat(content, user);
+      },
+      onMomentsChanged: () {
+        momentsProvider.refresh();
       },
       onError: (error) {
         if (mounted) {
@@ -1672,6 +1729,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       },
       enableExtendedChat: chat.enableExtendedChat,
       enableTextToImage: chat.enableTextToImage,
+      enableEmoji: chat.enableEmoji,
+      imageApiPresetId: chat.imageApiPresetId,
       delayedReplySeconds: 0, // 回溯后通常立即回复
       roleMemories: memoryProvider
           .getMemoriesForRole(role.id)
@@ -1693,7 +1752,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   void _sendEmoji(dynamic emoji) async {
     // emoji 是 EmojiModel
     final chatProvider = context.read<ChatProvider>();
+    final emojiProvider = context.read<EmojiProvider>();
     final chatId = widget.chatId;
+
+    // 触发偷图逻辑：如果发送的是该角色未拥有的表情，则自动偷图
+    final chat = chatProvider.getChat(chatId);
+    if (chat != null) {
+      await emojiProvider.checkAndStealEmoji(emoji.id, chat.roleId);
+    }
 
     // 发送表情消息
     // content 存储表情含义，metadata 存储表情 ID
@@ -1812,6 +1878,28 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       ),
     );
   }
+
+  void _handleImageTap(ChatSession chat, ChatMessage currentMessage) {
+    // 收集所有图片消息，保持时间顺序（旧的在前，新的在后）
+    // 这样在 PageView 中向左滑动（index 增加）时会看到更新的图片
+    final imageMessages =
+        chat.messages.where((m) => m.type == MessageType.image).toList();
+
+    final initialIndex =
+        imageMessages.indexWhere((m) => m.id == currentMessage.id);
+
+    if (initialIndex != -1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => _FullScreenImageViewer(
+            imageMessages: imageMessages,
+            initialIndex: initialIndex,
+          ),
+        ),
+      );
+    }
+  }
 }
 
 class MessageItem extends StatelessWidget {
@@ -1824,6 +1912,7 @@ class MessageItem extends StatelessWidget {
   final Function(LongPressStartDetails) onLongPress;
   final Function(bool?) onSelectionChanged;
   final Function(ChatMessage, ContactRole, ContactMe)? onBubbleTap;
+  final VoidCallback? onImageTap;
 
   const MessageItem({
     super.key,
@@ -1836,6 +1925,7 @@ class MessageItem extends StatelessWidget {
     required this.onLongPress,
     required this.onSelectionChanged,
     this.onBubbleTap,
+    this.onImageTap,
   });
 
   @override
@@ -1844,6 +1934,8 @@ class MessageItem extends StatelessWidget {
     if (message.type == MessageType.memory ||
         message.type == MessageType.diary ||
         message.type == MessageType.moment ||
+        message.type == MessageType.momentComment ||
+        message.type == MessageType.momentLike ||
         message.type == MessageType.state) {
       return const SizedBox.shrink();
     }
@@ -1937,6 +2029,8 @@ class MessageItem extends StatelessWidget {
     switch (message.type) {
       // 基础文本类型
       case MessageType.words:
+      case MessageType.momentComment:
+      case MessageType.momentLike:
       case MessageType.action:
       case MessageType.thought:
         bubbleContent = _ChatBubble(
@@ -1953,9 +2047,18 @@ class MessageItem extends StatelessWidget {
         break;
 
       case MessageType.image:
-        bubbleContent = _ImageBubble(
-          imagePath: message.content,
-          maxWidth: maxBubbleWidth,
+        bubbleContent = GestureDetector(
+          onTap: () {
+            if (isMultiSelectMode) {
+              onTap();
+              return;
+            }
+            onImageTap?.call();
+          },
+          child: _ImageBubble(
+            imagePath: message.content,
+            maxWidth: maxBubbleWidth,
+          ),
         );
         break;
 
@@ -2319,25 +2422,14 @@ class _ImageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        // 点击查看大图
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => _FullScreenImageViewer(imagePath: imagePath),
-          ),
-        );
-      },
-      child: Container(
-        constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: 200),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: _buildImage(),
-        ),
+    return Container(
+      constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: 200),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: _buildImage(),
       ),
     );
   }
@@ -2385,10 +2477,35 @@ class _ImageBubble extends StatelessWidget {
 }
 
 /// 全屏图片查看器
-class _FullScreenImageViewer extends StatelessWidget {
-  final String imagePath;
+class _FullScreenImageViewer extends StatefulWidget {
+  final List<ChatMessage> imageMessages;
+  final int initialIndex;
 
-  const _FullScreenImageViewer({required this.imagePath});
+  const _FullScreenImageViewer({
+    required this.imageMessages,
+    required this.initialIndex,
+  });
+
+  @override
+  State<_FullScreenImageViewer> createState() => _FullScreenImageViewerState();
+}
+
+class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2396,20 +2513,118 @@ class _FullScreenImageViewer extends StatelessWidget {
       backgroundColor: Colors.black,
       body: GestureDetector(
         onTap: () => Navigator.pop(context),
-        child: SizedBox.expand(
-          child: InteractiveViewer(
-            minScale: 0.5,
-            maxScale: 4.0,
-            child: Center(
-              child: _buildImage(),
+        onLongPress: () => _showActionSheet(context),
+        child: Stack(
+          children: [
+            PageView.builder(
+              controller: _pageController,
+              itemCount: widget.imageMessages.length,
+              onPageChanged: (index) {
+                setState(() {
+                  _currentIndex = index;
+                });
+              },
+              itemBuilder: (context, index) {
+                final imagePath = widget.imageMessages[index].content;
+                return SizedBox.expand(
+                  child: InteractiveViewer(
+                    minScale: 0.5,
+                    maxScale: 4.0,
+                    child: Center(
+                      child: _buildImage(imagePath),
+                    ),
+                  ),
+                );
+              },
             ),
-          ),
+            // 顶部页码指示器
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 10,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${_currentIndex + 1} / ${widget.imageMessages.length}',
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildImage() {
+  void _showActionSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.download),
+                title: const Text('保存图片到相册'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _saveImage(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('取消'),
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _saveImage(BuildContext context) async {
+    try {
+      // 检查权限
+      final hasAccess = await Gal.hasAccess();
+      if (!hasAccess) {
+        await Gal.requestAccess();
+      }
+
+      final currentImage = widget.imageMessages[_currentIndex];
+      final imagePath = currentImage.content;
+
+      if (imagePath.startsWith('http')) {
+        // 网络图片
+        await Gal.putImage(imagePath);
+      } else {
+        // 本地图片
+        await Gal.putImage(imagePath);
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('图片已保存到相册')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('保存失败: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildImage(String imagePath) {
     if (imagePath.startsWith('http')) {
       return Image.network(
         imagePath,

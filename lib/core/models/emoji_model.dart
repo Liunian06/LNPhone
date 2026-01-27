@@ -53,4 +53,26 @@ class EmojiModel {
       createdAt: json['createdAt'],
     );
   }
+
+  EmojiModel copyWith({
+    String? id,
+    String? meaning,
+    String? rawContent,
+    String? groupId,
+    String? localPath,
+    EmojiType? type,
+    String? roleId,
+    int? createdAt,
+  }) {
+    return EmojiModel(
+      id: id ?? this.id,
+      meaning: meaning ?? this.meaning,
+      rawContent: rawContent ?? this.rawContent,
+      groupId: groupId ?? this.groupId,
+      localPath: localPath ?? this.localPath,
+      type: type ?? this.type,
+      roleId: roleId ?? this.roleId,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 }

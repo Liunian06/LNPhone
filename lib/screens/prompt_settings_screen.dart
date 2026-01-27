@@ -74,14 +74,18 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                         const SizedBox(height: 16),
                         _buildRealityPromptSection(provider, isDark),
                         const SizedBox(height: 16),
-                        _PromptInputField(
-                          title: 'Text2Image Prompt',
-                          subtitle: '生图风格提示词（将拼接在图片描述前）(只读)',
-                          value: provider.text2ImagePrompt,
-                          onChanged: (_) {},
-                          maxLines: 3,
-                          readOnly: true,
-                        ),
+                        _buildText2ImageStyleSection(provider, isDark),
+                        const SizedBox(height: 16),
+                        if (provider.text2ImageStyle == 'custom') ...[
+                          const SizedBox(height: 16),
+                          _PromptInputField(
+                            title: '自定义生图风格',
+                            subtitle: '输入您自己的风格提示词，将拼接在图片描述前',
+                            value: provider.customText2ImagePrompt,
+                            onChanged: provider.updateCustomText2ImagePrompt,
+                            maxLines: 3,
+                          ),
+                        ],
                         const SizedBox(height: 30),
                         _buildSectionTitle('用户提示词 (User Prompt)', isDark),
                         const SizedBox(height: 10),
@@ -475,6 +479,88 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildText2ImageStyleSection(
+      PromptSettingsProvider provider, bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
+
+    final styles = {
+      'realistic': '极致摄影写实',
+      'anime': '二次元动漫',
+      'cyberpunk': '赛博朋克',
+      'oil_painting': '古典油画',
+      'ink_painting': '传统水墨',
+      'webtoon': '韩漫厚涂',
+      'beautiful_lighting': '唯美光影',
+      'custom': '自定义',
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '生图风格预设',
+            style: TextStyle(
+              color: textColor,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '选择生图时自动应用的风格提示词',
+            style: TextStyle(
+              color: textColor.withValues(alpha: 0.6),
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: styles.entries.map((entry) {
+              final isSelected = provider.text2ImageStyle == entry.key;
+              return GestureDetector(
+                onTap: () => provider.updateText2ImageStyle(entry.key),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFF007AFF)
+                        : (isDark
+                            ? Colors.white.withValues(alpha: 0.1)
+                            : Colors.black.withValues(alpha: 0.05)),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    entry.value,
+                    style: TextStyle(
+                      color: isSelected
+                          ? Colors.white
+                          : textColor.withValues(alpha: 0.8),
+                      fontSize: 14,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         ],
       ),
     );

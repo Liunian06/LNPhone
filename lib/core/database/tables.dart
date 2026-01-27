@@ -95,18 +95,28 @@ class MediaItemsConverter extends TypeConverter<List<MediaItem>, String> {
   }
 }
 
-/// List<MomentsUser> (Likes) 的转换器
-class LikesConverter extends TypeConverter<List<MomentsUser>, String> {
+/// List<MomentLike> (Likes) 的转换器
+class LikesConverter extends TypeConverter<List<MomentLike>, String> {
   const LikesConverter();
 
   @override
-  List<MomentsUser> fromSql(String fromDb) {
+  List<MomentLike> fromSql(String fromDb) {
     final List<dynamic> list = json.decode(fromDb);
-    return list.map((e) => MomentsUser.fromJson(e)).toList();
+    return list.map((e) {
+      // 兼容旧数据：如果旧数据是 MomentsUser，则转换为 MomentLike
+      if (e is Map<String, dynamic> && !e.containsKey('createdAt')) {
+        return MomentLike(
+          user: MomentsUser.fromJson(e),
+          createdAt:
+              DateTime.now(), // 默认使用当前时间（或者在 MomentsPost.fromJson 中处理更准确）
+        );
+      }
+      return MomentLike.fromJson(e);
+    }).toList();
   }
 
   @override
-  String toSql(List<MomentsUser> value) {
+  String toSql(List<MomentLike> value) {
     return json.encode(value.map((e) => e.toJson()).toList());
   }
 }
@@ -327,6 +337,12 @@ class ContactRoles extends Table {
   TextColumn get referenceImages => text()
       .map(const StringListConverter())
       .withDefault(const Constant('[]'))();
+  TextColumn get subscribedGroupIds => text()
+      .map(const StringListConverter())
+      .withDefault(const Constant('[]'))();
+  TextColumn get subscribedEmojiIds => text()
+      .map(const StringListConverter())
+      .withDefault(const Constant('[]'))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -365,6 +381,7 @@ class ApiPresets extends Table {
   BoolColumn get isStream => boolean().withDefault(const Constant(true))();
   BoolColumn get enableThinking =>
       boolean().withDefault(const Constant(true))();
+  IntColumn get timeout => integer().withDefault(const Constant(120))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -397,6 +414,7 @@ class ChatSessions extends Table {
   IntColumn get lastUpdated => integer()();
   BoolColumn get enableExtendedChat =>
       boolean().withDefault(const Constant(true))();
+  BoolColumn get enableEmoji => boolean().withDefault(const Constant(true))();
   BoolColumn get enableTextToImage =>
       boolean().withDefault(const Constant(false))();
   BoolColumn get enableIndependentSendButton =>
@@ -410,6 +428,7 @@ class ChatSessions extends Table {
       .map(const StringListConverter())
       .withDefault(const Constant('[]'))();
   TextColumn get apiPresetId => text().nullable()();
+  TextColumn get imageApiPresetId => text().nullable()();
   TextColumn get backgroundImage => text().nullable()(); // 聊天背景图路径
 
   @override
@@ -481,6 +500,7 @@ class EmojiGroups extends Table {
   TextColumn get name => text()();
   IntColumn get type => integer().map(const EmojiTypeConverter())();
   TextColumn get roleId => text().nullable()();
+  BoolColumn get isVisible => boolean().withDefault(const Constant(true))();
   IntColumn get createdAt => integer()();
 
   @override

@@ -7,6 +7,12 @@ import '../core/models/moments_model.dart';
 import '../core/models/contact_model.dart';
 import '../core/providers/moments_provider.dart';
 import '../core/providers/contact_provider.dart';
+import '../core/providers/chat_provider.dart';
+import '../core/providers/api_settings_provider.dart';
+import '../core/providers/prompt_settings_provider.dart';
+import '../core/providers/regex_settings_provider.dart';
+import '../core/providers/memory_provider.dart';
+import '../core/providers/emoji_provider.dart';
 
 /// 编辑/发布朋友圈界面
 class EditMomentScreen extends StatefulWidget {
@@ -163,6 +169,11 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
       mediaItems: mediaItems,
       location: _location,
     );
+
+    // 如果有提醒谁看，立即触发 AI 回复逻辑
+    if (_mentionedRoles.isNotEmpty) {
+      _triggerAiResponseAfterMention(context, _mentionedRoles);
+    }
 
     // 返回上一页
     if (mounted) {
@@ -718,5 +729,75 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
         );
       },
     );
+  }
+
+  /// 发布朋友圈并提醒谁看后，立即触发 AI 回复逻辑
+  void _triggerAiResponseAfterMention(
+      BuildContext context, List<ContactRole> mentionedRoles) {
+    final chatProvider = context.read<ChatProvider>();
+    final contactProvider = context.read<ContactProvider>();
+    final apiProvider = context.read<ApiSettingsProvider>();
+    final promptProvider = context.read<PromptSettingsProvider>();
+    final regexProvider = context.read<RegexSettingsProvider>();
+    final momentsProvider = context.read<MomentsProvider>();
+    final memoryProvider = context.read<MemoryProvider>();
+    final emojiProvider = context.read<EmojiProvider>();
+
+    for (final role in mentionedRoles) {
+      // 找到该角色的聊天会话
+      final chat = chatProvider.chats.firstWhere(
+        (c) => c.roleId == role.id,
+        orElse: () => chatProvider.chats.first, // 兜底
+      );
+
+      final me = contactProvider.meList.firstWhere(
+        (m) => m.id == chat.meId,
+        orElse: () => contactProvider.meList.first,
+      );
+
+      final activePreset = apiProvider.presets.firstWhere(
+        (p) => p.id == chat.apiPresetId,
+        orElse: () => apiProvider.activePreset!,
+      );
+
+      emojiProvider.getAvailableEmojisForRole(role.id).then((availableEmojis) {
+        final emojiPrompts = availableEmojis
+            .map((e) => '${e.id}：${e.meaning}：${e.rawContent ?? ""}')
+            .toList();
+
+        chatProvider.generateAiResponse(
+          chatId: chat.id,
+          apiPreset: activePreset,
+          promptConfig: promptProvider.config,
+          role: role,
+          me: me,
+          onAddMoment: (content, user) {
+            momentsProvider.addMomentFromChat(content, user);
+          },
+          onMomentsChanged: () {
+            momentsProvider.refresh();
+          },
+          enableExtendedChat: chat.enableExtendedChat,
+          enableTextToImage: chat.enableTextToImage,
+          enableEmoji: chat.enableEmoji,
+          imageApiPresetId: chat.imageApiPresetId,
+          delayedReplySeconds: 0, // 提醒谁看，强制立即回复
+          roleMemories: memoryProvider
+              .getMemoriesForRole(role.id)
+              .map((m) => m.content)
+              .toList(),
+          availableEmojis: emojiPrompts,
+          onAddMemory: (content, categoryStr) {
+            memoryProvider.addMemoryFromAiResponse(
+              roleId: role.id,
+              content: content,
+              sourceSessionId: chat.id,
+              categoryStr: categoryStr,
+            );
+          },
+          regexProvider: regexProvider,
+        );
+      });
+    }
   }
 }

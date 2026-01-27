@@ -7,6 +7,8 @@ class ContactRole {
   final String description;
   final String? appearance;
   final List<String> referenceImages;
+  final List<String> subscribedGroupIds;
+  final List<String> subscribedEmojiIds;
 
   ContactRole({
     required this.id,
@@ -15,6 +17,8 @@ class ContactRole {
     required this.description,
     this.appearance,
     this.referenceImages = const [],
+    this.subscribedGroupIds = const [],
+    this.subscribedEmojiIds = const [],
   });
 
   Map<String, dynamic> toJson() {
@@ -25,6 +29,8 @@ class ContactRole {
       'description': description,
       'appearance': appearance,
       'referenceImages': referenceImages,
+      'subscribedGroupIds': subscribedGroupIds,
+      'subscribedEmojiIds': subscribedEmojiIds,
     };
   }
 
@@ -36,6 +42,14 @@ class ContactRole {
       description: json['description'],
       appearance: json['appearance'],
       referenceImages: (json['referenceImages'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      subscribedGroupIds: (json['subscribedGroupIds'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      subscribedEmojiIds: (json['subscribedEmojiIds'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],

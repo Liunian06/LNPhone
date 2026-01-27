@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import '../database/database.dart';
 
 /// 软件日志级别
 enum LogLevel {
@@ -49,9 +51,11 @@ class AppLogEntry {
 /// 用于记录用户操作、后台活动、API调用等信息，便于排查问题
 /// 使用 JSONL 格式存储，支持高并发写入
 class AppLogService {
-  static const String _logFileName = 'app_logs.jsonl';
-  static const int _maxLogLines = 50000; // 最多保留50000行日志
-  static const int _maxLogSizeMB = 50; // 最大日志文件大小 50MB
+  static const String _logDirName = 'logs';
+  static const String _oldLogFileName = 'app_logs.jsonl';
+  static const int _maxLogSizeMB = 10; // 单个日志文件最大大小 10MB
+  static const int _defaultKeepDays = 3; // 默认保留3天日志
+  static const String _keepDaysKey = 'log_keep_days';
 
   // 使用队列实现高并发写入
   static final List<String> _pendingLogs = [];
@@ -61,10 +65,29 @@ class AppLogService {
   // 互斥锁，确保写入操作的原子性
   static final _writeLock = _AsyncLock();
 
-  /// 获取日志文件路径
-  static Future<String> _getLogFilePath() async {
+  /// 获取日志目录路径
+  static Future<Directory> _getLogDirectory() async {
     final directory = await getApplicationDocumentsDirectory();
-    return '${directory.path}/$_logFileName';
+    final logDir = Directory('${directory.path}/$_logDirName');
+    if (!await logDir.exists()) {
+      await logDir.create(recursive: true);
+    }
+    return logDir;
+  }
+
+  /// 获取当天的日志文件路径
+  static Future<String> _getTodayLogFilePath() async {
+    final dir = await _getLogDirectory();
+    final now = DateTime.now();
+    final dateStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    return '${dir.path}/app_log_$dateStr.jsonl';
+  }
+
+  /// 获取旧日志文件路径（用于迁移/删除）
+  static Future<String> _getOldLogFilePath() async {
+    final directory = await getApplicationDocumentsDirectory();
+    return '${directory.path}/$_oldLogFileName';
   }
 
   /// 记录日志（高并发安全）
@@ -75,12 +98,18 @@ class AppLogService {
     Map<String, dynamic>? data,
   }) async {
     try {
+      // 对数据和消息进行截断处理，防止单条日志过大
+      final processedData = _truncateData(data);
+      final processedMessage = message.length > 2000
+          ? '${message.substring(0, 2000)}... [truncated]'
+          : message;
+
       final entry = AppLogEntry(
         timestamp: DateTime.now(),
         level: level,
         category: category,
-        message: message,
-        data: data,
+        message: processedMessage,
+        data: processedData,
       );
 
       final logLine = entry.toJsonLine();
@@ -124,7 +153,10 @@ class AppLogService {
       _pendingLogs.clear();
 
       try {
-        final filePath = await _getLogFilePath();
+        // 检查并删除旧日志文件（仅执行一次）
+        await _migrateOldLogs();
+
+        final filePath = await _getTodayLogFilePath();
         final file = File(filePath);
 
         // 追加写入（每行一个 JSON 对象）
@@ -138,6 +170,9 @@ class AppLogService {
 
         // 检查文件大小，必要时进行轮转
         await _checkAndRotate(file);
+
+        // 自动清理过期日志
+        await _cleanExpiredLogs();
       } catch (e) {
         debugPrint('[AppLogService] 写入日志失败: $e');
         // 写入失败时，将日志放回队列前端
@@ -155,22 +190,135 @@ class AppLogService {
       final maxSize = _maxLogSizeMB * 1024 * 1024;
 
       if (size > maxSize) {
-        // 读取文件内容
-        // 使用 readAsBytes 配合 allowMalformed: true 来处理可能的编码错误，防止崩溃
-        final bytes = await file.readAsBytes();
-        final content = utf8.decode(bytes, allowMalformed: true);
-        final lines = content.split('\n');
+        debugPrint(
+            '[AppLogService] 日志文件过大 (${(size / 1024 / 1024).toStringAsFixed(2)}MB)，开始轮转...');
 
-        // 只保留后半部分
-        if (lines.length > _maxLogLines ~/ 2) {
-          final newLines = lines.sublist(lines.length - _maxLogLines ~/ 2);
-          await file.writeAsString('${newLines.join('\n')}\n', encoding: utf8);
-          debugPrint('[AppLogService] 日志文件已轮转，保留 ${newLines.length} 行');
+        // 优化：不再一次性读取整个文件，而是读取末尾的一部分
+        // 我们保留约 2MB 的最新日志
+        const int preserveSize = 2 * 1024 * 1024;
+        final raf = await file.open(mode: FileMode.read);
+        try {
+          await raf.setPosition(size - preserveSize);
+          final bytes = await raf.read(preserveSize);
+          await raf.close();
+
+          String content = utf8.decode(bytes, allowMalformed: true);
+          // 找到第一个换行符，确保我们从完整的一行开始
+          final firstNewline = content.indexOf('\n');
+          if (firstNewline != -1 && firstNewline < content.length - 1) {
+            content = content.substring(firstNewline + 1);
+          }
+
+          // 写入新内容（覆盖原文件）
+          await file.writeAsString(content, encoding: utf8);
+          debugPrint(
+              '[AppLogService] 日志轮转完成，新大小: ${(content.length / 1024).toStringAsFixed(2)}KB');
+        } catch (e) {
+          await raf.close();
+          rethrow;
         }
       }
     } catch (e) {
       debugPrint('[AppLogService] 日志轮转失败: $e');
+      // 如果轮转彻底失败且文件依然超大，为了防止撑爆磁盘或持续 OOM，采取激进策略：清空文件
+      try {
+        final size = await file.length();
+        if (size > _maxLogSizeMB * 1024 * 1024 * 2) {
+          await file.writeAsString('', encoding: utf8);
+          debugPrint('[AppLogService] 日志文件极度超限且轮转失败，已强制清空');
+        }
+      } catch (_) {}
     }
+  }
+
+  static bool _hasMigrated = false;
+
+  /// 迁移旧日志（删除旧的 app_logs.jsonl）
+  static Future<void> _migrateOldLogs() async {
+    if (_hasMigrated) return;
+    try {
+      final oldPath = await _getOldLogFilePath();
+      final oldFile = File(oldPath);
+      if (await oldFile.exists()) {
+        await oldFile.delete();
+        debugPrint('[AppLogService] 已删除旧日志文件: $oldPath');
+      }
+      _hasMigrated = true;
+    } catch (e) {
+      debugPrint('[AppLogService] 删除旧日志失败: $e');
+    }
+  }
+
+  /// 清理过期日志
+  static Future<void> _cleanExpiredLogs() async {
+    try {
+      final logDir = await _getLogDirectory();
+      final db = AppDatabase();
+      final keepDays = await db.getSettingInt(_keepDaysKey) ?? _defaultKeepDays;
+      final now = DateTime.now();
+      final threshold = now.subtract(Duration(days: keepDays));
+
+      final List<FileSystemEntity> files = logDir.listSync();
+      for (var file in files) {
+        if (file is File && file.path.endsWith('.jsonl')) {
+          final fileName = file.path.split(Platform.pathSeparator).last;
+          // 匹配 app_log_YYYY-MM-DD.jsonl
+          final match = RegExp(r'app_log_(\d{4}-\d{2}-\d{2})\.jsonl')
+              .firstMatch(fileName);
+          if (match != null) {
+            final dateStr = match.group(1);
+            if (dateStr != null) {
+              final fileDate = DateTime.tryParse(dateStr);
+              if (fileDate != null && fileDate.isBefore(threshold)) {
+                // 检查是否是当天的文件，避免误删
+                final todayStr =
+                    '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+                if (dateStr != todayStr) {
+                  await file.delete();
+                  debugPrint('[AppLogService] 已清理过期日志: $fileName');
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[AppLogService] 清理过期日志失败: $e');
+    }
+  }
+
+  /// 递归截断数据中的超长字符串
+  static Map<String, dynamic>? _truncateData(Map<String, dynamic>? data) {
+    if (data == null) return null;
+
+    final Map<String, dynamic> result = {};
+    const int maxStringLength = 2000; // 单个字符串最大长度
+
+    data.forEach((key, value) {
+      if (value is String) {
+        if (value.length > maxStringLength) {
+          result[key] =
+              '${value.substring(0, maxStringLength)}... [truncated ${value.length - maxStringLength} chars]';
+        } else {
+          result[key] = value;
+        }
+      } else if (value is Map<String, dynamic>) {
+        result[key] = _truncateData(value);
+      } else if (value is List) {
+        result[key] = value.map((item) {
+          if (item is Map<String, dynamic>) {
+            return _truncateData(item);
+          } else if (item is String && item.length > maxStringLength) {
+            return '${item.substring(0, maxStringLength)}... [truncated]';
+          }
+          return item;
+        }).toList();
+      } else {
+        result[key] = value;
+      }
+    });
+
+    return result;
   }
 
   /// 强制刷新缓冲区（应用退出时调用）
@@ -452,30 +600,46 @@ class AppLogService {
 
   // ==================== 导出功能 ====================
 
-  /// 导出日志文件
+  /// 导出所有日志文件（打包为 ZIP）
   static Future<String> exportLogs() async {
     try {
       // 先刷新缓冲区
       await flush();
 
-      final filePath = await _getLogFilePath();
-      final file = File(filePath);
+      final logDir = await _getLogDirectory();
+      final List<FileSystemEntity> files = logDir.listSync();
+      final logFiles = files
+          .where((f) => f is File && f.path.endsWith('.jsonl'))
+          .cast<File>()
+          .toList();
 
-      if (!await file.exists()) {
-        throw Exception('日志文件不存在');
+      if (logFiles.isEmpty) {
+        throw Exception('没有可导出的日志文件');
       }
 
-      // 生成导出文件名（使用 JSONL 扩展名）
+      // 生成导出文件名
       final now = DateTime.now();
       final timestamp =
           '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
       final directory = await getApplicationDocumentsDirectory();
-      final exportPath = '${directory.path}/app_logs_export_$timestamp.jsonl';
+      final exportPath = '${directory.path}/app_logs_$timestamp.zip';
 
-      // 复制文件
-      await file.copy(exportPath);
+      // 使用 archive 库打包
+      final archive = Archive();
+      for (var file in logFiles) {
+        final fileName = file.path.split(Platform.pathSeparator).last;
+        final bytes = await file.readAsBytes();
+        archive.addFile(ArchiveFile(fileName, bytes.length, bytes));
+      }
 
-      debugPrint('[AppLogService] 日志已导出到: $exportPath');
+      final zipEncoder = ZipEncoder();
+      final encodedZip = zipEncoder.encode(archive);
+      if (encodedZip == null) throw Exception('ZIP 编码失败');
+
+      final zipFile = File(exportPath);
+      await zipFile.writeAsBytes(encodedZip);
+
+      debugPrint('[AppLogService] 日志已打包导出到: $exportPath');
       return exportPath;
     } catch (e) {
       debugPrint('[AppLogService] 导出日志失败: $e');
@@ -489,7 +653,7 @@ class AppLogService {
       // 先刷新缓冲区
       await flush();
 
-      final filePath = await _getLogFilePath();
+      final filePath = await _getTodayLogFilePath();
       final file = File(filePath);
 
       if (await file.exists()) {
@@ -508,14 +672,20 @@ class AppLogService {
       // 先刷新缓冲区
       await flush();
 
-      final filePath = await _getLogFilePath();
+      final filePath = await _getTodayLogFilePath();
       final file = File(filePath);
 
       if (await file.exists()) {
-        final bytes = await file.readAsBytes();
-        final content = utf8.decode(bytes, allowMalformed: true);
-        final lines = content.split('\n');
-        return lines.where((line) => line.trim().isNotEmpty).length;
+        // 优化：流式读取文件统计行数，避免 OOM
+        int count = 0;
+        await file
+            .openRead()
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .forEach((line) {
+          if (line.trim().isNotEmpty) count++;
+        });
+        return count;
       }
       return 0;
     } catch (e) {
@@ -528,12 +698,11 @@ class AppLogService {
   static Future<void> clearLogs() async {
     try {
       _pendingLogs.clear();
-      final filePath = await _getLogFilePath();
-      final file = File(filePath);
-
-      if (await file.exists()) {
-        await file.delete();
-        debugPrint('[AppLogService] 日志已清空');
+      final logDir = await _getLogDirectory();
+      if (await logDir.exists()) {
+        await logDir.delete(recursive: true);
+        await logDir.create();
+        debugPrint('[AppLogService] 所有日志已清空');
       }
     } catch (e) {
       debugPrint('[AppLogService] 清空日志失败: $e');

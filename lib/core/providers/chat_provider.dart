@@ -175,6 +175,11 @@ class ChatProvider extends ChangeNotifier {
     await refreshWorldInfos();
   }
 
+  Future<void> deleteWorldInfos(List<String> ids) async {
+    await _database.deleteWorldInfos(ids);
+    await refreshWorldInfos();
+  }
+
   Future<void> addTextPreset(TextPreset preset) async {
     await _database.insertTextPreset(preset);
     await refreshTextPresets();
@@ -182,6 +187,11 @@ class ChatProvider extends ChangeNotifier {
 
   Future<void> deleteTextPreset(String id) async {
     await _database.deleteTextPreset(id);
+    await refreshTextPresets();
+  }
+
+  Future<void> deleteTextPresets(List<String> ids) async {
+    await _database.deleteTextPresets(ids);
     await refreshTextPresets();
   }
 
@@ -357,12 +367,14 @@ class ChatProvider extends ChangeNotifier {
     String chatId, {
     bool? enableExtendedChat,
     bool? enableTextToImage,
+    bool? enableEmoji,
     bool? enableIndependentSendButton,
   }) async {
     await _database.updateSessionSettings(
       chatId,
       enableExtendedChat: enableExtendedChat,
       enableTextToImage: enableTextToImage,
+      enableEmoji: enableEmoji,
       enableIndependentSendButton: enableIndependentSendButton,
     );
     await _refreshChats();
@@ -374,12 +386,14 @@ class ChatProvider extends ChangeNotifier {
     List<String>? worldInfoIds,
     List<String>? textPresetIds,
     String? apiPresetId,
+    String? imageApiPresetId,
   }) async {
     await _database.updateSessionConfig(
       chatId,
       worldInfoIds: worldInfoIds,
       textPresetIds: textPresetIds,
       apiPresetId: apiPresetId,
+      imageApiPresetId: imageApiPresetId,
     );
     await _refreshChats();
   }
@@ -399,9 +413,12 @@ class ChatProvider extends ChangeNotifier {
     required ContactRole role,
     required ContactMe me,
     required Function(String content, MomentsUser user) onAddMoment,
+    Function()? onMomentsChanged, // 朋友圈数据变化的回调
     Function(String error)? onError,
     bool enableExtendedChat = true,
     bool enableTextToImage = false,
+    bool enableEmoji = true,
+    String? imageApiPresetId, // 传入独立生图 API 预设 ID
     int delayedReplySeconds = 0,
     List<String> roleMemories = const [], // 角色记忆列表
     Function(String content, String? categoryStr)? onAddMemory, // 添加记忆的回调（带分类）
@@ -424,6 +441,62 @@ class ChatProvider extends ChangeNotifier {
           notifyListeners();
           return;
         }
+
+        // 1. 获取朋友圈动态并转换为虚拟消息
+        final allMoments = await _database.getAllMoments();
+        final List<ChatMessage> virtualMessages = [];
+
+        for (var post in allMoments) {
+          // 朋友圈动态本身
+          virtualMessages.add(ChatMessage(
+            id: 'v-post-${post.id}',
+            isMe: post.user.id == me.id,
+            sender: post.user.name,
+            type: MessageType.moment,
+            content: post.content ?? '',
+            timestamp: post.createdAt.millisecondsSinceEpoch,
+            metadata: {
+              'mediaItems': post.mediaItems.map((e) => e.toJson()).toList(),
+              'location': post.location,
+            },
+          ));
+
+          // 评论
+          for (var comment in post.comments) {
+            virtualMessages.add(ChatMessage(
+              id: 'v-comment-${comment.id}',
+              isMe: comment.user.id == me.id,
+              sender: comment.user.name,
+              type: MessageType.momentComment,
+              content: comment.content,
+              timestamp: comment.createdAt.millisecondsSinceEpoch,
+              metadata: {
+                'post_id': post.id,
+                'reply_to': comment.replyTo?.name,
+              },
+            ));
+          }
+
+          // 点赞
+          for (var like in post.likes) {
+            virtualMessages.add(ChatMessage(
+              id: 'v-like-${post.id}-${like.user.id}-${like.createdAt.millisecondsSinceEpoch}',
+              isMe: like.user.id == me.id,
+              sender: like.user.name,
+              type: MessageType.momentLike,
+              content: like.isCancelled ? '取消了点赞' : '点赞了这条朋友圈',
+              timestamp: like.createdAt.millisecondsSinceEpoch,
+              metadata: {
+                'post_id': post.id,
+                'is_cancelled': like.isCancelled,
+              },
+            ));
+          }
+        }
+
+        // 2. 合并并排序所有消息
+        final combinedHistory = [...chat.messages, ...virtualMessages];
+        combinedHistory.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
         // 获取世界书和预设内容
         final worldInfos = <String>[];
@@ -471,7 +544,7 @@ class ChatProvider extends ChangeNotifier {
         final aiMessages = await LlmService.generateResponse(
           apiPreset: apiPreset,
           promptConfig: promptConfig,
-          history: chat.messages,
+          history: combinedHistory,
           role: currentRole,
           me: currentMe,
           messageIdPrefix: 'ai-$timestamp',
@@ -480,6 +553,8 @@ class ChatProvider extends ChangeNotifier {
           roleMemories: roleMemories, // 传入角色记忆
           availableEmojis: availableEmojis, // 传入可用表情
           enableTextToImage: enableTextToImage,
+          enableEmoji: enableEmoji,
+          imageApiPresetId: imageApiPresetId, // 传入独立生图 API 预设 ID
           regexProvider: regexProvider, // 传入正则提供者
         );
 
@@ -560,11 +635,14 @@ class ChatProvider extends ChangeNotifier {
           // 过滤消息（排除红包/转账响应消息，它们只用于更新状态）
           final filteredMessages = aiMessages.where((msg) {
             if (msg.type == MessageType.state) return false;
-            // 过滤掉红包/转账响应消息
+            // 过滤掉红包/转账响应消息以及朋友圈互动消息
             if (msg.type == MessageType.acceptRedpacket ||
                 msg.type == MessageType.rejectRedpacket ||
                 msg.type == MessageType.acceptTransfer ||
-                msg.type == MessageType.rejectTransfer) {
+                msg.type == MessageType.rejectTransfer ||
+                msg.type == MessageType.moment ||
+                msg.type == MessageType.momentComment ||
+                msg.type == MessageType.momentLike) {
               return false;
             }
             if (!enableExtendedChat) {
@@ -662,20 +740,112 @@ class ChatProvider extends ChangeNotifier {
             }
           }
 
-          // 处理朋友圈消息
-          final momentMessages = aiMessages
-              .where((msg) => msg.type == MessageType.moment)
-              .toList();
-
-          if (momentMessages.isNotEmpty) {
-            for (final momentMsg in momentMessages) {
+          // 处理朋友圈消息、评论和点赞
+          for (final msg in aiMessages) {
+            if (msg.type == MessageType.moment) {
               final momentUser = MomentsUser(
                 id: role.id,
                 name: role.name,
                 avatarUrl: role.avatarPath ?? '',
               );
-              onAddMoment(momentMsg.content, momentUser);
+              onAddMoment(msg.content, momentUser);
+            } else if (msg.type == MessageType.momentComment) {
+              final targetId = msg.metadata?['target_id'] as String?;
+              if (targetId != null) {
+                // 查找目标朋友圈或评论
+                final moments = await _database.getAllMoments();
+                String? postId;
+                MomentsUser? replyTo;
+
+                for (var post in moments) {
+                  if (post.id == targetId || 'v-post-${post.id}' == targetId) {
+                    postId = post.id;
+                    break;
+                  }
+                  for (var comment in post.comments) {
+                    if (comment.id == targetId ||
+                        'v-comment-${comment.id}' == targetId) {
+                      postId = post.id;
+                      replyTo = comment.user;
+                      break;
+                    }
+                  }
+                  if (postId != null) break;
+                }
+
+                if (postId != null) {
+                  final momentUser = MomentsUser(
+                    id: role.id,
+                    name: role.name,
+                    avatarUrl: role.avatarPath ?? '',
+                  );
+                  final post = await _database.getMoment(postId);
+                  if (post != null) {
+                    final comments = List<MomentsComment>.from(post.comments);
+                    comments.add(MomentsComment(
+                      id: 'c_ai_${DateTime.now().millisecondsSinceEpoch}',
+                      user: momentUser,
+                      content: msg.content,
+                      createdAt: DateTime.now(),
+                      replyTo: replyTo,
+                    ));
+                    await _database
+                        .insertMoment(post.copyWith(comments: comments));
+                    debugPrint('[ChatProvider] AI 自动回复了朋友圈评论');
+                  }
+                }
+              }
+            } else if (msg.type == MessageType.momentLike) {
+              final targetId = msg.metadata?['target_id'] as String?;
+              if (targetId != null) {
+                final moments = await _database.getAllMoments();
+                String? postId;
+                for (var post in moments) {
+                  if (post.id == targetId || 'v-post-${post.id}' == targetId) {
+                    postId = post.id;
+                    break;
+                  }
+                }
+
+                if (postId != null) {
+                  final post = await _database.getMoment(postId);
+                  if (post != null) {
+                    final likes = List<MomentLike>.from(post.likes);
+                    final isCancelled = msg.content.toLowerCase() == 'unlike';
+
+                    final existingIndex =
+                        likes.indexWhere((l) => l.user.id == role.id);
+                    if (existingIndex != -1) {
+                      likes[existingIndex] = MomentLike(
+                        user: likes[existingIndex].user,
+                        createdAt: DateTime.now(),
+                        isCancelled: isCancelled,
+                      );
+                    } else if (!isCancelled) {
+                      likes.add(MomentLike(
+                        user: MomentsUser(
+                          id: role.id,
+                          name: role.name,
+                          avatarUrl: role.avatarPath ?? '',
+                        ),
+                        createdAt: DateTime.now(),
+                        isCancelled: false,
+                      ));
+                    }
+                    await _database.insertMoment(post.copyWith(likes: likes));
+                    debugPrint('[ChatProvider] AI 自动点赞/取消点赞了朋友圈');
+                  }
+                }
+              }
             }
+          }
+
+          // 触发朋友圈刷新回调
+          if (aiMessages.any((msg) =>
+              msg.type == MessageType.moment ||
+              msg.type == MessageType.momentComment ||
+              msg.type == MessageType.momentLike)) {
+            onMomentsChanged?.call();
           }
 
           // 处理记忆消息 - 自动添加到记忆库

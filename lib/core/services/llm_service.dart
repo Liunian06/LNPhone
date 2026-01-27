@@ -34,6 +34,8 @@ class LlmService {
     List<String> roleMemories = const [], // 角色记忆列表
     List<String> availableEmojis = const [], // 可用表情列表 (格式: id:meaning)
     bool enableTextToImage = false,
+    bool enableEmoji = true,
+    String? imageApiPresetId, // 传入独立生图 API 预设 ID
     RegexSettingsProvider? regexProvider,
   }) async {
     print('[LLM] ========== 开始生成回复 ==========');
@@ -113,6 +115,14 @@ class LlmService {
     );
 
     for (var i = 0; i < messages.length; i++) {
+      // 仅打印第一条（通常是系统提示词）和最后一条消息，中间的省略
+      if (i > 0 && i < messages.length - 1) {
+        if (i == 1) {
+          print('[LLM] ... 省略 ${messages.length - 2} 条中间历史消息 ...');
+        }
+        continue;
+      }
+
       final role = messages[i]['role'];
       final rawContent = messages[i]['content'];
       String preview;
@@ -179,6 +189,8 @@ class LlmService {
           messageIdPrefix,
           simpleIdToRealId: idMapping,
           enableTextToImage: enableTextToImage,
+          enableEmoji: enableEmoji,
+          imageApiPresetId: imageApiPresetId,
           regexProvider: regexProvider,
         );
         print('[LLM] ✓ 解析成功，得到 ${parsedMessages.length} 条消息');
@@ -422,23 +434,51 @@ class LlmService {
         realIdToSimpleId,
       );
 
-      if (msg.type == MessageType.image) {
-        // 处理图片消息
-        final base64Image = await ImageUtils.imageToBase64(msg.content);
-        if (base64Image != null) {
-          messages.add({
-            'role': msg.isMe ? 'user' : 'assistant',
-            'content': '{"type":"image", "id":"$simpleId", "content":"[图片]"}',
-            'image_data': base64Image,
-            'mime_type': ImageUtils.getMimeType(msg.content),
-            'type': 'image',
-          });
+      if (msg.type == MessageType.image || msg.type == MessageType.moment) {
+        // 处理图片消息或朋友圈（可能包含多张图片）
+        final List<String> images = [];
+        if (msg.type == MessageType.image) {
+          images.add(msg.content);
+        } else if (msg.metadata != null &&
+            msg.metadata!.containsKey('mediaItems')) {
+          final mediaItems = msg.metadata!['mediaItems'] as List;
+          for (var item in mediaItems) {
+            if (item is Map && item['type'] == 'image') {
+              images.add(item['url']);
+            }
+          }
+        }
+
+        if (images.isNotEmpty) {
+          final List<Map<String, String>> imageDataList = [];
+          for (var path in images) {
+            final base64 = await ImageUtils.imageToBase64(path);
+            if (base64 != null) {
+              imageDataList.add({
+                'data': base64,
+                'mime': ImageUtils.getMimeType(path),
+              });
+            }
+          }
+
+          if (imageDataList.isNotEmpty) {
+            messages.add({
+              'role': msg.isMe ? 'user' : 'assistant',
+              'content': jsonContent,
+              'images': imageDataList, // 存储多张图片
+              'type': 'multi_modal',
+            });
+          } else {
+            messages.add({
+              'role': msg.isMe ? 'user' : 'assistant',
+              'content': jsonContent,
+              'type': 'text',
+            });
+          }
         } else {
-          // 图片加载失败，作为文本提示
           messages.add({
             'role': msg.isMe ? 'user' : 'assistant',
-            'content':
-                '{"type":"text", "id":"$simpleId", "content":"[图片加载失败]"}',
+            'content': jsonContent,
             'type': 'text',
           });
         }
@@ -511,6 +551,28 @@ class LlmService {
           final title = msg.metadata!['title'] as String? ?? '';
           if (title.isNotEmpty) jsonMap['title'] = title;
           break;
+        case MessageType.momentComment:
+          final replyTo = msg.metadata!['reply_to'] as String? ?? '';
+          if (replyTo.isNotEmpty) jsonMap['reply_to'] = replyTo;
+          // 增加 root_id 感知，让 AI 知道这条评论属于哪条朋友圈
+          final postId = msg.metadata!['post_id'] as String? ?? '';
+          if (postId.isNotEmpty) {
+            final postSimpleId = realIdToSimpleId['v-post-$postId'];
+            if (postSimpleId != null) {
+              jsonMap['root_id'] = postSimpleId;
+            }
+          }
+          break;
+        case MessageType.momentLike:
+          // 增加 root_id 感知，让 AI 知道这个点赞属于哪条朋友圈
+          final postId = msg.metadata!['post_id'] as String? ?? '';
+          if (postId.isNotEmpty) {
+            final postSimpleId = realIdToSimpleId['v-post-$postId'];
+            if (postSimpleId != null) {
+              jsonMap['root_id'] = postSimpleId;
+            }
+          }
+          break;
         default:
           break;
       }
@@ -562,6 +624,10 @@ class LlmService {
         return 'diary';
       case MessageType.moment:
         return 'moment';
+      case MessageType.momentComment:
+        return 'moment_comment';
+      case MessageType.momentLike:
+        return 'moment_like';
     }
   }
 
@@ -623,12 +689,36 @@ class LlmService {
           'role': msg['role'],
           'content': [
             {
+              'type': 'text',
+              'text': msg['content'],
+            },
+            {
               'type': 'image_url',
               'image_url': {
                 'url': 'data:${msg['mime_type']};base64,${msg['image_data']}',
               },
             },
           ],
+        };
+      } else if (msg['type'] == 'multi_modal') {
+        final List<Map<String, dynamic>> content = [
+          {
+            'type': 'text',
+            'text': msg['content'],
+          }
+        ];
+        final images = msg['images'] as List<Map<String, String>>;
+        for (var img in images) {
+          content.add({
+            'type': 'image_url',
+            'image_url': {
+              'url': 'data:${img['mime']};base64,${img['data']}',
+            },
+          });
+        }
+        return {
+          'role': msg['role'],
+          'content': content,
         };
       } else {
         return {'role': msg['role'], 'content': msg['content']};
@@ -766,6 +856,7 @@ class LlmService {
         return {
           'role': m['role'] == 'user' ? 'user' : 'model',
           'parts': [
+            {'text': m['content']},
             {
               'inline_data': {
                 'mime_type': m['mime_type'],
@@ -773,6 +864,23 @@ class LlmService {
               },
             },
           ],
+        };
+      } else if (m['type'] == 'multi_modal') {
+        final List<Map<String, dynamic>> parts = [
+          {'text': m['content']}
+        ];
+        final images = m['images'] as List<Map<String, String>>;
+        for (var img in images) {
+          parts.add({
+            'inline_data': {
+              'mime_type': img['mime'],
+              'data': img['data'],
+            },
+          });
+        }
+        return {
+          'role': m['role'] == 'user' ? 'user' : 'model',
+          'parts': parts,
         };
       } else {
         return {

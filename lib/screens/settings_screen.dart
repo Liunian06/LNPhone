@@ -387,6 +387,17 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
                             Color(0xFFEE5A6F)
                           ],
                         ),
+                        SettingsTile(
+                          title: '日志保留天数',
+                          subtitle:
+                              '当前保留 ${context.watch<SystemStateProvider>().logKeepDays} 天',
+                          icon: CupertinoIcons.calendar,
+                          onTap: _showLogKeepDaysPicker,
+                          iconGradient: const [
+                            Color(0xFF6A11CB),
+                            Color(0xFF2575FC)
+                          ],
+                        ),
                       ],
                     ),
                   ],
@@ -1101,6 +1112,32 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
         ),
       );
     }
+  }
+
+  void _showLogKeepDaysPicker() {
+    final provider = context.read<SystemStateProvider>();
+    final options = [1, 3, 7, 14, 30];
+
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('日志保留天数'),
+        message: const Text('过期的日志文件将被自动删除以节省空间'),
+        actions: options.map((days) {
+          return CupertinoActionSheetAction(
+            onPressed: () {
+              provider.setLogKeepDays(days);
+              Navigator.pop(context);
+            },
+            child: Text('$days 天'),
+          );
+        }).toList(),
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+      ),
+    );
   }
 }
 

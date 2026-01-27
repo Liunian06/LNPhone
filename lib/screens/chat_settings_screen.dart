@@ -131,6 +131,30 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 isDark: isDark,
                 child: SwitchListTile(
                   title: Text(
+                    '启用表情包',
+                    style: TextStyle(
+                        fontSize: 16,
+                        color: textColor,
+                        fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    '开启后角色可以发送表情包',
+                    style: TextStyle(fontSize: 13, color: subtitleColor),
+                  ),
+                  value: chat.enableEmoji,
+                  activeColor: const Color(0xFF07C160),
+                  onChanged: (value) async {
+                    await chatProvider.updateChatSettings(
+                      widget.chatId,
+                      enableEmoji: value,
+                    );
+                  },
+                ),
+              ),
+              _buildSettingItem(
+                isDark: isDark,
+                child: SwitchListTile(
+                  title: Text(
                     '启用文生图',
                     style: TextStyle(
                         fontSize: 16,
@@ -181,7 +205,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 isDark: isDark,
                 child: ListTile(
                   title: Text(
-                    '独立 API 预设',
+                    '独立聊天 API 预设',
                     style: TextStyle(
                         fontSize: 16,
                         color: textColor,
@@ -195,8 +219,30 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   ),
                   trailing:
                       Icon(Icons.arrow_forward_ios, size: 16, color: textColor),
-                  onTap: () => _showApiPresetSelector(
-                      context, chatProvider, chat.apiPresetId, isDark),
+                  onTap: () => _showApiPresetSelector(context, chatProvider,
+                      chat.apiPresetId, isDark, ApiPresetType.chat),
+                ),
+              ),
+              _buildSettingItem(
+                isDark: isDark,
+                child: ListTile(
+                  title: Text(
+                    '独立生图 API 预设',
+                    style: TextStyle(
+                        fontSize: 16,
+                        color: textColor,
+                        fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    chat.imageApiPresetId == null
+                        ? '使用全局默认'
+                        : _getApiPresetName(chat.imageApiPresetId!),
+                    style: TextStyle(fontSize: 13, color: subtitleColor),
+                  ),
+                  trailing:
+                      Icon(Icons.arrow_forward_ios, size: 16, color: textColor),
+                  onTap: () => _showApiPresetSelector(context, chatProvider,
+                      chat.imageApiPresetId, isDark, ApiPresetType.image),
                 ),
               ),
 
@@ -331,10 +377,14 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     ChatProvider provider,
     String? currentId,
     bool isDark,
+    ApiPresetType type,
   ) {
     final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black;
     final subtitleColor = isDark ? Colors.white70 : Colors.black87;
+
+    final filteredPresets =
+        _allApiPresets.where((p) => p.type == type).toList();
 
     showModalBottomSheet(
       context: context,
@@ -349,7 +399,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '选择 API 预设',
+                type == ApiPresetType.chat ? '选择聊天 API 预设' : '选择生图 API 预设',
                 style: TextStyle(fontSize: 18, color: textColor),
               ),
               const SizedBox(height: 16),
@@ -362,13 +412,28 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                           ? const Icon(Icons.check, color: Color(0xFF07C160))
                           : null,
                       onTap: () {
-                        provider.updateChatConfig(widget.chatId,
-                            apiPresetId: null);
+                        if (type == ApiPresetType.chat) {
+                          provider.updateChatConfig(widget.chatId,
+                              apiPresetId: null);
+                        } else {
+                          provider.updateChatConfig(widget.chatId,
+                              imageApiPresetId: null);
+                        }
                         Navigator.pop(context);
                       },
                     ),
                     Divider(color: isDark ? Colors.white24 : Colors.black12),
-                    ..._allApiPresets.map((preset) {
+                    if (filteredPresets.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Center(
+                          child: Text(
+                            '暂无${type == ApiPresetType.chat ? '聊天' : '生图'}预设',
+                            style: TextStyle(color: subtitleColor),
+                          ),
+                        ),
+                      ),
+                    ...filteredPresets.map((preset) {
                       final isSelected = currentId == preset.id;
                       return ListTile(
                         title: Text(preset.name,
@@ -380,8 +445,13 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                             ? const Icon(Icons.check, color: Color(0xFF07C160))
                             : null,
                         onTap: () {
-                          provider.updateChatConfig(widget.chatId,
-                              apiPresetId: preset.id);
+                          if (type == ApiPresetType.chat) {
+                            provider.updateChatConfig(widget.chatId,
+                                apiPresetId: preset.id);
+                          } else {
+                            provider.updateChatConfig(widget.chatId,
+                                imageApiPresetId: preset.id);
+                          }
                           Navigator.pop(context);
                         },
                       );

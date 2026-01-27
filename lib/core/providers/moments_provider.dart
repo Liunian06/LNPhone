@@ -45,6 +45,11 @@ class MomentsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 强制刷新数据（供外部调用）
+  Future<void> refresh() async {
+    await _loadPosts();
+  }
+
   /// 加载当前用户信息
   Future<void> _loadCurrentUser() async {
     try {
@@ -144,17 +149,30 @@ class MomentsProvider extends ChangeNotifier {
     if (postIndex == -1) return;
 
     final post = _posts[postIndex];
-    final likes = List<MomentsUser>.from(post.likes);
+    final likes = List<MomentLike>.from(post.likes);
 
-    // 检查当前用户是否已点赞
-    final likeIndex = likes.indexWhere((user) => user.id == _currentUser.id);
+    // 检查当前用户是否已点赞（包括已取消的）
+    final likeIndex =
+        likes.indexWhere((like) => like.user.id == _currentUser.id);
 
     if (likeIndex != -1) {
-      // 已点赞，取消点赞
-      likes.removeAt(likeIndex);
+      final existingLike = likes[likeIndex];
+      // 切换取消状态
+      likes[likeIndex] = MomentLike(
+        user: existingLike.user,
+        createdAt: DateTime.now(), // 记录动作发生的时间
+        isCancelled: !existingLike.isCancelled,
+      );
     } else {
       // 未点赞，添加点赞
-      likes.insert(0, _currentUser);
+      likes.insert(
+        0,
+        MomentLike(
+          user: _currentUser,
+          createdAt: DateTime.now(),
+          isCancelled: false,
+        ),
+      );
     }
 
     final updatedPost = post.copyWith(likes: likes);
@@ -163,19 +181,20 @@ class MomentsProvider extends ChangeNotifier {
   }
 
   /// 添加评论
-  Future<void> addComment(
+  Future<String?> addComment(
     String postId,
     String content, {
     MomentsUser? replyTo,
   }) async {
     final postIndex = _posts.indexWhere((post) => post.id == postId);
-    if (postIndex == -1) return;
+    if (postIndex == -1) return null;
 
     final post = _posts[postIndex];
     final comments = List<MomentsComment>.from(post.comments);
 
+    final commentId = 'c_${DateTime.now().millisecondsSinceEpoch}';
     final newComment = MomentsComment(
-      id: 'c_${DateTime.now().millisecondsSinceEpoch}',
+      id: commentId,
       user: _currentUser,
       content: content,
       createdAt: DateTime.now(),
@@ -187,6 +206,7 @@ class MomentsProvider extends ChangeNotifier {
     final updatedPost = post.copyWith(comments: comments);
     await _database.insertMoment(updatedPost); // Update DB
     await _loadPosts();
+    return commentId;
   }
 
   /// 删除评论
@@ -281,6 +301,7 @@ class MomentsProvider extends ChangeNotifier {
       (post) => post.id == postId,
       orElse: () => _posts.first,
     );
-    return post.likes.any((user) => user.id == _currentUser.id);
+    return post.likes
+        .any((like) => like.user.id == _currentUser.id && !like.isCancelled);
   }
 }

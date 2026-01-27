@@ -42,6 +42,12 @@ class _MomentsBodyState extends State<_MomentsBody> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    // 进入朋友圈时强制刷新一次数据，确保 AI 的静默评论/点赞能立即显示
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<MomentsProvider>().refresh();
+      }
+    });
   }
 
   @override

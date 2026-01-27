@@ -34,14 +34,6 @@ class GridDefaultApps {
           icon: CupertinoIcons.smiley_fill,
           gradientColors: [Color(0xFFF6D365), Color(0xFFFDA085)],
         ),
-        'check_phone': const AppModel(
-          id: 'check_phone',
-          name: '查手机',
-          type: AppType.system,
-          iconType: IconType.gradient,
-          icon: CupertinoIcons.device_phone_portrait,
-          gradientColors: [Color(0xFF4FACFE), Color(0xFF00F2FE)],
-        ),
         'world_info': const AppModel(
           id: 'world_info',
           name: '世界书',
@@ -74,7 +66,7 @@ class GridDefaultApps {
   /// null表示空位
   static List<String?> get defaultPage1Grid => [
         // 第1行
-        'memories', 'stickers', 'check_phone', 'world_info',
+        'memories', 'stickers', null, 'world_info',
         // 第2行
         'text_preset', null, null, null,
         // 第3-6行都是空的

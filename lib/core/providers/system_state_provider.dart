@@ -67,6 +67,9 @@ class SystemStateProvider extends ChangeNotifier {
   String? _lastWallpaperUpdateDate; // 上次更新壁纸的日期 (格式: yyyy-MM-dd)
   bool _isDownloadingWallpapers = false; // 是否正在下载壁纸
 
+  // 日志设置
+  int _logKeepDays = 3;
+
   SystemStateProvider(this._db) {
     _loadDefaultData();
     _init();
@@ -114,6 +117,7 @@ class SystemStateProvider extends ChangeNotifier {
   int get currentWallpaperPoolIndex => _currentWallpaperPoolIndex;
   String? get lastWallpaperUpdateDate => _lastWallpaperUpdateDate;
   bool get isDownloadingWallpapers => _isDownloadingWallpapers;
+  int get logKeepDays => _logKeepDays;
 
   // 获取当前桌面壁纸路径 (仅在选中随机风景时使用壁纸池)
   String? get effectiveWallpaperPath {
@@ -454,6 +458,7 @@ class SystemStateProvider extends ChangeNotifier {
       await _db.setSettingBool('cellular_enabled', _isCellularEnabled);
       await _db.setSettingBool('rotation_locked', _isRotationLocked);
       await _db.setSettingBool('focus_mode', _isFocusMode);
+      await _db.setSettingInt('log_keep_days', _logKeepDays);
     } catch (e) {
       debugPrint('保存设置失败: $e');
     }
@@ -683,6 +688,14 @@ class SystemStateProvider extends ChangeNotifier {
     _isCellularEnabled = await _db.getSettingBool('cellular_enabled') ?? true;
     _isRotationLocked = await _db.getSettingBool('rotation_locked') ?? false;
     _isFocusMode = await _db.getSettingBool('focus_mode') ?? false;
+    _logKeepDays = await _db.getSettingInt('log_keep_days') ?? 3;
+  }
+
+  // 设置日志保留天数
+  Future<void> setLogKeepDays(int days) async {
+    _logKeepDays = days;
+    await _db.setSettingInt('log_keep_days', days);
+    notifyListeners();
   }
 
   // 辅助方法：读取文件为Base64
@@ -815,6 +828,18 @@ class SystemStateProvider extends ChangeNotifier {
           files[zipFileName] = role.avatarPath!;
         }
       }
+      // 2.6.1 收集角色参考图
+      for (int i = 0; i < role.referenceImages.length; i++) {
+        final imagePath = role.referenceImages[i];
+        if (imagePath.isNotEmpty) {
+          final imageFile = File(imagePath);
+          if (await imageFile.exists()) {
+            final ext = path.extension(imagePath);
+            final zipFileName = 'role_ref_${role.id}_$i$ext';
+            files[zipFileName] = imagePath;
+          }
+        }
+      }
     }
 
     // 2.7 收集用户人设头像
@@ -826,6 +851,18 @@ class SystemStateProvider extends ChangeNotifier {
           final ext = path.extension(me.avatarPath!);
           final zipFileName = 'me_avatar_${me.id}$ext';
           files[zipFileName] = me.avatarPath!;
+        }
+      }
+      // 2.7.1 收集用户参考图
+      for (int i = 0; i < me.referenceImages.length; i++) {
+        final imagePath = me.referenceImages[i];
+        if (imagePath.isNotEmpty) {
+          final imageFile = File(imagePath);
+          if (await imageFile.exists()) {
+            final ext = path.extension(imagePath);
+            final zipFileName = 'me_ref_${me.id}_$i$ext';
+            files[zipFileName] = imagePath;
+          }
         }
       }
     }
@@ -938,7 +975,8 @@ class SystemStateProvider extends ChangeNotifier {
 
       // 收集点赞用户头像
       for (int i = 0; i < post.likes.length; i++) {
-        final likeUser = post.likes[i];
+        final like = post.likes[i];
+        final likeUser = like.user;
         if (likeUser.avatarUrl.isNotEmpty &&
             !likeUser.avatarUrl.startsWith('http')) {
           final avatarFile = File(likeUser.avatarUrl);
@@ -947,6 +985,20 @@ class SystemStateProvider extends ChangeNotifier {
             final zipFileName = 'moment_like_avatar_${post.id}_$i$ext';
             files[zipFileName] = likeUser.avatarUrl;
           }
+        }
+      }
+    }
+
+    // 2.11 收集表情包图片
+    final allEmojis = await db.getAllEmojis();
+    for (final emoji in allEmojis) {
+      if (emoji.localPath.isNotEmpty) {
+        final emojiFile = File(emoji.localPath);
+        if (await emojiFile.exists()) {
+          final ext = path.extension(emoji.localPath);
+          // 使用表情ID作为唯一标识
+          final zipFileName = 'emoji_${emoji.id}$ext';
+          files[zipFileName] = emoji.localPath;
         }
       }
     }
@@ -1382,10 +1434,10 @@ class SystemStateProvider extends ChangeNotifier {
     Map<String, String> restoredImages,
   ) async {
     try {
-      // 1. 更新角色头像路径
+      // 1. 更新角色头像和参考图路径
       final roles = await db.getAllContactRoles();
       for (final role in roles) {
-        String? newAvatarPath;
+        String? newAvatarPath = role.avatarPath;
         for (final entry in restoredImages.entries) {
           if (entry.key.contains('role_avatar_${role.id}') ||
               entry.value.contains('role_avatar_${role.id}')) {
@@ -1394,22 +1446,44 @@ class SystemStateProvider extends ChangeNotifier {
           }
         }
 
-        if (newAvatarPath != null && newAvatarPath != role.avatarPath) {
+        bool refImagesChanged = false;
+        final newRefImages = List<String>.from(role.referenceImages);
+        for (int i = 0; i < newRefImages.length; i++) {
+          final oldPath = newRefImages[i];
+          String? restoredPath;
+          for (final entry in restoredImages.entries) {
+            if (entry.key.contains('role_ref_${role.id}_$i') ||
+                entry.value.contains('role_ref_${role.id}_$i')) {
+              restoredPath = entry.value;
+              break;
+            }
+          }
+          if (restoredPath != null && restoredPath != oldPath) {
+            newRefImages[i] = restoredPath;
+            refImagesChanged = true;
+          }
+        }
+
+        if (newAvatarPath != role.avatarPath || refImagesChanged) {
           final updatedRole = ContactRole(
             id: role.id,
             name: role.name,
             avatarPath: newAvatarPath,
             description: role.description,
+            appearance: role.appearance,
+            referenceImages: newRefImages,
+            subscribedGroupIds: role.subscribedGroupIds,
+            subscribedEmojiIds: role.subscribedEmojiIds,
           );
           await db.insertContactRole(updatedRole);
-          debugPrint('已更新角色 ${role.name} 的头像路径');
+          debugPrint('已更新角色 ${role.name} 的头像/参考图路径');
         }
       }
 
-      // 2. 更新用户头像路径
+      // 2. 更新用户头像和参考图路径
       final meList = await db.getAllContactMes();
       for (final me in meList) {
-        String? newAvatarPath;
+        String? newAvatarPath = me.avatarPath;
         for (final entry in restoredImages.entries) {
           if (entry.key.contains('me_avatar_${me.id}') ||
               entry.value.contains('me_avatar_${me.id}')) {
@@ -1418,15 +1492,35 @@ class SystemStateProvider extends ChangeNotifier {
           }
         }
 
-        if (newAvatarPath != null && newAvatarPath != me.avatarPath) {
+        bool refImagesChanged = false;
+        final newRefImages = List<String>.from(me.referenceImages);
+        for (int i = 0; i < newRefImages.length; i++) {
+          final oldPath = newRefImages[i];
+          String? restoredPath;
+          for (final entry in restoredImages.entries) {
+            if (entry.key.contains('me_ref_${me.id}_$i') ||
+                entry.value.contains('me_ref_${me.id}_$i')) {
+              restoredPath = entry.value;
+              break;
+            }
+          }
+          if (restoredPath != null && restoredPath != oldPath) {
+            newRefImages[i] = restoredPath;
+            refImagesChanged = true;
+          }
+        }
+
+        if (newAvatarPath != me.avatarPath || refImagesChanged) {
           final updatedMe = ContactMe(
             id: me.id,
             name: me.name,
             avatarPath: newAvatarPath,
             info: me.info,
+            appearance: me.appearance,
+            referenceImages: newRefImages,
           );
           await db.insertContactMe(updatedMe);
-          debugPrint('已更新用户 ${me.name} 的头像路径');
+          debugPrint('已更新用户 ${me.name} 的头像/参考图路径');
         }
       }
 
@@ -1601,9 +1695,10 @@ class SystemStateProvider extends ChangeNotifier {
         }
 
         // 5.4 更新点赞用户头像
-        final updatedLikes = <MomentsUser>[];
+        final updatedLikes = <MomentLike>[];
         for (int i = 0; i < post.likes.length; i++) {
-          final likeUser = post.likes[i];
+          final like = post.likes[i];
+          final likeUser = like.user;
           String newLikeAvatarUrl = likeUser.avatarUrl;
           for (final entry in restoredImages.entries) {
             if (entry.key.contains('moment_like_avatar_${post.id}_$i') ||
@@ -1613,7 +1708,11 @@ class SystemStateProvider extends ChangeNotifier {
               break;
             }
           }
-          updatedLikes.add(likeUser.copyWith(avatarUrl: newLikeAvatarUrl));
+          updatedLikes.add(MomentLike(
+            user: likeUser.copyWith(avatarUrl: newLikeAvatarUrl),
+            createdAt: like.createdAt,
+            isCancelled: like.isCancelled,
+          ));
         }
 
         // 如果有更新，保存到数据库
@@ -1630,6 +1729,25 @@ class SystemStateProvider extends ChangeNotifier {
           );
           await db.insertMoment(updatedPost);
           debugPrint('已更新朋友圈动态 ${post.id} 的图片路径');
+        }
+      }
+
+      // 7. 更新表情包路径
+      final emojis = await db.getAllEmojis();
+      for (final emoji in emojis) {
+        String? newEmojiPath;
+        for (final entry in restoredImages.entries) {
+          if (entry.key.contains('emoji_${emoji.id}') ||
+              entry.value.contains('emoji_${emoji.id}')) {
+            newEmojiPath = entry.value;
+            break;
+          }
+        }
+
+        if (newEmojiPath != null && newEmojiPath != emoji.localPath) {
+          final updatedEmoji = emoji.copyWith(localPath: newEmojiPath);
+          await db.insertEmoji(updatedEmoji);
+          debugPrint('已更新表情 ${emoji.id} 的本地路径');
         }
       }
 

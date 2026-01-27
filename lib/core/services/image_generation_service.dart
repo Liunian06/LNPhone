@@ -7,6 +7,8 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../models/api_preset.dart';
 import '../database/database.dart';
 import 'app_log_service.dart';
+import 'api_log_service.dart';
+import '../models/api_log.dart';
 
 import '../models/contact_model.dart';
 import '../utils/image_utils.dart';
@@ -33,17 +35,28 @@ class ImageGenerationService {
   /// [stylePrompt] 风格提示词
   /// [includeCharacter] 是否包含角色外貌信息
   /// [includeUser] 是否包含用户外貌信息
+  /// [imageApiPresetId] 独立的生图 API 预设 ID
   /// 返回生成的图片本地路径
   Future<String?> generateImage(
     String prompt,
     String stylePrompt, {
     bool includeCharacter = false,
     bool includeUser = false,
+    String? imageApiPresetId,
   }) async {
+    ApiPreset? preset;
+    String? url;
+    final stopwatch = Stopwatch();
+
     try {
-      // 获取当前选中的生图模型配置
-      // 注意：ApiSettingsProvider 使用 'active_image_preset_id' 作为 key
-      final imageModelId = await _db.getSetting('active_image_preset_id');
+      // 优先使用传入的独立生图 API 预设 ID，否则使用全局默认
+      String? imageModelId = imageApiPresetId;
+      if (imageModelId == null) {
+        // 获取当前选中的生图模型配置
+        // 注意：ApiSettingsProvider 使用 'active_image_preset_id' 作为 key
+        imageModelId = await _db.getSetting('active_image_preset_id');
+      }
+
       if (imageModelId == null) {
         debugPrint(
             '[ImageGeneration] 未配置生图模型 (active_image_preset_id is null)');
@@ -51,7 +64,6 @@ class ImageGenerationService {
       }
 
       final apiPresets = await _db.getAllApiPresets();
-      ApiPreset? preset;
       try {
         preset = apiPresets.firstWhere((p) => p.id == imageModelId);
       } catch (e) {
@@ -62,14 +74,53 @@ class ImageGenerationService {
       debugPrint(
           '[ImageGeneration] 使用预设: ${preset.name}, Provider: ${preset.provider}, BaseURL: ${preset.baseUrl}, Model: ${preset.model}');
 
-      // 强制从 assets 读取 text2image_prompt
+      // 从数据库读取当前选定的生图风格
+      final style = await _db.getSetting('text2image_style') ?? 'realistic';
+
       String finalStylePrompt = '';
-      try {
-        finalStylePrompt = await rootBundle.loadString(
-          'assets/prompts/text2image_prompt.txt',
-        );
-      } catch (e) {
-        debugPrint('[ImageGeneration] Error loading text2image_prompt: $e');
+
+      if (style == 'custom') {
+        finalStylePrompt =
+            await _db.getSetting('custom_text2image_prompt') ?? '';
+      } else {
+        // 根据风格确定 asset 路径
+        String assetPath;
+        switch (style) {
+          case 'anime':
+            assetPath = 'assets/prompts/t2i_anime.txt';
+            break;
+          case 'cyberpunk':
+            assetPath = 'assets/prompts/t2i_cyberpunk.txt';
+            break;
+          case 'oil_painting':
+            assetPath = 'assets/prompts/t2i_oil_painting.txt';
+            break;
+          case 'ink_painting':
+            assetPath = 'assets/prompts/t2i_ink_painting.txt';
+            break;
+          case 'webtoon':
+            assetPath = 'assets/prompts/t2i_webtoon.txt';
+            break;
+          case 'beautiful_lighting':
+            assetPath = 'assets/prompts/t2i_beautiful_lighting.txt';
+            break;
+          case 'realistic':
+          default:
+            assetPath = 'assets/prompts/text2image_prompt.txt';
+            break;
+        }
+
+        try {
+          finalStylePrompt = await rootBundle.loadString(assetPath);
+        } catch (e) {
+          debugPrint(
+              '[ImageGeneration] Error loading style prompt ($assetPath): $e');
+          // 如果加载失败，尝试加载默认风格
+          try {
+            finalStylePrompt = await rootBundle
+                .loadString('assets/prompts/text2image_prompt.txt');
+          } catch (_) {}
+        }
       }
 
       final buffer = StringBuffer();
@@ -112,6 +163,8 @@ class ImageGenerationService {
       final fullPrompt = buffer.toString();
       debugPrint('[ImageGeneration] 开始生成图片，Prompt: $fullPrompt');
 
+      stopwatch.start();
+
       // 记录生图开始日志
       await AppLogService.log(
         '开始生成图片',
@@ -152,7 +205,6 @@ class ImageGenerationService {
       }
 
       // 构建请求 URL
-      String url;
       if (preset.provider == ApiProvider.gemini) {
         url =
             '$baseUrl/v1beta/models/${preset.model}:generateContent?key=${preset.apiKey}';
@@ -241,11 +293,13 @@ class ImageGenerationService {
         }
       }
 
-      final response = await http.post(
-        Uri.parse(url),
-        headers: headers,
-        body: jsonEncode(body),
-      );
+      final response = await http
+          .post(
+            Uri.parse(url),
+            headers: headers,
+            body: jsonEncode(body),
+          )
+          .timeout(Duration(seconds: preset.timeout));
 
       // 记录 API 响应
       await AppLogService.log(
@@ -420,6 +474,19 @@ class ImageGenerationService {
           },
         );
       }
+
+      // 记录成功的 API 调用日志
+      if (preset != null && url != null) {
+        stopwatch.stop();
+        final durationSeconds = stopwatch.elapsed.inMilliseconds / 1000.0;
+        await ApiLogService.logApiCall(ApiLog(
+          callTime: DateTime.now().toIso8601String(),
+          provider: preset.provider.name,
+          apiUrl: url!,
+          modelId: preset.model,
+          durationSeconds: durationSeconds,
+        ));
+      }
     } catch (e) {
       debugPrint('[ImageGeneration] 生成图片异常: $e');
       await AppLogService.log(
@@ -428,6 +495,19 @@ class ImageGenerationService {
         level: LogLevel.error,
         data: {'error': e.toString()},
       );
+
+      if (preset != null && url != null) {
+        if (stopwatch.isRunning) stopwatch.stop();
+        final durationSeconds = stopwatch.elapsed.inMilliseconds / 1000.0;
+        await ApiLogService.logApiCall(ApiLog(
+          callTime: DateTime.now().toIso8601String(),
+          provider: preset.provider.name,
+          apiUrl: url!,
+          modelId: preset.model,
+          durationSeconds: durationSeconds,
+          error: e.toString(),
+        ));
+      }
     }
     return null;
   }

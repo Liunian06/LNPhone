@@ -19,6 +19,8 @@ class ResponseParser {
     String messageIdPrefix, {
     Map<String, String>? simpleIdToRealId,
     bool enableTextToImage = false,
+    bool enableEmoji = true,
+    String? imageApiPresetId, // 传入独立生图 API 预设 ID
     RegexSettingsProvider? regexProvider,
   }) async {
     print('[ResponseParser] ========== 开始解析响应 ==========');
@@ -48,30 +50,43 @@ class ResponseParser {
         print('[ResponseParser] 尝试解析为 JSON...');
         return await _parseJson(cleanResponse, messageIdPrefix,
             simpleIdToRealId: simpleIdToRealId,
-            enableTextToImage: enableTextToImage);
+            enableTextToImage: enableTextToImage,
+            enableEmoji: enableEmoji,
+            imageApiPresetId: imageApiPresetId);
       } catch (e) {
         print('[ResponseParser] ⚠️ JSON 解析失败: $e');
 
         // 如果使用了 provider，说明已经经过了正则处理，这里不再重复硬编码的修复逻辑
         // 除非 provider 为空（兼容旧逻辑）
         if (regexProvider == null) {
-          // 尝试修复常见的 JSON 格式错误：缺少逗号
-          final missingCommaRegex = RegExp(r'\}\s*\{');
-          if (missingCommaRegex.hasMatch(cleanResponse)) {
-            print('[ResponseParser] 检测到可能的 JSON 格式错误 (缺少逗号)，尝试修复...');
-            final fixedJson =
-                cleanResponse.replaceAll(missingCommaRegex, '},{');
-            try {
-              // 如果原始字符串不是数组包裹的，尝试包裹它
-              String jsonToParse = fixedJson;
-              if (!jsonToParse.startsWith('[')) {
-                jsonToParse = '[$jsonToParse]';
-              }
+          // 尝试修复常见的 JSON 格式错误
+          String fixedJson = cleanResponse;
+          bool modified = false;
 
+          // 1. 修复缺少逗号的情况 (}{ -> },{)
+          final missingCommaRegex = RegExp(r'\}\s*\{');
+          if (missingCommaRegex.hasMatch(fixedJson)) {
+            print('[ResponseParser] 检测到可能的 JSON 格式错误 (缺少逗号)，尝试修复...');
+            fixedJson = fixedJson.replaceAll(missingCommaRegex, '},{');
+            modified = true;
+          }
+
+          // 2. 确保如果是多个对象但没有数组包裹，则包裹它
+          // 如果包含 "}," 或者修复后的 "}," 且不以 "[" 开头
+          if (!fixedJson.startsWith('[') && fixedJson.contains('},')) {
+            print('[ResponseParser] 检测到多个 JSON 对象但缺少数组包裹，尝试包裹...');
+            fixedJson = '[$fixedJson]';
+            modified = true;
+          }
+
+          if (modified) {
+            try {
               print('[ResponseParser] 尝试解析修复后的 JSON...');
-              return await _parseJson(jsonToParse, messageIdPrefix,
+              return await _parseJson(fixedJson, messageIdPrefix,
                   simpleIdToRealId: simpleIdToRealId,
-                  enableTextToImage: enableTextToImage);
+                  enableTextToImage: enableTextToImage,
+                  enableEmoji: enableEmoji,
+                  imageApiPresetId: imageApiPresetId);
             } catch (e2) {
               print('[ResponseParser] ⚠️ 修复后的 JSON 解析仍然失败: $e2');
             }
@@ -93,7 +108,9 @@ class ResponseParser {
               print('[ResponseParser] 尝试解析进一步修复的 JSON...');
               return await _parseJson(fixedJson, messageIdPrefix,
                   simpleIdToRealId: simpleIdToRealId,
-                  enableTextToImage: enableTextToImage);
+                  enableTextToImage: enableTextToImage,
+                  enableEmoji: enableEmoji,
+                  imageApiPresetId: imageApiPresetId);
             }
           } catch (e3) {
             print('[ResponseParser] ⚠️ 进一步修复后的 JSON 解析仍然失败: $e3');
@@ -106,7 +123,9 @@ class ResponseParser {
               final noBackslashJson = cleanResponse.replaceAll(r'\', '');
               return await _parseJson(noBackslashJson, messageIdPrefix,
                   simpleIdToRealId: simpleIdToRealId,
-                  enableTextToImage: enableTextToImage);
+                  enableTextToImage: enableTextToImage,
+                  enableEmoji: enableEmoji,
+                  imageApiPresetId: imageApiPresetId);
             } catch (e4) {
               print('[ResponseParser] ⚠️ 去除反斜杠后的 JSON 解析仍然失败: $e4');
             }
@@ -119,7 +138,9 @@ class ResponseParser {
               final noSpaceJson = cleanResponse.replaceAll(' ', '');
               return await _parseJson(noSpaceJson, messageIdPrefix,
                   simpleIdToRealId: simpleIdToRealId,
-                  enableTextToImage: enableTextToImage);
+                  enableTextToImage: enableTextToImage,
+                  enableEmoji: enableEmoji,
+                  imageApiPresetId: imageApiPresetId);
             } catch (e5) {
               print('[ResponseParser] ⚠️ 去除空格后的 JSON 解析仍然失败: $e5');
             }
@@ -136,6 +157,8 @@ class ResponseParser {
     return await _parseXml(rawResponse, messageIdPrefix,
         simpleIdToRealId: simpleIdToRealId,
         enableTextToImage: enableTextToImage,
+        enableEmoji: enableEmoji,
+        imageApiPresetId: imageApiPresetId,
         regexProvider: regexProvider);
   }
 
@@ -144,6 +167,8 @@ class ResponseParser {
     String messageIdPrefix, {
     Map<String, String>? simpleIdToRealId,
     bool enableTextToImage = false,
+    bool enableEmoji = true,
+    String? imageApiPresetId,
   }) async {
     final messages = <ChatMessage>[];
     dynamic decoded;
@@ -178,6 +203,8 @@ class ResponseParser {
         '$messageIdPrefix-$messageIndex',
         simpleIdToRealId: simpleIdToRealId,
         enableTextToImage: enableTextToImage,
+        enableEmoji: enableEmoji,
+        imageApiPresetId: imageApiPresetId,
       );
 
       if (message != null) {
@@ -198,14 +225,13 @@ class ResponseParser {
     String messageId, {
     Map<String, String>? simpleIdToRealId,
     bool enableTextToImage = false,
+    bool enableEmoji = true,
+    String? imageApiPresetId,
   }) async {
     final typeStr = item['type'] as String?;
     String content = item['content'] as String? ?? '';
 
-    // 自动删除内容中的空格
-    if (content.contains(' ')) {
-      content = content.replaceAll(' ', '');
-    }
+    // 不再自动删除内容中的空格，由正则规则控制
 
     final timestamp = DateTime.now().millisecondsSinceEpoch;
 
@@ -248,6 +274,11 @@ class ResponseParser {
         type = MessageType.state;
         break;
       case 'emoji':
+        if (!enableEmoji) {
+          print(
+              '[ResponseParser] ⚠️ 检测到表情包消息，但表情包功能未启用 (enableEmoji=false)，已忽略');
+          return null;
+        }
         type = MessageType.emoji;
         // 尝试从 content 中提取 ID，如果 content 本身就是 ID
         if (content.startsWith('emoji-id-')) {
@@ -279,12 +310,15 @@ class ResponseParser {
           stylePrompt,
           includeCharacter: includeCharacter,
           includeUser: includeUser,
+          imageApiPresetId: imageApiPresetId,
         );
         if (imagePath != null) {
           content = imagePath; // 替换内容为本地图片路径
+          metadata['original_prompt'] = item['content'] as String? ?? '';
         } else {
           content = '图片生成失败';
           type = MessageType.words; // 降级为文本
+          metadata['original_prompt'] = item['content'] as String? ?? '';
         }
         break;
       case 'location':
@@ -339,15 +373,23 @@ class ResponseParser {
       case 'moment':
         type = MessageType.moment;
         break;
+      case 'moment_comment':
+        type = MessageType.momentComment;
+        break;
+      case 'moment_like':
+        type = MessageType.momentLike;
+        break;
       default:
         return null;
     }
 
-    // 特殊处理 accept/reject 的 target_id
+    // 特殊处理 accept/reject/moment_comment/moment_like 的 target_id
     if (type == MessageType.acceptRedpacket ||
         type == MessageType.rejectRedpacket ||
         type == MessageType.acceptTransfer ||
-        type == MessageType.rejectTransfer) {
+        type == MessageType.rejectTransfer ||
+        type == MessageType.momentComment ||
+        type == MessageType.momentLike) {
       if (metadata.containsKey('reply_id')) {
         metadata['target_id'] = metadata['reply_id'];
         metadata.remove('reply_id');
@@ -370,6 +412,8 @@ class ResponseParser {
     String messageIdPrefix, {
     Map<String, String>? simpleIdToRealId,
     bool enableTextToImage = false,
+    bool enableEmoji = true,
+    String? imageApiPresetId,
     RegexSettingsProvider? regexProvider,
   }) async {
     print('[ResponseParser] (XML) 开始解析 XML...');
@@ -442,7 +486,7 @@ class ResponseParser {
                 id: '$messageIdPrefix-0',
                 isMe: false,
                 type: MessageType.words,
-                content: xmlToParse.replaceAll(' ', ''),
+                content: xmlToParse,
                 timestamp: DateTime.now().millisecondsSinceEpoch,
                 isRead: false,
               ),
@@ -465,7 +509,7 @@ class ResponseParser {
               id: '$messageIdPrefix-0',
               isMe: false,
               type: MessageType.words,
-              content: content.replaceAll(' ', ''),
+              content: content,
               timestamp: DateTime.now().millisecondsSinceEpoch,
               isRead: false,
             ),
@@ -491,6 +535,8 @@ class ResponseParser {
           '$messageIdPrefix-$messageIndex',
           simpleIdToRealId: simpleIdToRealId,
           enableTextToImage: enableTextToImage,
+          enableEmoji: enableEmoji,
+          imageApiPresetId: imageApiPresetId,
         );
 
         if (message != null) {
@@ -508,7 +554,7 @@ class ResponseParser {
             id: '$messageIdPrefix-0',
             isMe: false,
             type: MessageType.words,
-            content: content.replaceAll(' ', ''),
+            content: content,
             timestamp: DateTime.now().millisecondsSinceEpoch,
             isRead: false,
           ),
@@ -530,11 +576,10 @@ class ResponseParser {
     String messageId, {
     Map<String, String>? simpleIdToRealId,
     bool enableTextToImage = false,
+    bool enableEmoji = true,
+    String? imageApiPresetId,
   }) async {
-    // 自动删除内容中的空格
-    if (content.contains(' ')) {
-      content = content.replaceAll(' ', '');
-    }
+    // 不再自动删除内容中的空格，由正则规则控制
 
     final timestamp = DateTime.now().millisecondsSinceEpoch;
 
@@ -619,6 +664,11 @@ class ResponseParser {
         );
 
       case 'emoji':
+        if (!enableEmoji) {
+          print(
+              '[ResponseParser] ⚠️ (XML) 检测到表情包消息，但表情包功能未启用 (enableEmoji=false)，已忽略');
+          return null;
+        }
         final emojiId = element.getAttribute('id');
         if (emojiId != null && emojiId.isNotEmpty) {
           metadata['emoji_id'] = emojiId;
@@ -657,15 +707,18 @@ class ResponseParser {
           stylePrompt,
           includeCharacter: includeCharacter,
           includeUser: includeUser,
+          imageApiPresetId: imageApiPresetId,
         );
         String finalContent = content;
         MessageType finalType = MessageType.image;
 
         if (imagePath != null) {
           finalContent = imagePath;
+          metadata['original_prompt'] = content;
         } else {
           finalContent = '图片生成失败';
           finalType = MessageType.words;
+          metadata['original_prompt'] = content;
         }
 
         return ChatMessage(

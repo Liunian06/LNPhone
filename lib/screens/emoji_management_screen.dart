@@ -93,12 +93,17 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(text: '全局表情'),
-            Tab(text: '角色表情'),
+            Tab(text: '所有表情'),
+            Tab(text: '角色订阅'),
           ],
         ),
         actions: [
           if (_isSelectionMode) ...[
+            IconButton(
+              icon: const Icon(Icons.download),
+              tooltip: '批量导出',
+              onPressed: _selectedEmojiIds.isEmpty ? null : _exportSelected,
+            ),
             IconButton(
               icon: const Icon(Icons.delete),
               tooltip: '批量删除',
@@ -130,11 +135,19 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
               },
             ),
           ] else ...[
-            IconButton(
-              icon: const Icon(Icons.create_new_folder_outlined),
-              tooltip: '新建分组',
-              onPressed: _addEmojiGroup,
-            ),
+            if (_tabController.index == 0) ...[
+              IconButton(
+                icon: const Icon(Icons.upload_file),
+                tooltip: '导入表情包',
+                onPressed: () =>
+                    context.read<EmojiProvider>().importEmojisFromZip(),
+              ),
+              IconButton(
+                icon: const Icon(Icons.create_new_folder_outlined),
+                tooltip: '新建分组',
+                onPressed: _addEmojiGroup,
+              ),
+            ],
             PopupMenuButton<String>(
               icon: const Icon(Icons.add),
               onSelected: (value) {
@@ -167,11 +180,11 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          // 全局表情 Tab
+          // 所有表情 Tab
           _buildGroupedEmojiList(
-              provider.globalEmojis, provider.emojiGroups, null, isDark),
+              provider.allEmojis, provider.emojiGroups, null, isDark),
 
-          // 角色表情 Tab
+          // 角色订阅 Tab
           Column(
             children: [
               // 角色选择器
@@ -198,7 +211,7 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
                                 _isSelectionMode = false;
                                 _selectedEmojiIds.clear();
                               });
-                              provider.loadEmojis(role.id);
+                              provider.loadEmojis();
                             }
                           },
                           avatar: (role.avatarPath != null &&
@@ -223,11 +236,10 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
                   child: Text('暂无角色，请先创建角色'),
                 ),
 
-              // 表情网格
+              // 订阅管理与偷图列表
               Expanded(
                 child: _selectedRoleId != null
-                    ? _buildGroupedEmojiList(provider.roleEmojis,
-                        provider.emojiGroups, _selectedRoleId, isDark)
+                    ? _buildRoleDetailView(provider, contactProvider)
                     : const Center(child: Text('请选择一个角色')),
               ),
             ],
@@ -239,9 +251,8 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
 
   Widget _buildGroupedEmojiList(List<EmojiModel> emojis,
       List<EmojiGroupEntity> groups, String? roleId, bool isDark) {
-    final type = _tabController.index == 0 ? EmojiType.global : EmojiType.role;
     final currentGroups =
-        groups.where((g) => g.type == type && g.roleId == roleId).toList();
+        groups.where((g) => g.type == EmojiType.global).toList();
 
     // 未分组的表情
     final ungroupedEmojis = emojis.where((e) => e.groupId == null).toList();
@@ -250,26 +261,62 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
       padding: const EdgeInsets.all(8),
       children: [
         if (ungroupedEmojis.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-            child: Text('未分组',
-                style:
-                    TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            child: Row(
+              children: [
+                const Text('未分组',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.grey)),
+                const Spacer(),
+                TextButton.icon(
+                  icon: const Icon(Icons.select_all, size: 16),
+                  label: const Text('全选', style: TextStyle(fontSize: 12)),
+                  onPressed: () => _selectAllInGroup(ungroupedEmojis),
+                ),
+              ],
+            ),
           ),
           _buildEmojiGrid(ungroupedEmojis, isDark),
         ],
         for (final group in currentGroups) ...[
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(group.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline,
-                      size: 18, color: Colors.red),
-                  onPressed: () => _deleteGroup(group),
+                Row(
+                  children: [
+                    Text(group.name,
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(
+                        group.isVisible
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        size: 18,
+                        color: group.isVisible ? Colors.blue : Colors.grey,
+                      ),
+                      tooltip: group.isVisible ? '在面板中显示' : '在面板中隐藏',
+                      onPressed: () => context
+                          .read<EmojiProvider>()
+                          .toggleGroupVisibility(
+                              group.id, !group.isVisible, _selectedRoleId),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      icon: const Icon(Icons.select_all, size: 16),
+                      label: const Text('全选', style: TextStyle(fontSize: 12)),
+                      onPressed: () => _selectAllInGroup(
+                          emojis.where((e) => e.groupId == group.id).toList()),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline,
+                          size: 18, color: Colors.red),
+                      onPressed: () => _deleteGroup(group),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -287,7 +334,7 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
                     size: 64, color: Colors.grey[400]),
                 const SizedBox(height: 16),
                 Text(
-                  _tabController.index == 0 ? '全局表情库为空' : '该角色暂无专属表情',
+                  '表情库为空',
                   style: TextStyle(color: Colors.grey[600]),
                 ),
               ],
@@ -401,21 +448,11 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
         if (meaningResult == null) continue;
 
         if (mounted) {
-          final isGlobal = _tabController.index == 0;
-          final roleId = isGlobal ? null : _selectedRoleId;
-
-          if (!isGlobal && roleId == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('添加失败：未选择角色')),
-            );
-            continue;
-          }
-
           await context.read<EmojiProvider>().addEmoji(
                 filePath: file.path!,
                 meaning: meaningResult['meaning']!,
-                type: isGlobal ? EmojiType.global : EmojiType.role,
-                roleId: roleId,
+                type: EmojiType.global,
+                roleId: null,
               );
         }
       }
@@ -537,6 +574,51 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
     }
   }
 
+  Future<void> _exportSelected() async {
+    final provider = context.read<EmojiProvider>();
+    final selectedEmojis = provider.allEmojis
+        .where((e) => _selectedEmojiIds.contains(e.id))
+        .toList();
+
+    if (selectedEmojis.isEmpty) return;
+
+    try {
+      await provider.exportSelectedEmojis(selectedEmojis);
+      setState(() {
+        _isSelectionMode = false;
+        _selectedEmojiIds.clear();
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('导出失败: $e')),
+        );
+      }
+    }
+  }
+
+  void _selectAllInGroup(List<EmojiModel> groupEmojis) {
+    setState(() {
+      _isSelectionMode = true;
+      for (final emoji in groupEmojis) {
+        _selectedEmojiIds.add(emoji.id);
+      }
+    });
+  }
+
+  Future<void> _exportGroup(List<EmojiModel> groupEmojis) async {
+    if (groupEmojis.isEmpty) return;
+    try {
+      await context.read<EmojiProvider>().exportSelectedEmojis(groupEmojis);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('导出失败: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _copySelected() async {
     final isGlobal = _tabController.index == 0;
     final provider = context.read<EmojiProvider>();
@@ -555,14 +637,12 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
     final targetGroupId = result['groupId'] as String?;
 
     if (mounted) {
-      final emojis = isGlobal ? provider.globalEmojis : provider.roleEmojis;
-      final selectedEmojis =
-          emojis.where((e) => _selectedEmojiIds.contains(e.id)).toList();
+      final selectedEmojis = provider.allEmojis
+          .where((e) => _selectedEmojiIds.contains(e.id))
+          .toList();
 
       await provider.copyEmojis(
         emojis: selectedEmojis,
-        targetType: targetType,
-        targetRoleId: targetRoleId,
         targetGroupId: targetGroupId,
       );
 
@@ -599,14 +679,12 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
     final targetGroupId = result['groupId'] as String?;
 
     if (mounted) {
-      final emojis = isGlobal ? provider.globalEmojis : provider.roleEmojis;
-      final selectedEmojis =
-          emojis.where((e) => _selectedEmojiIds.contains(e.id)).toList();
+      final selectedEmojis = provider.allEmojis
+          .where((e) => _selectedEmojiIds.contains(e.id))
+          .toList();
 
       await provider.moveEmojis(
         emojis: selectedEmojis,
-        targetType: targetType,
-        targetRoleId: targetRoleId,
         targetGroupId: targetGroupId,
       );
 
@@ -845,8 +923,8 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
     if (mounted) {
       await context.read<EmojiProvider>().batchImportEmojis(
             filePaths: result.files.map((f) => f.path!).toList(),
-            type: _tabController.index == 0 ? EmojiType.global : EmojiType.role,
-            roleId: _tabController.index == 1 ? _selectedRoleId : null,
+            type: EmojiType.global,
+            roleId: null,
             onTagging: (path) async {
               return await LlmService.analyzeImage(
                 apiPreset: selectedPreset!,
@@ -916,10 +994,9 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
     );
 
     final provider = context.read<EmojiProvider>();
-    final currentEmojis =
-        _tabController.index == 0 ? provider.globalEmojis : provider.roleEmojis;
-    final selectedEmojis =
-        currentEmojis.where((e) => _selectedEmojiIds.contains(e.id)).toList();
+    final selectedEmojis = provider.allEmojis
+        .where((e) => _selectedEmojiIds.contains(e.id))
+        .toList();
 
     final promptTemplate =
         await rootBundle.loadString('assets/prompts/emoji_tagging_prompt.txt');
@@ -971,14 +1048,25 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
 
     await context.read<EmojiProvider>().pureBatchImportEmojis(
           filePaths: result.files.map((f) => f.path!).toList(),
-          type: _tabController.index == 0 ? EmojiType.global : EmojiType.role,
-          roleId: _tabController.index == 1 ? _selectedRoleId : null,
+          type: EmojiType.global,
+          roleId: null,
         );
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('批量导入完成')),
       );
+    }
+  }
+
+  Future<void> _importEmojis() async {
+    final provider = context.read<EmojiProvider>();
+    // 1. 弹出分组选择对话框
+    final targetGroupId =
+        await _showGroupSelectionDialog(context, EmojiType.global, null);
+
+    if (mounted) {
+      await provider.importEmojisFromZip(targetGroupId: targetGroupId);
     }
   }
 
@@ -1033,6 +1121,113 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
       await context
           .read<EmojiProvider>()
           .deleteEmojiGroup(group.id, _selectedRoleId);
+    }
+  }
+
+  Widget _buildRoleDetailView(
+      EmojiProvider provider, ContactProvider contactProvider) {
+    final role =
+        contactProvider.roles.firstWhere((r) => r.id == _selectedRoleId);
+    final globalGroups =
+        provider.emojiGroups.where((g) => g.type == EmojiType.global).toList();
+    final stolenEmojis = provider.allEmojis
+        .where((e) => e.type == EmojiType.role && e.roleId == role.id)
+        .toList();
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // 1. 订阅部分
+        const Text('订阅全局分组',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        if (globalGroups.isEmpty)
+          const Text('暂无全局分组，请先在“所有表情”页创建',
+              style: TextStyle(color: Colors.grey))
+        else
+          for (final group in globalGroups)
+            CheckboxListTile(
+              title: Text(group.name),
+              subtitle: Text(
+                  '${provider.allEmojis.where((e) => e.groupId == group.id).length} 个表情'),
+              value: role.subscribedGroupIds.contains(group.id),
+              onChanged: (val) async {
+                final List<String> newSubs = List.from(role.subscribedGroupIds);
+                if (val == true) {
+                  newSubs.add(group.id);
+                } else {
+                  newSubs.remove(group.id);
+                }
+                await provider.updateRoleSubscriptions(role.id, newSubs);
+                await contactProvider.loadContacts();
+              },
+            ),
+
+        const Divider(height: 32),
+
+        // 2. 偷图部分
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('偷来的图 (${stolenEmojis.length})',
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            if (stolenEmojis.isNotEmpty)
+              TextButton(
+                onPressed: () => _moveStolenToGlobal(stolenEmojis),
+                child: const Text('全部转为公共'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (stolenEmojis.isEmpty)
+          const Center(
+              child: Padding(
+            padding: EdgeInsets.all(32.0),
+            child: Text('该角色暂无偷图', style: TextStyle(color: Colors.grey)),
+          ))
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 1,
+            ),
+            itemCount: stolenEmojis.length,
+            itemBuilder: (context, index) {
+              final emoji = stolenEmojis[index];
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(File(emoji.localPath), fit: BoxFit.cover),
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Future<void> _moveStolenToGlobal(List<EmojiModel> emojis) async {
+    final provider = context.read<EmojiProvider>();
+    final targetGroupId =
+        await _showGroupSelectionDialog(context, EmojiType.global, null);
+
+    if (mounted) {
+      await provider.moveEmojis(
+        emojis: emojis,
+        targetGroupId: targetGroupId,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已转为公共表情')),
+      );
     }
   }
 }

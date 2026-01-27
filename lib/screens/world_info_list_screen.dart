@@ -6,8 +6,64 @@ import '../core/models/world_info_model.dart';
 import '../widgets/ios_wallpaper.dart';
 
 /// 世界书列表页面 - ChatProvider 重构版
-class WorldInfoListScreen extends StatelessWidget {
+class WorldInfoListScreen extends StatefulWidget {
   const WorldInfoListScreen({super.key});
+
+  @override
+  State<WorldInfoListScreen> createState() => _WorldInfoListScreenState();
+}
+
+class _WorldInfoListScreenState extends State<WorldInfoListScreen> {
+  bool _isSelectionMode = false;
+  final Set<String> _selectedIds = {};
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _isSelectionMode = !_isSelectionMode;
+      _selectedIds.clear();
+    });
+  }
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _handleBatchDelete(ChatProvider provider) async {
+    if (_selectedIds.isEmpty) return;
+
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('确认删除'),
+        content: Text('确定要删除选中的 ${_selectedIds.length} 个世界书吗？'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.pop(context, false),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('删除'),
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await provider.deleteWorldInfos(_selectedIds.toList());
+      setState(() {
+        _isSelectionMode = false;
+        _selectedIds.clear();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +105,7 @@ class WorldInfoListScreen extends StatelessWidget {
                   },
                 ),
               ),
+              if (_isSelectionMode) _buildBatchActionBar(isDark),
             ],
           ),
         ),
@@ -61,22 +118,33 @@ class WorldInfoListScreen extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           _buildHeaderButton(
             icon: CupertinoIcons.back,
             onTap: () => Navigator.pop(context),
             isDark: isDark,
           ),
-          Text(
-            '世界书',
-            style: TextStyle(
-              color: textColor,
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.2,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '世界书',
+              style: TextStyle(
+                color: textColor,
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
             ),
           ),
+          _buildHeaderButton(
+            icon: _isSelectionMode
+                ? CupertinoIcons.xmark
+                : CupertinoIcons.list_bullet,
+            onTap: _toggleSelectionMode,
+            isDark: isDark,
+            active: _isSelectionMode,
+          ),
+          const SizedBox(width: 12),
           _buildHeaderButton(
             icon: CupertinoIcons.add,
             onTap: () => Navigator.push(
@@ -91,23 +159,66 @@ class WorldInfoListScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeaderButton(
-      {required IconData icon,
-      required VoidCallback onTap,
-      required bool isDark}) {
+  Widget _buildHeaderButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required bool isDark,
+    bool active = false,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: isDark
-              ? Colors.white.withOpacity(0.15)
-              : Colors.black.withOpacity(0.08),
+          color: active
+              ? const Color(0xFF007AFF)
+              : (isDark
+                  ? Colors.white.withOpacity(0.15)
+                  : Colors.black.withOpacity(0.08)),
           shape: BoxShape.circle,
         ),
-        child:
-            Icon(icon, color: isDark ? Colors.white : Colors.black, size: 24),
+        child: Icon(icon,
+            color:
+                active ? Colors.white : (isDark ? Colors.white : Colors.black),
+            size: 24),
+      ),
+    );
+  }
+
+  Widget _buildBatchActionBar(bool isDark) {
+    final provider = Provider.of<ChatProvider>(context, listen: false);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[900] : Colors.white,
+        border: Border(
+          top: BorderSide(
+            color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+          ),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '已选择 ${_selectedIds.length} 项',
+            style: TextStyle(
+              color: isDark ? Colors.white70 : Colors.black54,
+              fontSize: 16,
+            ),
+          ),
+          CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            color: CupertinoColors.destructiveRed,
+            borderRadius: BorderRadius.circular(20),
+            onPressed: _selectedIds.isEmpty
+                ? null
+                : () => _handleBatchDelete(provider),
+            child: const Text('批量删除',
+                style: TextStyle(color: Colors.white, fontSize: 14)),
+          ),
+        ],
       ),
     );
   }
@@ -143,56 +254,34 @@ class WorldInfoListScreen extends StatelessWidget {
     final cardBgColor = isDark ? Colors.white.withOpacity(0.1) : Colors.white;
     final borderColor =
         isDark ? Colors.white.withOpacity(0.05) : Colors.grey.withOpacity(0.1);
+    final isSelected = _selectedIds.contains(info.id);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Dismissible(
-        key: Key('world_info_${info.id}'),
-        direction: DismissDirection.endToStart,
-        background: Container(
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 24),
-          decoration: BoxDecoration(
-            color: CupertinoColors.destructiveRed,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Icon(CupertinoIcons.delete, color: Colors.white),
+    Widget content = Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardBgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isSelected ? const Color(0xFF007AFF) : borderColor,
+          width: isSelected ? 2 : 1,
         ),
-        confirmDismiss: (direction) async {
-          return await showCupertinoDialog<bool>(
-            context: context,
-            builder: (context) => CupertinoAlertDialog(
-              title: const Text('确认删除'),
-              content: Text('确定要删除"${info.name}"吗？'),
-              actions: [
-                CupertinoDialogAction(
-                  child: const Text('取消'),
-                  onPressed: () => Navigator.pop(context, false),
-                ),
-                CupertinoDialogAction(
-                  isDestructiveAction: true,
-                  child: const Text('删除'),
-                  onPressed: () => Navigator.pop(context, true),
-                ),
-              ],
+      ),
+      child: Row(
+        children: [
+          if (_isSelectionMode)
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Icon(
+                isSelected
+                    ? CupertinoIcons.checkmark_circle_fill
+                    : CupertinoIcons.circle,
+                color: isSelected
+                    ? const Color(0xFF007AFF)
+                    : textColor.withOpacity(0.3),
+                size: 24,
+              ),
             ),
-          );
-        },
-        onDismissed: (_) => provider.deleteWorldInfo(info.id),
-        child: GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            CupertinoPageRoute(
-              builder: (context) => WorldInfoEditScreen(info: info),
-            ),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: cardBgColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: borderColor),
-            ),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -227,8 +316,60 @@ class WorldInfoListScreen extends StatelessWidget {
               ],
             ),
           ),
-        ),
+        ],
       ),
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: _isSelectionMode
+          ? GestureDetector(
+              onTap: () => _toggleSelection(info.id),
+              child: content,
+            )
+          : Dismissible(
+              key: Key('world_info_${info.id}'),
+              direction: DismissDirection.endToStart,
+              background: Container(
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 24),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.destructiveRed,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(CupertinoIcons.delete, color: Colors.white),
+              ),
+              confirmDismiss: (direction) async {
+                return await showCupertinoDialog<bool>(
+                  context: context,
+                  builder: (context) => CupertinoAlertDialog(
+                    title: const Text('确认删除'),
+                    content: Text('确定要删除"${info.name}"吗？'),
+                    actions: [
+                      CupertinoDialogAction(
+                        child: const Text('取消'),
+                        onPressed: () => Navigator.pop(context, false),
+                      ),
+                      CupertinoDialogAction(
+                        isDestructiveAction: true,
+                        child: const Text('删除'),
+                        onPressed: () => Navigator.pop(context, true),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              onDismissed: (_) => provider.deleteWorldInfo(info.id),
+              child: GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  CupertinoPageRoute(
+                    builder: (context) => WorldInfoEditScreen(info: info),
+                  ),
+                ),
+                child: content,
+              ),
+            ),
     );
   }
 }
@@ -292,6 +433,34 @@ class _WorldInfoEditScreenState extends State<WorldInfoEditScreen> {
     }
   }
 
+  Future<void> _handleDelete(ChatProvider provider) async {
+    if (widget.info == null) return;
+
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('确认删除'),
+        content: Text('确定要删除"${widget.info!.name}"吗？'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.pop(context, false),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('删除'),
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await provider.deleteWorldInfo(widget.info!.id);
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<ChatProvider>(context, listen: false);
@@ -326,6 +495,21 @@ class _WorldInfoEditScreenState extends State<WorldInfoEditScreen> {
                       height: 400,
                       isDark: isDark,
                     ),
+                    if (widget.info != null) ...[
+                      const SizedBox(height: 40),
+                      CupertinoButton(
+                        color: CupertinoColors.destructiveRed.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        onPressed: () => _handleDelete(provider),
+                        child: const Text(
+                          '删除世界书',
+                          style: TextStyle(
+                            color: CupertinoColors.destructiveRed,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

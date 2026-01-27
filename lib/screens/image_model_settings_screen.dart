@@ -286,6 +286,7 @@ class _ImagePresetEditScreenState extends State<ImagePresetEditScreen> {
   late TextEditingController _baseUrlController;
   late TextEditingController _apiKeyController;
   late TextEditingController _modelController;
+  late TextEditingController _timeoutController;
   late String _model;
 
   @override
@@ -298,6 +299,8 @@ class _ImagePresetEditScreenState extends State<ImagePresetEditScreen> {
     _apiKeyController = TextEditingController(text: preset?.apiKey ?? '');
     _model = preset?.model ?? '';
     _modelController = TextEditingController(text: _model);
+    _timeoutController =
+        TextEditingController(text: (preset?.timeout ?? 120).toString());
   }
 
   @override
@@ -306,6 +309,7 @@ class _ImagePresetEditScreenState extends State<ImagePresetEditScreen> {
     _baseUrlController.dispose();
     _apiKeyController.dispose();
     _modelController.dispose();
+    _timeoutController.dispose();
     super.dispose();
   }
 
@@ -383,6 +387,20 @@ class _ImagePresetEditScreenState extends State<ImagePresetEditScreen> {
                             label: '模型名称',
                             controller: _modelController,
                             placeholder: _getDefaultModel(),
+                            isDark: isDark,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      _buildSection(
+                        title: '高级设置',
+                        isDark: isDark,
+                        children: [
+                          _buildTextField(
+                            label: '超时时间 (秒)',
+                            controller: _timeoutController,
+                            placeholder: '120',
+                            keyboardType: TextInputType.number,
                             isDark: isDark,
                           ),
                         ],
@@ -611,6 +629,7 @@ class _ImagePresetEditScreenState extends State<ImagePresetEditScreen> {
     TextEditingController? controller,
     String? placeholder,
     bool obscureText = false,
+    TextInputType? keyboardType,
     ValueChanged<String>? onChanged,
     required bool isDark,
   }) {
@@ -636,6 +655,7 @@ class _ImagePresetEditScreenState extends State<ImagePresetEditScreen> {
             controller: controller,
             placeholder: placeholder,
             obscureText: obscureText,
+            keyboardType: keyboardType,
             style: TextStyle(color: textColor),
             placeholderStyle: TextStyle(color: placeholderColor),
             decoration: BoxDecoration(
@@ -667,6 +687,7 @@ class _ImagePresetEditScreenState extends State<ImagePresetEditScreen> {
       baseUrl: _baseUrlController.text,
       apiKey: _apiKeyController.text,
       model: model,
+      timeout: int.tryParse(_timeoutController.text) ?? 120,
     );
 
     bool isCancelled = false;
@@ -769,6 +790,7 @@ class _ImagePresetEditScreenState extends State<ImagePresetEditScreen> {
       baseUrl: _baseUrlController.text,
       apiKey: _apiKeyController.text,
       model: model,
+      timeout: int.tryParse(_timeoutController.text) ?? 120,
     );
 
     try {

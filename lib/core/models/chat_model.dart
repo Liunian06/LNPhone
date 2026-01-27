@@ -26,6 +26,8 @@ enum MessageType {
   memory, // 记忆
   diary, // 日记
   moment, // 朋友圈
+  momentComment, // 朋友圈评论
+  momentLike, // 朋友圈点赞/取消点赞
 }
 
 /// 聊天消息模型
@@ -111,6 +113,8 @@ class ChatMessage {
       case MessageType.memory:
       case MessageType.diary:
       case MessageType.moment:
+      case MessageType.momentComment:
+      case MessageType.momentLike:
       case MessageType.acceptRedpacket:
       case MessageType.rejectRedpacket:
       case MessageType.acceptTransfer:
@@ -128,12 +132,14 @@ class ChatSession {
   final int lastUpdated;
   final bool enableExtendedChat; // 是否启用扩展聊天（解析action和thought）
   final bool enableTextToImage; // 是否启用文生图
+  final bool enableEmoji; // 是否启用表情包
   final bool enableIndependentSendButton; // 是否启用独立发送/续写按钮
   final String? currentState; // 当前状态
   final bool isPinned; // 是否置顶
   final List<String> worldInfoIds; // 关联的世界书 ID 列表
   final List<String> textPresetIds; // 关联的预设 ID 列表
   final String? apiPresetId; // 独立的 API 预设 ID
+  final String? imageApiPresetId; // 独立的生图 API 预设 ID
   final String? backgroundImage; // 聊天背景图路径
 
   ChatSession({
@@ -144,12 +150,14 @@ class ChatSession {
     required this.lastUpdated,
     this.enableExtendedChat = true, // 默认开启
     this.enableTextToImage = false, // 默认关闭
+    this.enableEmoji = true, // 默认开启
     this.enableIndependentSendButton = false, // 默认关闭
     this.currentState,
     this.isPinned = false, // 默认不置顶
     this.worldInfoIds = const [],
     this.textPresetIds = const [],
     this.apiPresetId,
+    this.imageApiPresetId,
     this.backgroundImage,
   });
 
@@ -162,12 +170,14 @@ class ChatSession {
       'lastUpdated': lastUpdated,
       'enableExtendedChat': enableExtendedChat,
       'enableTextToImage': enableTextToImage,
+      'enableEmoji': enableEmoji,
       'enableIndependentSendButton': enableIndependentSendButton,
       'currentState': currentState,
       'isPinned': isPinned,
       'worldInfoIds': worldInfoIds,
       'textPresetIds': textPresetIds,
       'apiPresetId': apiPresetId,
+      'imageApiPresetId': imageApiPresetId,
       'backgroundImage': backgroundImage,
     };
   }
@@ -183,6 +193,7 @@ class ChatSession {
       lastUpdated: json['lastUpdated'],
       enableExtendedChat: json['enableExtendedChat'] ?? true, // 默认开启
       enableTextToImage: json['enableTextToImage'] ?? false, // 默认关闭
+      enableEmoji: json['enableEmoji'] ?? true, // 默认开启
       enableIndependentSendButton:
           json['enableIndependentSendButton'] ?? false, // 默认关闭
       currentState: json['currentState'],
@@ -194,6 +205,7 @@ class ChatSession {
           (json['textPresetIds'] as List?)?.map((e) => e.toString()).toList() ??
               [],
       apiPresetId: json['apiPresetId'],
+      imageApiPresetId: json['imageApiPresetId'],
       backgroundImage: json['backgroundImage'],
     );
   }
@@ -209,6 +221,8 @@ class ChatSession {
       if (msg.type == MessageType.memory ||
           msg.type == MessageType.diary ||
           msg.type == MessageType.moment ||
+          msg.type == MessageType.momentComment ||
+          msg.type == MessageType.momentLike ||
           msg.type == MessageType.acceptRedpacket ||
           msg.type == MessageType.rejectRedpacket ||
           msg.type == MessageType.acceptTransfer ||

@@ -5,65 +5,33 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import '../database/database.dart';
 import '../models/emoji_model.dart';
+import '../models/contact_model.dart';
+import '../services/emoji_zip_service.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
 
 class EmojiProvider extends ChangeNotifier {
   final AppDatabase _db;
-  List<EmojiModel> _globalEmojis = [];
-  List<EmojiModel> _roleEmojis = [];
+  List<EmojiModel> _allEmojis = [];
   List<EmojiGroupEntity> _emojiGroups = [];
   bool _isLoading = false;
+  final _zipService = EmojiZipService();
 
-  EmojiProvider(this._db);
+  EmojiProvider(this._db) {
+    loadEmojis();
+  }
 
-  List<EmojiModel> get globalEmojis => _globalEmojis;
-  List<EmojiModel> get roleEmojis => _roleEmojis;
+  List<EmojiModel> get allEmojis => _allEmojis;
   List<EmojiGroupEntity> get emojiGroups => _emojiGroups;
   bool get isLoading => _isLoading;
 
   /// 初始化加载
-  Future<void> loadEmojis(String? currentRoleId) async {
+  Future<void> loadEmojis([String? _]) async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      // 尝试修复表结构（核弹级修复）
-      try {
-        await _db.customSelect('SELECT local_path FROM emojis LIMIT 1').get();
-      } catch (e) {
-        print('[EmojiProvider] 检测到 emojis 表结构异常，尝试重建表...');
-        try {
-          // 备份现有数据（如果可能）
-          await _db.customStatement('DROP TABLE IF EXISTS emojis');
-          await _db.customStatement('''
-            CREATE TABLE IF NOT EXISTS emojis (
-              id TEXT NOT NULL PRIMARY KEY,
-              meaning TEXT NOT NULL,
-              raw_content TEXT,
-              group_id TEXT,
-              local_path TEXT NOT NULL,
-              type INTEGER NOT NULL,
-              role_id TEXT,
-              created_at INTEGER NOT NULL
-            )
-          ''');
-          print('[EmojiProvider] emojis 表重建成功');
-        } catch (e2) {
-          print('[EmojiProvider] 重建表失败: $e2');
-        }
-      }
-
-      final allEmojis = await _db.getAllEmojis();
-      _globalEmojis =
-          allEmojis.where((e) => e.type == EmojiType.global).toList();
-
-      if (currentRoleId != null) {
-        _roleEmojis = allEmojis
-            .where((e) => e.type == EmojiType.role && e.roleId == currentRoleId)
-            .toList();
-      } else {
-        _roleEmojis = [];
-      }
-
+      _allEmojis = await _db.getAllEmojis();
       _emojiGroups = await _db.getAllEmojiGroups();
     } catch (e) {
       print('Error loading emojis: $e');
@@ -73,26 +41,32 @@ class EmojiProvider extends ChangeNotifier {
     }
   }
 
-  /// 获取指定角色的所有可用表情（全局 + 角色专属），并去重
+  /// 获取指定角色的所有可用表情（统一池模式下：订阅的分组 + 订阅的个体ID + 未分组全局资源）
   Future<List<EmojiModel>> getAvailableEmojisForRole(String roleId) async {
-    final emojis = await _db.getEmojisForRole(roleId);
+    final allEmojis = await _db.getAllEmojis();
+    final role = await _db.getContactRole(roleId);
+    if (role == null) return allEmojis;
 
-    // 去重逻辑：如果图片路径相同，视为重复，优先保留角色专属的
-    final uniqueEmojis = <String, EmojiModel>{};
-    for (final emoji in emojis) {
-      if (!uniqueEmojis.containsKey(emoji.localPath) ||
-          emoji.type == EmojiType.role) {
-        uniqueEmojis[emoji.localPath] = emoji;
+    return allEmojis.where((e) {
+      // 1. 订阅的个体表情 ID（包含偷来的图）
+      if (role.subscribedEmojiIds.contains(e.id)) return true;
+      // 2. 订阅的分组内的表情
+      if (e.groupId != null && role.subscribedGroupIds.contains(e.groupId)) {
+        return true;
       }
-    }
+      // 注意：不再包含未分组的全局表情，除非它在 subscribedEmojiIds 中
 
-    return uniqueEmojis.values.toList();
+      return false;
+    }).toList();
   }
 
   /// 添加表情包
-  Future<void> addEmoji({
+  /// 返回新生成的 ID
+  Future<String> addEmoji({
     required String filePath,
     required String meaning,
+    String? rawContent,
+    String? groupId,
     required EmojiType type,
     String? roleId,
   }) async {
@@ -117,7 +91,8 @@ class EmojiProvider extends ChangeNotifier {
       final emoji = EmojiModel(
         id: id,
         meaning: meaning,
-        rawContent: null,
+        rawContent: rawContent,
+        groupId: groupId,
         localPath: newPath,
         type: type,
         roleId: roleId,
@@ -127,11 +102,8 @@ class EmojiProvider extends ChangeNotifier {
       await _db.insertEmoji(emoji);
       print('[EmojiProvider] 数据库插入成功');
 
-      if (type == EmojiType.global) {
-        await loadEmojis(null);
-      } else {
-        await loadEmojis(roleId);
-      }
+      await loadEmojis(null);
+      return id;
     } catch (e, stack) {
       print('[EmojiProvider] ❌ 添加表情失败: $e');
       print(stack);
@@ -139,36 +111,37 @@ class EmojiProvider extends ChangeNotifier {
     }
   }
 
-  /// 批量移动表情包
-  /// 批量移动表情包
+  /// 批量移动表情包（统一池模式：仅改变分组）
   Future<void> moveEmojis({
     required List<EmojiModel> emojis,
-    required EmojiType targetType,
-    String? targetRoleId,
     String? targetGroupId,
+    // 以下参数在统一池模式下已失效，保留仅为兼容
+    EmojiType? targetType,
+    String? targetRoleId,
   }) async {
     for (final emoji in emojis) {
       final updatedEmoji = EmojiModel(
         id: emoji.id,
         meaning: emoji.meaning,
         rawContent: emoji.rawContent,
-        groupId: targetGroupId, // 允许指定目标分组
+        groupId: targetGroupId,
         localPath: emoji.localPath,
-        type: targetType,
-        roleId: targetRoleId,
+        type: EmojiType.global,
+        roleId: null,
         createdAt: emoji.createdAt,
       );
       await _db.insertEmoji(updatedEmoji);
     }
-    await loadEmojis(targetRoleId ?? emojis.first.roleId);
+    await loadEmojis(null);
   }
 
-  /// 批量复制表情包
+  /// 批量复制表情包（统一池模式：生成新ID并指定分组）
   Future<void> copyEmojis({
     required List<EmojiModel> emojis,
-    required EmojiType targetType,
-    String? targetRoleId,
     String? targetGroupId,
+    // 以下参数在统一池模式下已失效，保留仅为兼容
+    EmojiType? targetType,
+    String? targetRoleId,
   }) async {
     for (final emoji in emojis) {
       final newId = await _generateOrRecycleId();
@@ -176,21 +149,21 @@ class EmojiProvider extends ChangeNotifier {
         id: newId,
         meaning: emoji.meaning,
         rawContent: emoji.rawContent,
-        groupId: targetGroupId, // 允许指定目标分组
-        localPath: emoji.localPath, // 复用图片文件
-        type: targetType,
-        roleId: targetRoleId,
+        groupId: targetGroupId,
+        localPath: emoji.localPath,
+        type: EmojiType.global,
+        roleId: null,
         createdAt: DateTime.now().millisecondsSinceEpoch,
       );
       await _db.insertEmoji(newEmoji);
     }
-    await loadEmojis(targetRoleId ?? emojis.first.roleId);
+    await loadEmojis(null);
   }
 
   /// 批量删除表情包
   Future<void> deleteEmojis(List<String> ids) async {
     await _db.deleteEmojis(ids);
-    notifyListeners();
+    await loadEmojis();
   }
 
   /// 尝试回收并重用已删除的表情ID
@@ -208,29 +181,44 @@ class EmojiProvider extends ChangeNotifier {
     }
   }
 
-  /// 偷图逻辑
+  /// 偷图逻辑（颗粒度细化：如果该表情不在角色的订阅范围内，则直接将该 ID 加入角色的订阅列表）
   Future<void> checkAndStealEmoji(String emojiId, String roleId) async {
+    final role = await _db.getContactRole(roleId);
+    if (role == null) return;
+
+    // 检查该表情是否已经在角色的可用范围内
     final availableEmojis = await getAvailableEmojisForRole(roleId);
-    final isAvailable = availableEmojis.any((e) => e.id == emojiId);
+    final isAlreadyOwned = availableEmojis.any((e) => e.id == emojiId);
 
-    if (!isAvailable) {
-      final allEmojis = await _db.getAllEmojis();
-      final originalEmoji = allEmojis.firstWhere((e) => e.id == emojiId,
-          orElse: () => throw Exception('Emoji not found'));
+    if (!isAlreadyOwned) {
+      // 直接将 ID 加入角色的订阅列表，不再创建副本
+      final updatedEmojiIds = List<String>.from(role.subscribedEmojiIds);
+      if (!updatedEmojiIds.contains(emojiId)) {
+        updatedEmojiIds.add(emojiId);
+        await updateRoleEmojiSubscriptions(roleId, updatedEmojiIds);
+        print(
+            '[EmojiProvider] Steal logic: Emoji ID $emojiId added to role $roleId subscriptions');
+      }
+    }
+  }
 
-      final newId = await _generateOrRecycleId();
-      final newEmoji = EmojiModel(
-        id: newId,
-        meaning: originalEmoji.meaning,
-        rawContent: originalEmoji.rawContent,
-        localPath: originalEmoji.localPath,
-        type: EmojiType.role,
-        roleId: roleId,
-        createdAt: DateTime.now().millisecondsSinceEpoch,
+  /// 更新角色的个体表情订阅
+  Future<void> updateRoleEmojiSubscriptions(
+      String roleId, List<String> subscribedEmojiIds) async {
+    final role = await _db.getContactRole(roleId);
+    if (role != null) {
+      final updatedRole = ContactRole(
+        id: role.id,
+        name: role.name,
+        avatarPath: role.avatarPath,
+        description: role.description,
+        appearance: role.appearance,
+        referenceImages: role.referenceImages,
+        subscribedGroupIds: role.subscribedGroupIds,
+        subscribedEmojiIds: subscribedEmojiIds,
       );
-
-      await _db.insertEmoji(newEmoji);
-      await loadEmojis(roleId);
+      await _db.insertContactRole(updatedRole);
+      notifyListeners();
     }
   }
 
@@ -261,11 +249,7 @@ class EmojiProvider extends ChangeNotifier {
       );
       await _db.insertEmoji(updatedEmoji);
 
-      if (emoji.type == EmojiType.global) {
-        await loadEmojis(null);
-      } else {
-        await loadEmojis(emoji.roleId);
-      }
+      await loadEmojis(null);
     } catch (e) {
       print('Error updating emoji content: $e');
     }
@@ -307,13 +291,7 @@ class EmojiProvider extends ChangeNotifier {
         }));
       }
 
-      if (emojis.isNotEmpty) {
-        if (emojis.first.type == EmojiType.global) {
-          await loadEmojis(null);
-        } else {
-          await loadEmojis(emojis.first.roleId);
-        }
-      }
+      await loadEmojis(null);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -425,11 +403,7 @@ class EmojiProvider extends ChangeNotifier {
         }
       }
 
-      if (type == EmojiType.global) {
-        await loadEmojis(null);
-      } else {
-        await loadEmojis(roleId);
-      }
+      await loadEmojis(null);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -448,13 +422,72 @@ class EmojiProvider extends ChangeNotifier {
       name: name,
       type: type,
       roleId: roleId,
+      isVisible: true,
       createdAt: DateTime.now().millisecondsSinceEpoch,
     );
     await _db.insertEmojiGroup(group);
-    await loadEmojis(roleId);
+    await loadEmojis(null);
   }
 
-  Future<void> deleteEmojiGroup(String id, String? currentRoleId) async {
+  Future<void> toggleGroupVisibility(String groupId, bool isVisible,
+      [String? _]) async {
+    final groups = await _db.getAllEmojiGroups();
+    try {
+      final group = groups.firstWhere((g) => g.id == groupId);
+      final updatedGroup = EmojiGroupEntity(
+        id: group.id,
+        name: group.name,
+        type: group.type,
+        roleId: group.roleId,
+        isVisible: isVisible,
+        createdAt: group.createdAt,
+      );
+      await _db.insertEmojiGroup(updatedGroup);
+      await loadEmojis(null);
+    } catch (e) {
+      print('Error toggling group visibility: $e');
+    }
+  }
+
+  /// 更新角色的订阅分组
+  Future<void> updateRoleSubscriptions(
+      String roleId, List<String> subscribedGroupIds) async {
+    // 使用数据库事务或确保原子性
+    final role = await _db.getContactRole(roleId);
+    if (role != null) {
+      // 需求：已订阅分组内的表情，也要向 subscribedEmojiIds 迁移
+      final allEmojis = await _db.getAllEmojis();
+      final newEmojiIds = Set<String>.from(role.subscribedEmojiIds);
+
+      for (final groupId in subscribedGroupIds) {
+        final groupEmojis = allEmojis.where((e) => e.groupId == groupId);
+        for (final emoji in groupEmojis) {
+          newEmojiIds.add(emoji.id);
+        }
+      }
+
+      // 转换为列表并去重
+      final finalEmojiIds = newEmojiIds.toList();
+
+      final updatedRole = ContactRole(
+        id: role.id,
+        name: role.name,
+        avatarPath: role.avatarPath,
+        description: role.description,
+        appearance: role.appearance,
+        referenceImages: role.referenceImages,
+        subscribedGroupIds: subscribedGroupIds,
+        subscribedEmojiIds: finalEmojiIds,
+      );
+      await _db.insertContactRole(updatedRole);
+
+      // 立即重新加载表情池，确保 UI 状态同步
+      await loadEmojis(null);
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteEmojiGroup(String id, [String? _]) async {
     await _db.deleteEmojiGroup(id);
     final allEmojis = await _db.getAllEmojis();
     for (final emoji in allEmojis.where((e) => e.groupId == id)) {
@@ -469,11 +502,11 @@ class EmojiProvider extends ChangeNotifier {
         createdAt: emoji.createdAt,
       ));
     }
-    await loadEmojis(currentRoleId);
+    await loadEmojis(null);
   }
 
-  Future<void> moveEmojisToGroup(
-      List<String> emojiIds, String? groupId, String? currentRoleId) async {
+  Future<void> moveEmojisToGroup(List<String> emojiIds, String? groupId,
+      [String? _]) async {
     final allEmojis = await _db.getAllEmojis();
     for (final id in emojiIds) {
       try {
@@ -492,7 +525,7 @@ class EmojiProvider extends ChangeNotifier {
         print('Error moving emoji to group: $e');
       }
     }
-    await loadEmojis(currentRoleId);
+    await loadEmojis(null);
   }
 
   /// 根据ID获取表情包
@@ -502,6 +535,66 @@ class EmojiProvider extends ChangeNotifier {
       return allEmojis.firstWhere((e) => e.id == id);
     } catch (e) {
       return null;
+    }
+  }
+
+  // --- 导入导出 ---
+
+  /// 导出选中的表情
+  Future<void> exportSelectedEmojis(List<EmojiModel> emojis) async {
+    if (emojis.isEmpty) return;
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final zipPath = await _zipService.exportEmojis(emojis);
+      await Share.shareXFiles([XFile(zipPath)], text: '导出表情包');
+    } catch (e) {
+      print('Error exporting emojis: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// 导入表情包 ZIP
+  Future<void> importEmojisFromZip({String? targetGroupId}) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['zip'],
+    );
+
+    if (result == null || result.files.single.path == null) return;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final metadataList =
+          await _zipService.parseImportZip(result.files.single.path!);
+
+      for (final item in metadataList) {
+        final tempPath = item['tempPath'] as String?;
+        if (tempPath == null || !await File(tempPath).exists()) continue;
+
+        // 需求：导入时重新分配 ID，并支持指定分组
+        await addEmoji(
+          filePath: tempPath,
+          meaning: item['meaning'] ?? '未命名',
+          rawContent: item['rawContent'],
+          groupId: targetGroupId,
+          type: EmojiType.global,
+        );
+      }
+
+      await loadEmojis(null);
+    } catch (e) {
+      print('Error importing emojis: $e');
+      rethrow;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 }

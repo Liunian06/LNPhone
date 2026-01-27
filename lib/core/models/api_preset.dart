@@ -16,6 +16,7 @@ class ApiPreset {
   double topP;
   bool isStream;
   bool enableThinking;
+  int timeout; // 超时时间（秒）
 
   ApiPreset({
     required this.id,
@@ -29,6 +30,7 @@ class ApiPreset {
     this.topP = 0.9,
     this.isStream = true,
     this.enableThinking = true,
+    this.timeout = 120,
   });
 
   Map<String, dynamic> toJson() {
@@ -44,6 +46,7 @@ class ApiPreset {
       'topP': topP,
       'isStream': isStream,
       'enableThinking': enableThinking,
+      'timeout': timeout,
     };
   }
 
@@ -60,6 +63,7 @@ class ApiPreset {
       topP: (json['topP'] ?? 0.9).toDouble(),
       isStream: json['isStream'] ?? true,
       enableThinking: json['enableThinking'] ?? true,
+      timeout: json['timeout'] ?? 120,
     );
   }
 
@@ -75,6 +79,7 @@ class ApiPreset {
     double? topP,
     bool? isStream,
     bool? enableThinking,
+    int? timeout,
   }) {
     return ApiPreset(
       id: id ?? this.id,
@@ -88,6 +93,7 @@ class ApiPreset {
       topP: topP ?? this.topP,
       isStream: isStream ?? this.isStream,
       enableThinking: enableThinking ?? this.enableThinking,
+      timeout: timeout ?? this.timeout,
     );
   }
 }

@@ -119,6 +119,35 @@ class MomentsComment {
   }
 }
 
+/// 朋友圈点赞模型
+class MomentLike {
+  final MomentsUser user;
+  final DateTime createdAt;
+  final bool isCancelled; // 是否已取消点赞
+
+  MomentLike({
+    required this.user,
+    required this.createdAt,
+    this.isCancelled = false,
+  });
+
+  factory MomentLike.fromJson(Map<String, dynamic> json) {
+    return MomentLike(
+      user: MomentsUser.fromJson(json['user']),
+      createdAt: DateTime.parse(json['createdAt']),
+      isCancelled: json['isCancelled'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'user': user.toJson(),
+      'createdAt': createdAt.toIso8601String(),
+      'isCancelled': isCancelled,
+    };
+  }
+}
+
 /// 朋友圈动态模型
 class MomentsPost {
   final String id;
@@ -126,7 +155,7 @@ class MomentsPost {
   final String? content; // 文字内容
   final List<MediaItem> mediaItems; // 图片/视频
   final DateTime createdAt;
-  final List<MomentsUser> likes; // 点赞用户列表
+  final List<MomentLike> likes; // 点赞列表
   final List<MomentsComment> comments; // 评论列表
   final String? location; // 位置信息
 
@@ -151,9 +180,16 @@ class MomentsPost {
               .toList() ??
           [],
       createdAt: DateTime.parse(json['createdAt']),
-      likes: (json['likes'] as List?)
-              ?.map((user) => MomentsUser.fromJson(user))
-              .toList() ??
+      likes: (json['likes'] as List?)?.map((l) {
+            // 兼容旧数据：如果旧数据是 MomentsUser，则转换为 MomentLike
+            if (l is Map<String, dynamic> && !l.containsKey('createdAt')) {
+              return MomentLike(
+                user: MomentsUser.fromJson(l),
+                createdAt: DateTime.parse(json['createdAt']), // 默认使用动态发布时间
+              );
+            }
+            return MomentLike.fromJson(l);
+          }).toList() ??
           [],
       comments: (json['comments'] as List?)
               ?.map((comment) => MomentsComment.fromJson(comment))
@@ -170,7 +206,7 @@ class MomentsPost {
       'content': content,
       'mediaItems': mediaItems.map((item) => item.toJson()).toList(),
       'createdAt': createdAt.toIso8601String(),
-      'likes': likes.map((user) => user.toJson()).toList(),
+      'likes': likes.map((l) => l.toJson()).toList(),
       'comments': comments.map((comment) => comment.toJson()).toList(),
       'location': location,
     };
@@ -183,7 +219,7 @@ class MomentsPost {
     String? content,
     List<MediaItem>? mediaItems,
     DateTime? createdAt,
-    List<MomentsUser>? likes,
+    List<MomentLike>? likes,
     List<MomentsComment>? comments,
     String? location,
   }) {

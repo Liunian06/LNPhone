@@ -7,6 +7,7 @@ class ChatContextMenu extends StatelessWidget {
   final VoidCallback onBacktrack;
   final VoidCallback onMultiSelect;
   final VoidCallback onReply;
+  final VoidCallback? onShowOriginal;
 
   const ChatContextMenu({
     super.key,
@@ -16,6 +17,7 @@ class ChatContextMenu extends StatelessWidget {
     required this.onBacktrack,
     required this.onMultiSelect,
     required this.onReply,
+    this.onShowOriginal,
   });
 
   @override
@@ -52,6 +54,16 @@ class ChatContextMenu extends StatelessWidget {
                 _buildMenuItem(Icons.checklist_rounded, '多选', onMultiSelect),
               ],
             ),
+            if (onShowOriginal != null) ...[
+              const SizedBox(height: 16),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildMenuItem(
+                      Icons.terminal_rounded, '原始输入', onShowOriginal!),
+                ],
+              ),
+            ],
           ],
         ),
       ),

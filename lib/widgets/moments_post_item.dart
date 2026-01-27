@@ -4,6 +4,12 @@ import 'package:provider/provider.dart';
 import '../core/models/moments_model.dart';
 import '../core/providers/moments_provider.dart';
 import '../core/providers/contact_provider.dart';
+import '../core/providers/chat_provider.dart';
+import '../core/providers/api_settings_provider.dart';
+import '../core/providers/prompt_settings_provider.dart';
+import '../core/providers/regex_settings_provider.dart';
+import '../core/providers/memory_provider.dart';
+import '../core/providers/emoji_provider.dart';
 import '../core/utils/time_formatter.dart';
 
 /// 朋友圈动态项
@@ -706,9 +712,14 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
         Expanded(
           child: Text.rich(
             TextSpan(
-              children: widget.post.likes.asMap().entries.map((entry) {
+              children: widget.post.likes
+                  .where((l) => !l.isCancelled)
+                  .toList()
+                  .asMap()
+                  .entries
+                  .map((entry) {
                 final index = entry.key;
-                final user = entry.value;
+                final like = entry.value;
                 return TextSpan(
                   children: [
                     if (index > 0)
@@ -717,7 +728,7 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                         style: TextStyle(color: textColor, fontSize: 14),
                       ),
                     TextSpan(
-                      text: user.name,
+                      text: like.user.name,
                       style: TextStyle(
                         color: linkColor,
                         fontSize: 14,
@@ -751,6 +762,10 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                 _replyToUser = comment.user;
               });
               _showCommentInput();
+            },
+            onLongPress: () {
+              // 长按删除评论
+              _showDeleteCommentDialog(comment);
             },
             child: Text.rich(
               TextSpan(
@@ -886,11 +901,21 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
                         onPressed: () {
                           final content = _commentController.text.trim();
                           if (content.isNotEmpty) {
-                            context.read<MomentsProvider>().addComment(
+                            // 1. 立即添加评论到数据库
+                            context
+                                .read<MomentsProvider>()
+                                .addComment(
                                   widget.post.id,
                                   content,
                                   replyTo: _replyToUser,
-                                );
+                                )
+                                .then((commentId) {
+                              // 2. 触发 AI 回复逻辑（带延迟）
+                              if (commentId != null) {
+                                _triggerAiResponseAfterComment(context);
+                              }
+                            });
+
                             _commentController.clear();
                             setState(() {
                               _replyToUser = null;
@@ -937,5 +962,114 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
         },
       );
     }
+  }
+
+  /// 评论后触发 AI 回复逻辑
+  void _triggerAiResponseAfterComment(BuildContext context) {
+    final chatProvider = context.read<ChatProvider>();
+    final contactProvider = context.read<ContactProvider>();
+    final apiProvider = context.read<ApiSettingsProvider>();
+    final promptProvider = context.read<PromptSettingsProvider>();
+    final regexProvider = context.read<RegexSettingsProvider>();
+    final momentsProvider = context.read<MomentsProvider>();
+    final memoryProvider = context.read<MemoryProvider>();
+    final emojiProvider = context.read<EmojiProvider>();
+
+    // 找到与该动态发布者相关的聊天会话
+    // 如果是用户发的动态，则触发所有相关角色的感知（这里简化为触发当前活跃角色的感知）
+    // 实际逻辑：遍历所有会话，如果会话的角色在可见范围内，则触发
+    for (final chat in chatProvider.chats) {
+      final role = contactProvider.roles.firstWhere(
+        (r) => r.id == chat.roleId,
+        orElse: () => contactProvider.roles.first,
+      );
+
+      final me = contactProvider.meList.firstWhere(
+        (m) => m.id == chat.meId,
+        orElse: () => contactProvider.meList.first,
+      );
+
+      // 优先使用聊天会话的独立 API 预设
+      final activePreset = apiProvider.presets.firstWhere(
+        (p) => p.id == chat.apiPresetId,
+        orElse: () => apiProvider.activePreset!,
+      );
+
+      // 获取可用表情
+      emojiProvider.getAvailableEmojisForRole(role.id).then((availableEmojis) {
+        final emojiPrompts = availableEmojis
+            .map((e) => '${e.id}：${e.meaning}：${e.rawContent ?? ""}')
+            .toList();
+
+        chatProvider.generateAiResponse(
+          chatId: chat.id,
+          apiPreset: activePreset,
+          promptConfig: promptProvider.config,
+          role: role,
+          me: me,
+          onAddMoment: (content, user) {
+            momentsProvider.addMomentFromChat(content, user);
+          },
+          onMomentsChanged: () {
+            momentsProvider.refresh();
+          },
+          enableExtendedChat: chat.enableExtendedChat,
+          enableTextToImage: chat.enableTextToImage,
+          enableEmoji: chat.enableEmoji,
+          imageApiPresetId: chat.imageApiPresetId,
+          delayedReplySeconds: promptProvider.delayedReplySeconds,
+          roleMemories: memoryProvider
+              .getMemoriesForRole(role.id)
+              .map((m) => m.content)
+              .toList(),
+          availableEmojis: emojiPrompts,
+          onAddMemory: (content, categoryStr) {
+            memoryProvider.addMemoryFromAiResponse(
+              roleId: role.id,
+              content: content,
+              sourceSessionId: chat.id,
+              categoryStr: categoryStr,
+            );
+          },
+          regexProvider: regexProvider,
+        );
+      });
+    }
+  }
+
+  /// 显示删除评论确认对话框
+  void _showDeleteCommentDialog(MomentsComment comment) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+        title: Text(
+          '删除评论',
+          style: TextStyle(color: isDark ? Colors.white : Colors.black),
+        ),
+        content: Text(
+          '确定要删除这条评论吗？',
+          style: TextStyle(color: isDark ? Colors.grey[300] : Colors.grey[700]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              context
+                  .read<MomentsProvider>()
+                  .deleteComment(widget.post.id, comment.id);
+              Navigator.pop(context);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
   }
 }

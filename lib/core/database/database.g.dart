@@ -40,6 +40,16 @@ class $ChatSessionsTable extends ChatSessions
       defaultConstraints: GeneratedColumn.constraintIsAlways(
           'CHECK ("enable_extended_chat" IN (0, 1))'),
       defaultValue: const Constant(true));
+  static const VerificationMeta _enableEmojiMeta =
+      const VerificationMeta('enableEmoji');
+  @override
+  late final GeneratedColumn<bool> enableEmoji = GeneratedColumn<bool>(
+      'enable_emoji', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("enable_emoji" IN (0, 1))'),
+      defaultValue: const Constant(true));
   static const VerificationMeta _enableTextToImageMeta =
       const VerificationMeta('enableTextToImage');
   @override
@@ -101,6 +111,12 @@ class $ChatSessionsTable extends ChatSessions
   late final GeneratedColumn<String> apiPresetId = GeneratedColumn<String>(
       'api_preset_id', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _imageApiPresetIdMeta =
+      const VerificationMeta('imageApiPresetId');
+  @override
+  late final GeneratedColumn<String> imageApiPresetId = GeneratedColumn<String>(
+      'image_api_preset_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _backgroundImageMeta =
       const VerificationMeta('backgroundImage');
   @override
@@ -114,6 +130,7 @@ class $ChatSessionsTable extends ChatSessions
         meId,
         lastUpdated,
         enableExtendedChat,
+        enableEmoji,
         enableTextToImage,
         enableIndependentSendButton,
         currentState,
@@ -121,6 +138,7 @@ class $ChatSessionsTable extends ChatSessions
         worldInfoIds,
         textPresetIds,
         apiPresetId,
+        imageApiPresetId,
         backgroundImage
       ];
   @override
@@ -164,6 +182,12 @@ class $ChatSessionsTable extends ChatSessions
           enableExtendedChat.isAcceptableOrUnknown(
               data['enable_extended_chat']!, _enableExtendedChatMeta));
     }
+    if (data.containsKey('enable_emoji')) {
+      context.handle(
+          _enableEmojiMeta,
+          enableEmoji.isAcceptableOrUnknown(
+              data['enable_emoji']!, _enableEmojiMeta));
+    }
     if (data.containsKey('enable_text_to_image')) {
       context.handle(
           _enableTextToImageMeta,
@@ -193,6 +217,12 @@ class $ChatSessionsTable extends ChatSessions
           apiPresetId.isAcceptableOrUnknown(
               data['api_preset_id']!, _apiPresetIdMeta));
     }
+    if (data.containsKey('image_api_preset_id')) {
+      context.handle(
+          _imageApiPresetIdMeta,
+          imageApiPresetId.isAcceptableOrUnknown(
+              data['image_api_preset_id']!, _imageApiPresetIdMeta));
+    }
     if (data.containsKey('background_image')) {
       context.handle(
           _backgroundImageMeta,
@@ -218,6 +248,8 @@ class $ChatSessionsTable extends ChatSessions
           .read(DriftSqlType.int, data['${effectivePrefix}last_updated'])!,
       enableExtendedChat: attachedDatabase.typeMapping.read(
           DriftSqlType.bool, data['${effectivePrefix}enable_extended_chat'])!,
+      enableEmoji: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}enable_emoji'])!,
       enableTextToImage: attachedDatabase.typeMapping.read(
           DriftSqlType.bool, data['${effectivePrefix}enable_text_to_image'])!,
       enableIndependentSendButton: attachedDatabase.typeMapping.read(
@@ -235,6 +267,8 @@ class $ChatSessionsTable extends ChatSessions
               DriftSqlType.string, data['${effectivePrefix}text_preset_ids'])!),
       apiPresetId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}api_preset_id']),
+      imageApiPresetId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}image_api_preset_id']),
       backgroundImage: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}background_image']),
     );
@@ -258,6 +292,7 @@ class ChatSessionEntity extends DataClass
   final String meId;
   final int lastUpdated;
   final bool enableExtendedChat;
+  final bool enableEmoji;
   final bool enableTextToImage;
   final bool enableIndependentSendButton;
   final String? currentState;
@@ -265,6 +300,7 @@ class ChatSessionEntity extends DataClass
   final List<String> worldInfoIds;
   final List<String> textPresetIds;
   final String? apiPresetId;
+  final String? imageApiPresetId;
   final String? backgroundImage;
   const ChatSessionEntity(
       {required this.id,
@@ -272,6 +308,7 @@ class ChatSessionEntity extends DataClass
       required this.meId,
       required this.lastUpdated,
       required this.enableExtendedChat,
+      required this.enableEmoji,
       required this.enableTextToImage,
       required this.enableIndependentSendButton,
       this.currentState,
@@ -279,6 +316,7 @@ class ChatSessionEntity extends DataClass
       required this.worldInfoIds,
       required this.textPresetIds,
       this.apiPresetId,
+      this.imageApiPresetId,
       this.backgroundImage});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -288,6 +326,7 @@ class ChatSessionEntity extends DataClass
     map['me_id'] = Variable<String>(meId);
     map['last_updated'] = Variable<int>(lastUpdated);
     map['enable_extended_chat'] = Variable<bool>(enableExtendedChat);
+    map['enable_emoji'] = Variable<bool>(enableEmoji);
     map['enable_text_to_image'] = Variable<bool>(enableTextToImage);
     map['enable_independent_send_button'] =
         Variable<bool>(enableIndependentSendButton);
@@ -306,6 +345,9 @@ class ChatSessionEntity extends DataClass
     if (!nullToAbsent || apiPresetId != null) {
       map['api_preset_id'] = Variable<String>(apiPresetId);
     }
+    if (!nullToAbsent || imageApiPresetId != null) {
+      map['image_api_preset_id'] = Variable<String>(imageApiPresetId);
+    }
     if (!nullToAbsent || backgroundImage != null) {
       map['background_image'] = Variable<String>(backgroundImage);
     }
@@ -319,6 +361,7 @@ class ChatSessionEntity extends DataClass
       meId: Value(meId),
       lastUpdated: Value(lastUpdated),
       enableExtendedChat: Value(enableExtendedChat),
+      enableEmoji: Value(enableEmoji),
       enableTextToImage: Value(enableTextToImage),
       enableIndependentSendButton: Value(enableIndependentSendButton),
       currentState: currentState == null && nullToAbsent
@@ -330,6 +373,9 @@ class ChatSessionEntity extends DataClass
       apiPresetId: apiPresetId == null && nullToAbsent
           ? const Value.absent()
           : Value(apiPresetId),
+      imageApiPresetId: imageApiPresetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(imageApiPresetId),
       backgroundImage: backgroundImage == null && nullToAbsent
           ? const Value.absent()
           : Value(backgroundImage),
@@ -345,6 +391,7 @@ class ChatSessionEntity extends DataClass
       meId: serializer.fromJson<String>(json['meId']),
       lastUpdated: serializer.fromJson<int>(json['lastUpdated']),
       enableExtendedChat: serializer.fromJson<bool>(json['enableExtendedChat']),
+      enableEmoji: serializer.fromJson<bool>(json['enableEmoji']),
       enableTextToImage: serializer.fromJson<bool>(json['enableTextToImage']),
       enableIndependentSendButton:
           serializer.fromJson<bool>(json['enableIndependentSendButton']),
@@ -353,6 +400,7 @@ class ChatSessionEntity extends DataClass
       worldInfoIds: serializer.fromJson<List<String>>(json['worldInfoIds']),
       textPresetIds: serializer.fromJson<List<String>>(json['textPresetIds']),
       apiPresetId: serializer.fromJson<String?>(json['apiPresetId']),
+      imageApiPresetId: serializer.fromJson<String?>(json['imageApiPresetId']),
       backgroundImage: serializer.fromJson<String?>(json['backgroundImage']),
     );
   }
@@ -365,6 +413,7 @@ class ChatSessionEntity extends DataClass
       'meId': serializer.toJson<String>(meId),
       'lastUpdated': serializer.toJson<int>(lastUpdated),
       'enableExtendedChat': serializer.toJson<bool>(enableExtendedChat),
+      'enableEmoji': serializer.toJson<bool>(enableEmoji),
       'enableTextToImage': serializer.toJson<bool>(enableTextToImage),
       'enableIndependentSendButton':
           serializer.toJson<bool>(enableIndependentSendButton),
@@ -373,6 +422,7 @@ class ChatSessionEntity extends DataClass
       'worldInfoIds': serializer.toJson<List<String>>(worldInfoIds),
       'textPresetIds': serializer.toJson<List<String>>(textPresetIds),
       'apiPresetId': serializer.toJson<String?>(apiPresetId),
+      'imageApiPresetId': serializer.toJson<String?>(imageApiPresetId),
       'backgroundImage': serializer.toJson<String?>(backgroundImage),
     };
   }
@@ -383,6 +433,7 @@ class ChatSessionEntity extends DataClass
           String? meId,
           int? lastUpdated,
           bool? enableExtendedChat,
+          bool? enableEmoji,
           bool? enableTextToImage,
           bool? enableIndependentSendButton,
           Value<String?> currentState = const Value.absent(),
@@ -390,6 +441,7 @@ class ChatSessionEntity extends DataClass
           List<String>? worldInfoIds,
           List<String>? textPresetIds,
           Value<String?> apiPresetId = const Value.absent(),
+          Value<String?> imageApiPresetId = const Value.absent(),
           Value<String?> backgroundImage = const Value.absent()}) =>
       ChatSessionEntity(
         id: id ?? this.id,
@@ -397,6 +449,7 @@ class ChatSessionEntity extends DataClass
         meId: meId ?? this.meId,
         lastUpdated: lastUpdated ?? this.lastUpdated,
         enableExtendedChat: enableExtendedChat ?? this.enableExtendedChat,
+        enableEmoji: enableEmoji ?? this.enableEmoji,
         enableTextToImage: enableTextToImage ?? this.enableTextToImage,
         enableIndependentSendButton:
             enableIndependentSendButton ?? this.enableIndependentSendButton,
@@ -406,6 +459,9 @@ class ChatSessionEntity extends DataClass
         worldInfoIds: worldInfoIds ?? this.worldInfoIds,
         textPresetIds: textPresetIds ?? this.textPresetIds,
         apiPresetId: apiPresetId.present ? apiPresetId.value : this.apiPresetId,
+        imageApiPresetId: imageApiPresetId.present
+            ? imageApiPresetId.value
+            : this.imageApiPresetId,
         backgroundImage: backgroundImage.present
             ? backgroundImage.value
             : this.backgroundImage,
@@ -420,6 +476,8 @@ class ChatSessionEntity extends DataClass
       enableExtendedChat: data.enableExtendedChat.present
           ? data.enableExtendedChat.value
           : this.enableExtendedChat,
+      enableEmoji:
+          data.enableEmoji.present ? data.enableEmoji.value : this.enableEmoji,
       enableTextToImage: data.enableTextToImage.present
           ? data.enableTextToImage.value
           : this.enableTextToImage,
@@ -438,6 +496,9 @@ class ChatSessionEntity extends DataClass
           : this.textPresetIds,
       apiPresetId:
           data.apiPresetId.present ? data.apiPresetId.value : this.apiPresetId,
+      imageApiPresetId: data.imageApiPresetId.present
+          ? data.imageApiPresetId.value
+          : this.imageApiPresetId,
       backgroundImage: data.backgroundImage.present
           ? data.backgroundImage.value
           : this.backgroundImage,
@@ -452,6 +513,7 @@ class ChatSessionEntity extends DataClass
           ..write('meId: $meId, ')
           ..write('lastUpdated: $lastUpdated, ')
           ..write('enableExtendedChat: $enableExtendedChat, ')
+          ..write('enableEmoji: $enableEmoji, ')
           ..write('enableTextToImage: $enableTextToImage, ')
           ..write('enableIndependentSendButton: $enableIndependentSendButton, ')
           ..write('currentState: $currentState, ')
@@ -459,6 +521,7 @@ class ChatSessionEntity extends DataClass
           ..write('worldInfoIds: $worldInfoIds, ')
           ..write('textPresetIds: $textPresetIds, ')
           ..write('apiPresetId: $apiPresetId, ')
+          ..write('imageApiPresetId: $imageApiPresetId, ')
           ..write('backgroundImage: $backgroundImage')
           ..write(')'))
         .toString();
@@ -471,6 +534,7 @@ class ChatSessionEntity extends DataClass
       meId,
       lastUpdated,
       enableExtendedChat,
+      enableEmoji,
       enableTextToImage,
       enableIndependentSendButton,
       currentState,
@@ -478,6 +542,7 @@ class ChatSessionEntity extends DataClass
       worldInfoIds,
       textPresetIds,
       apiPresetId,
+      imageApiPresetId,
       backgroundImage);
   @override
   bool operator ==(Object other) =>
@@ -488,6 +553,7 @@ class ChatSessionEntity extends DataClass
           other.meId == this.meId &&
           other.lastUpdated == this.lastUpdated &&
           other.enableExtendedChat == this.enableExtendedChat &&
+          other.enableEmoji == this.enableEmoji &&
           other.enableTextToImage == this.enableTextToImage &&
           other.enableIndependentSendButton ==
               this.enableIndependentSendButton &&
@@ -496,6 +562,7 @@ class ChatSessionEntity extends DataClass
           other.worldInfoIds == this.worldInfoIds &&
           other.textPresetIds == this.textPresetIds &&
           other.apiPresetId == this.apiPresetId &&
+          other.imageApiPresetId == this.imageApiPresetId &&
           other.backgroundImage == this.backgroundImage);
 }
 
@@ -505,6 +572,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
   final Value<String> meId;
   final Value<int> lastUpdated;
   final Value<bool> enableExtendedChat;
+  final Value<bool> enableEmoji;
   final Value<bool> enableTextToImage;
   final Value<bool> enableIndependentSendButton;
   final Value<String?> currentState;
@@ -512,6 +580,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
   final Value<List<String>> worldInfoIds;
   final Value<List<String>> textPresetIds;
   final Value<String?> apiPresetId;
+  final Value<String?> imageApiPresetId;
   final Value<String?> backgroundImage;
   final Value<int> rowid;
   const ChatSessionsCompanion({
@@ -520,6 +589,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     this.meId = const Value.absent(),
     this.lastUpdated = const Value.absent(),
     this.enableExtendedChat = const Value.absent(),
+    this.enableEmoji = const Value.absent(),
     this.enableTextToImage = const Value.absent(),
     this.enableIndependentSendButton = const Value.absent(),
     this.currentState = const Value.absent(),
@@ -527,6 +597,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     this.worldInfoIds = const Value.absent(),
     this.textPresetIds = const Value.absent(),
     this.apiPresetId = const Value.absent(),
+    this.imageApiPresetId = const Value.absent(),
     this.backgroundImage = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -536,6 +607,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     required String meId,
     required int lastUpdated,
     this.enableExtendedChat = const Value.absent(),
+    this.enableEmoji = const Value.absent(),
     this.enableTextToImage = const Value.absent(),
     this.enableIndependentSendButton = const Value.absent(),
     this.currentState = const Value.absent(),
@@ -543,6 +615,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     this.worldInfoIds = const Value.absent(),
     this.textPresetIds = const Value.absent(),
     this.apiPresetId = const Value.absent(),
+    this.imageApiPresetId = const Value.absent(),
     this.backgroundImage = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
@@ -555,6 +628,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     Expression<String>? meId,
     Expression<int>? lastUpdated,
     Expression<bool>? enableExtendedChat,
+    Expression<bool>? enableEmoji,
     Expression<bool>? enableTextToImage,
     Expression<bool>? enableIndependentSendButton,
     Expression<String>? currentState,
@@ -562,6 +636,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     Expression<String>? worldInfoIds,
     Expression<String>? textPresetIds,
     Expression<String>? apiPresetId,
+    Expression<String>? imageApiPresetId,
     Expression<String>? backgroundImage,
     Expression<int>? rowid,
   }) {
@@ -572,6 +647,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       if (lastUpdated != null) 'last_updated': lastUpdated,
       if (enableExtendedChat != null)
         'enable_extended_chat': enableExtendedChat,
+      if (enableEmoji != null) 'enable_emoji': enableEmoji,
       if (enableTextToImage != null) 'enable_text_to_image': enableTextToImage,
       if (enableIndependentSendButton != null)
         'enable_independent_send_button': enableIndependentSendButton,
@@ -580,6 +656,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       if (worldInfoIds != null) 'world_info_ids': worldInfoIds,
       if (textPresetIds != null) 'text_preset_ids': textPresetIds,
       if (apiPresetId != null) 'api_preset_id': apiPresetId,
+      if (imageApiPresetId != null) 'image_api_preset_id': imageApiPresetId,
       if (backgroundImage != null) 'background_image': backgroundImage,
       if (rowid != null) 'rowid': rowid,
     });
@@ -591,6 +668,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       Value<String>? meId,
       Value<int>? lastUpdated,
       Value<bool>? enableExtendedChat,
+      Value<bool>? enableEmoji,
       Value<bool>? enableTextToImage,
       Value<bool>? enableIndependentSendButton,
       Value<String?>? currentState,
@@ -598,6 +676,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       Value<List<String>>? worldInfoIds,
       Value<List<String>>? textPresetIds,
       Value<String?>? apiPresetId,
+      Value<String?>? imageApiPresetId,
       Value<String?>? backgroundImage,
       Value<int>? rowid}) {
     return ChatSessionsCompanion(
@@ -606,6 +685,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       meId: meId ?? this.meId,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       enableExtendedChat: enableExtendedChat ?? this.enableExtendedChat,
+      enableEmoji: enableEmoji ?? this.enableEmoji,
       enableTextToImage: enableTextToImage ?? this.enableTextToImage,
       enableIndependentSendButton:
           enableIndependentSendButton ?? this.enableIndependentSendButton,
@@ -614,6 +694,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       worldInfoIds: worldInfoIds ?? this.worldInfoIds,
       textPresetIds: textPresetIds ?? this.textPresetIds,
       apiPresetId: apiPresetId ?? this.apiPresetId,
+      imageApiPresetId: imageApiPresetId ?? this.imageApiPresetId,
       backgroundImage: backgroundImage ?? this.backgroundImage,
       rowid: rowid ?? this.rowid,
     );
@@ -636,6 +717,9 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     }
     if (enableExtendedChat.present) {
       map['enable_extended_chat'] = Variable<bool>(enableExtendedChat.value);
+    }
+    if (enableEmoji.present) {
+      map['enable_emoji'] = Variable<bool>(enableEmoji.value);
     }
     if (enableTextToImage.present) {
       map['enable_text_to_image'] = Variable<bool>(enableTextToImage.value);
@@ -662,6 +746,9 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     if (apiPresetId.present) {
       map['api_preset_id'] = Variable<String>(apiPresetId.value);
     }
+    if (imageApiPresetId.present) {
+      map['image_api_preset_id'] = Variable<String>(imageApiPresetId.value);
+    }
     if (backgroundImage.present) {
       map['background_image'] = Variable<String>(backgroundImage.value);
     }
@@ -679,6 +766,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
           ..write('meId: $meId, ')
           ..write('lastUpdated: $lastUpdated, ')
           ..write('enableExtendedChat: $enableExtendedChat, ')
+          ..write('enableEmoji: $enableEmoji, ')
           ..write('enableTextToImage: $enableTextToImage, ')
           ..write('enableIndependentSendButton: $enableIndependentSendButton, ')
           ..write('currentState: $currentState, ')
@@ -686,6 +774,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
           ..write('worldInfoIds: $worldInfoIds, ')
           ..write('textPresetIds: $textPresetIds, ')
           ..write('apiPresetId: $apiPresetId, ')
+          ..write('imageApiPresetId: $imageApiPresetId, ')
           ..write('backgroundImage: $backgroundImage, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -1196,10 +1285,10 @@ class $MomentsPostsTable extends MomentsPosts
       'created_at', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
   @override
-  late final GeneratedColumnWithTypeConverter<List<MomentsUser>, String> likes =
+  late final GeneratedColumnWithTypeConverter<List<MomentLike>, String> likes =
       GeneratedColumn<String>('likes', aliasedName, false,
               type: DriftSqlType.string, requiredDuringInsert: true)
-          .withConverter<List<MomentsUser>>($MomentsPostsTable.$converterlikes);
+          .withConverter<List<MomentLike>>($MomentsPostsTable.$converterlikes);
   @override
   late final GeneratedColumnWithTypeConverter<List<MomentsComment>, String>
       comments = GeneratedColumn<String>('comments', aliasedName, false,
@@ -1285,7 +1374,7 @@ class $MomentsPostsTable extends MomentsPosts
       const MomentsUserConverter();
   static TypeConverter<List<MediaItem>, String> $convertermediaItems =
       const MediaItemsConverter();
-  static TypeConverter<List<MomentsUser>, String> $converterlikes =
+  static TypeConverter<List<MomentLike>, String> $converterlikes =
       const LikesConverter();
   static TypeConverter<List<MomentsComment>, String> $convertercomments =
       const CommentsConverter();
@@ -1298,7 +1387,7 @@ class MomentsPostEntity extends DataClass
   final String? content;
   final List<MediaItem> mediaItems;
   final int createdAt;
-  final List<MomentsUser> likes;
+  final List<MomentLike> likes;
   final List<MomentsComment> comments;
   final String? location;
   const MomentsPostEntity(
@@ -1366,7 +1455,7 @@ class MomentsPostEntity extends DataClass
       content: serializer.fromJson<String?>(json['content']),
       mediaItems: serializer.fromJson<List<MediaItem>>(json['mediaItems']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
-      likes: serializer.fromJson<List<MomentsUser>>(json['likes']),
+      likes: serializer.fromJson<List<MomentLike>>(json['likes']),
       comments: serializer.fromJson<List<MomentsComment>>(json['comments']),
       location: serializer.fromJson<String?>(json['location']),
     );
@@ -1380,7 +1469,7 @@ class MomentsPostEntity extends DataClass
       'content': serializer.toJson<String?>(content),
       'mediaItems': serializer.toJson<List<MediaItem>>(mediaItems),
       'createdAt': serializer.toJson<int>(createdAt),
-      'likes': serializer.toJson<List<MomentsUser>>(likes),
+      'likes': serializer.toJson<List<MomentLike>>(likes),
       'comments': serializer.toJson<List<MomentsComment>>(comments),
       'location': serializer.toJson<String?>(location),
     };
@@ -1392,7 +1481,7 @@ class MomentsPostEntity extends DataClass
           Value<String?> content = const Value.absent(),
           List<MediaItem>? mediaItems,
           int? createdAt,
-          List<MomentsUser>? likes,
+          List<MomentLike>? likes,
           List<MomentsComment>? comments,
           Value<String?> location = const Value.absent()}) =>
       MomentsPostEntity(
@@ -1457,7 +1546,7 @@ class MomentsPostsCompanion extends UpdateCompanion<MomentsPostEntity> {
   final Value<String?> content;
   final Value<List<MediaItem>> mediaItems;
   final Value<int> createdAt;
-  final Value<List<MomentsUser>> likes;
+  final Value<List<MomentLike>> likes;
   final Value<List<MomentsComment>> comments;
   final Value<String?> location;
   final Value<int> rowid;
@@ -1478,7 +1567,7 @@ class MomentsPostsCompanion extends UpdateCompanion<MomentsPostEntity> {
     this.content = const Value.absent(),
     required List<MediaItem> mediaItems,
     required int createdAt,
-    required List<MomentsUser> likes,
+    required List<MomentLike> likes,
     required List<MomentsComment> comments,
     this.location = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1518,7 +1607,7 @@ class MomentsPostsCompanion extends UpdateCompanion<MomentsPostEntity> {
       Value<String?>? content,
       Value<List<MediaItem>>? mediaItems,
       Value<int>? createdAt,
-      Value<List<MomentsUser>>? likes,
+      Value<List<MomentLike>>? likes,
       Value<List<MomentsComment>>? comments,
       Value<String?>? location,
       Value<int>? rowid}) {
@@ -2643,8 +2732,34 @@ class $ContactRolesTable extends ContactRoles
           .withConverter<List<String>>(
               $ContactRolesTable.$converterreferenceImages);
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, name, avatarPath, description, appearance, referenceImages];
+  late final GeneratedColumnWithTypeConverter<List<String>, String>
+      subscribedGroupIds = GeneratedColumn<String>(
+              'subscribed_group_ids', aliasedName, false,
+              type: DriftSqlType.string,
+              requiredDuringInsert: false,
+              defaultValue: const Constant('[]'))
+          .withConverter<List<String>>(
+              $ContactRolesTable.$convertersubscribedGroupIds);
+  @override
+  late final GeneratedColumnWithTypeConverter<List<String>, String>
+      subscribedEmojiIds = GeneratedColumn<String>(
+              'subscribed_emoji_ids', aliasedName, false,
+              type: DriftSqlType.string,
+              requiredDuringInsert: false,
+              defaultValue: const Constant('[]'))
+          .withConverter<List<String>>(
+              $ContactRolesTable.$convertersubscribedEmojiIds);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        name,
+        avatarPath,
+        description,
+        appearance,
+        referenceImages,
+        subscribedGroupIds,
+        subscribedEmojiIds
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -2708,6 +2823,12 @@ class $ContactRolesTable extends ContactRoles
       referenceImages: $ContactRolesTable.$converterreferenceImages.fromSql(
           attachedDatabase.typeMapping.read(DriftSqlType.string,
               data['${effectivePrefix}reference_images'])!),
+      subscribedGroupIds: $ContactRolesTable.$convertersubscribedGroupIds
+          .fromSql(attachedDatabase.typeMapping.read(DriftSqlType.string,
+              data['${effectivePrefix}subscribed_group_ids'])!),
+      subscribedEmojiIds: $ContactRolesTable.$convertersubscribedEmojiIds
+          .fromSql(attachedDatabase.typeMapping.read(DriftSqlType.string,
+              data['${effectivePrefix}subscribed_emoji_ids'])!),
     );
   }
 
@@ -2717,6 +2838,10 @@ class $ContactRolesTable extends ContactRoles
   }
 
   static TypeConverter<List<String>, String> $converterreferenceImages =
+      const StringListConverter();
+  static TypeConverter<List<String>, String> $convertersubscribedGroupIds =
+      const StringListConverter();
+  static TypeConverter<List<String>, String> $convertersubscribedEmojiIds =
       const StringListConverter();
 }
 
@@ -2728,13 +2853,17 @@ class ContactRoleEntity extends DataClass
   final String description;
   final String? appearance;
   final List<String> referenceImages;
+  final List<String> subscribedGroupIds;
+  final List<String> subscribedEmojiIds;
   const ContactRoleEntity(
       {required this.id,
       required this.name,
       this.avatarPath,
       required this.description,
       this.appearance,
-      required this.referenceImages});
+      required this.referenceImages,
+      required this.subscribedGroupIds,
+      required this.subscribedEmojiIds});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2751,6 +2880,16 @@ class ContactRoleEntity extends DataClass
       map['reference_images'] = Variable<String>(
           $ContactRolesTable.$converterreferenceImages.toSql(referenceImages));
     }
+    {
+      map['subscribed_group_ids'] = Variable<String>($ContactRolesTable
+          .$convertersubscribedGroupIds
+          .toSql(subscribedGroupIds));
+    }
+    {
+      map['subscribed_emoji_ids'] = Variable<String>($ContactRolesTable
+          .$convertersubscribedEmojiIds
+          .toSql(subscribedEmojiIds));
+    }
     return map;
   }
 
@@ -2766,6 +2905,8 @@ class ContactRoleEntity extends DataClass
           ? const Value.absent()
           : Value(appearance),
       referenceImages: Value(referenceImages),
+      subscribedGroupIds: Value(subscribedGroupIds),
+      subscribedEmojiIds: Value(subscribedEmojiIds),
     );
   }
 
@@ -2780,6 +2921,10 @@ class ContactRoleEntity extends DataClass
       appearance: serializer.fromJson<String?>(json['appearance']),
       referenceImages:
           serializer.fromJson<List<String>>(json['referenceImages']),
+      subscribedGroupIds:
+          serializer.fromJson<List<String>>(json['subscribedGroupIds']),
+      subscribedEmojiIds:
+          serializer.fromJson<List<String>>(json['subscribedEmojiIds']),
     );
   }
   @override
@@ -2792,6 +2937,8 @@ class ContactRoleEntity extends DataClass
       'description': serializer.toJson<String>(description),
       'appearance': serializer.toJson<String?>(appearance),
       'referenceImages': serializer.toJson<List<String>>(referenceImages),
+      'subscribedGroupIds': serializer.toJson<List<String>>(subscribedGroupIds),
+      'subscribedEmojiIds': serializer.toJson<List<String>>(subscribedEmojiIds),
     };
   }
 
@@ -2801,7 +2948,9 @@ class ContactRoleEntity extends DataClass
           Value<String?> avatarPath = const Value.absent(),
           String? description,
           Value<String?> appearance = const Value.absent(),
-          List<String>? referenceImages}) =>
+          List<String>? referenceImages,
+          List<String>? subscribedGroupIds,
+          List<String>? subscribedEmojiIds}) =>
       ContactRoleEntity(
         id: id ?? this.id,
         name: name ?? this.name,
@@ -2809,6 +2958,8 @@ class ContactRoleEntity extends DataClass
         description: description ?? this.description,
         appearance: appearance.present ? appearance.value : this.appearance,
         referenceImages: referenceImages ?? this.referenceImages,
+        subscribedGroupIds: subscribedGroupIds ?? this.subscribedGroupIds,
+        subscribedEmojiIds: subscribedEmojiIds ?? this.subscribedEmojiIds,
       );
   ContactRoleEntity copyWithCompanion(ContactRolesCompanion data) {
     return ContactRoleEntity(
@@ -2823,6 +2974,12 @@ class ContactRoleEntity extends DataClass
       referenceImages: data.referenceImages.present
           ? data.referenceImages.value
           : this.referenceImages,
+      subscribedGroupIds: data.subscribedGroupIds.present
+          ? data.subscribedGroupIds.value
+          : this.subscribedGroupIds,
+      subscribedEmojiIds: data.subscribedEmojiIds.present
+          ? data.subscribedEmojiIds.value
+          : this.subscribedEmojiIds,
     );
   }
 
@@ -2834,14 +2991,16 @@ class ContactRoleEntity extends DataClass
           ..write('avatarPath: $avatarPath, ')
           ..write('description: $description, ')
           ..write('appearance: $appearance, ')
-          ..write('referenceImages: $referenceImages')
+          ..write('referenceImages: $referenceImages, ')
+          ..write('subscribedGroupIds: $subscribedGroupIds, ')
+          ..write('subscribedEmojiIds: $subscribedEmojiIds')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, name, avatarPath, description, appearance, referenceImages);
+  int get hashCode => Object.hash(id, name, avatarPath, description, appearance,
+      referenceImages, subscribedGroupIds, subscribedEmojiIds);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2851,7 +3010,9 @@ class ContactRoleEntity extends DataClass
           other.avatarPath == this.avatarPath &&
           other.description == this.description &&
           other.appearance == this.appearance &&
-          other.referenceImages == this.referenceImages);
+          other.referenceImages == this.referenceImages &&
+          other.subscribedGroupIds == this.subscribedGroupIds &&
+          other.subscribedEmojiIds == this.subscribedEmojiIds);
 }
 
 class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
@@ -2861,6 +3022,8 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
   final Value<String> description;
   final Value<String?> appearance;
   final Value<List<String>> referenceImages;
+  final Value<List<String>> subscribedGroupIds;
+  final Value<List<String>> subscribedEmojiIds;
   final Value<int> rowid;
   const ContactRolesCompanion({
     this.id = const Value.absent(),
@@ -2869,6 +3032,8 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
     this.description = const Value.absent(),
     this.appearance = const Value.absent(),
     this.referenceImages = const Value.absent(),
+    this.subscribedGroupIds = const Value.absent(),
+    this.subscribedEmojiIds = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ContactRolesCompanion.insert({
@@ -2878,6 +3043,8 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
     required String description,
     this.appearance = const Value.absent(),
     this.referenceImages = const Value.absent(),
+    this.subscribedGroupIds = const Value.absent(),
+    this.subscribedEmojiIds = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name),
@@ -2889,6 +3056,8 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
     Expression<String>? description,
     Expression<String>? appearance,
     Expression<String>? referenceImages,
+    Expression<String>? subscribedGroupIds,
+    Expression<String>? subscribedEmojiIds,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2898,6 +3067,10 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
       if (description != null) 'description': description,
       if (appearance != null) 'appearance': appearance,
       if (referenceImages != null) 'reference_images': referenceImages,
+      if (subscribedGroupIds != null)
+        'subscribed_group_ids': subscribedGroupIds,
+      if (subscribedEmojiIds != null)
+        'subscribed_emoji_ids': subscribedEmojiIds,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2909,6 +3082,8 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
       Value<String>? description,
       Value<String?>? appearance,
       Value<List<String>>? referenceImages,
+      Value<List<String>>? subscribedGroupIds,
+      Value<List<String>>? subscribedEmojiIds,
       Value<int>? rowid}) {
     return ContactRolesCompanion(
       id: id ?? this.id,
@@ -2917,6 +3092,8 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
       description: description ?? this.description,
       appearance: appearance ?? this.appearance,
       referenceImages: referenceImages ?? this.referenceImages,
+      subscribedGroupIds: subscribedGroupIds ?? this.subscribedGroupIds,
+      subscribedEmojiIds: subscribedEmojiIds ?? this.subscribedEmojiIds,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2944,6 +3121,16 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
           .$converterreferenceImages
           .toSql(referenceImages.value));
     }
+    if (subscribedGroupIds.present) {
+      map['subscribed_group_ids'] = Variable<String>($ContactRolesTable
+          .$convertersubscribedGroupIds
+          .toSql(subscribedGroupIds.value));
+    }
+    if (subscribedEmojiIds.present) {
+      map['subscribed_emoji_ids'] = Variable<String>($ContactRolesTable
+          .$convertersubscribedEmojiIds
+          .toSql(subscribedEmojiIds.value));
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2959,6 +3146,8 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
           ..write('description: $description, ')
           ..write('appearance: $appearance, ')
           ..write('referenceImages: $referenceImages, ')
+          ..write('subscribedGroupIds: $subscribedGroupIds, ')
+          ..write('subscribedEmojiIds: $subscribedEmojiIds, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3405,6 +3594,14 @@ class $ApiPresetsTable extends ApiPresets
       defaultConstraints: GeneratedColumn.constraintIsAlways(
           'CHECK ("enable_thinking" IN (0, 1))'),
       defaultValue: const Constant(true));
+  static const VerificationMeta _timeoutMeta =
+      const VerificationMeta('timeout');
+  @override
+  late final GeneratedColumn<int> timeout = GeneratedColumn<int>(
+      'timeout', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(120));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -3417,7 +3614,8 @@ class $ApiPresetsTable extends ApiPresets
         temperature,
         topP,
         isStream,
-        enableThinking
+        enableThinking,
+        timeout
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3478,6 +3676,10 @@ class $ApiPresetsTable extends ApiPresets
           enableThinking.isAcceptableOrUnknown(
               data['enable_thinking']!, _enableThinkingMeta));
     }
+    if (data.containsKey('timeout')) {
+      context.handle(_timeoutMeta,
+          timeout.isAcceptableOrUnknown(data['timeout']!, _timeoutMeta));
+    }
     return context;
   }
 
@@ -3510,6 +3712,8 @@ class $ApiPresetsTable extends ApiPresets
           .read(DriftSqlType.bool, data['${effectivePrefix}is_stream'])!,
       enableThinking: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}enable_thinking'])!,
+      timeout: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}timeout'])!,
     );
   }
 
@@ -3536,6 +3740,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
   final double topP;
   final bool isStream;
   final bool enableThinking;
+  final int timeout;
   const ApiPresetEntity(
       {required this.id,
       required this.name,
@@ -3547,7 +3752,8 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       required this.temperature,
       required this.topP,
       required this.isStream,
-      required this.enableThinking});
+      required this.enableThinking,
+      required this.timeout});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3567,6 +3773,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
     map['top_p'] = Variable<double>(topP);
     map['is_stream'] = Variable<bool>(isStream);
     map['enable_thinking'] = Variable<bool>(enableThinking);
+    map['timeout'] = Variable<int>(timeout);
     return map;
   }
 
@@ -3583,6 +3790,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       topP: Value(topP),
       isStream: Value(isStream),
       enableThinking: Value(enableThinking),
+      timeout: Value(timeout),
     );
   }
 
@@ -3601,6 +3809,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       topP: serializer.fromJson<double>(json['topP']),
       isStream: serializer.fromJson<bool>(json['isStream']),
       enableThinking: serializer.fromJson<bool>(json['enableThinking']),
+      timeout: serializer.fromJson<int>(json['timeout']),
     );
   }
   @override
@@ -3618,6 +3827,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       'topP': serializer.toJson<double>(topP),
       'isStream': serializer.toJson<bool>(isStream),
       'enableThinking': serializer.toJson<bool>(enableThinking),
+      'timeout': serializer.toJson<int>(timeout),
     };
   }
 
@@ -3632,7 +3842,8 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
           double? temperature,
           double? topP,
           bool? isStream,
-          bool? enableThinking}) =>
+          bool? enableThinking,
+          int? timeout}) =>
       ApiPresetEntity(
         id: id ?? this.id,
         name: name ?? this.name,
@@ -3645,6 +3856,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
         topP: topP ?? this.topP,
         isStream: isStream ?? this.isStream,
         enableThinking: enableThinking ?? this.enableThinking,
+        timeout: timeout ?? this.timeout,
       );
   ApiPresetEntity copyWithCompanion(ApiPresetsCompanion data) {
     return ApiPresetEntity(
@@ -3662,6 +3874,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       enableThinking: data.enableThinking.present
           ? data.enableThinking.value
           : this.enableThinking,
+      timeout: data.timeout.present ? data.timeout.value : this.timeout,
     );
   }
 
@@ -3678,14 +3891,15 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
           ..write('temperature: $temperature, ')
           ..write('topP: $topP, ')
           ..write('isStream: $isStream, ')
-          ..write('enableThinking: $enableThinking')
+          ..write('enableThinking: $enableThinking, ')
+          ..write('timeout: $timeout')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode => Object.hash(id, name, type, provider, baseUrl, apiKey,
-      model, temperature, topP, isStream, enableThinking);
+      model, temperature, topP, isStream, enableThinking, timeout);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3700,7 +3914,8 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
           other.temperature == this.temperature &&
           other.topP == this.topP &&
           other.isStream == this.isStream &&
-          other.enableThinking == this.enableThinking);
+          other.enableThinking == this.enableThinking &&
+          other.timeout == this.timeout);
 }
 
 class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
@@ -3715,6 +3930,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
   final Value<double> topP;
   final Value<bool> isStream;
   final Value<bool> enableThinking;
+  final Value<int> timeout;
   final Value<int> rowid;
   const ApiPresetsCompanion({
     this.id = const Value.absent(),
@@ -3728,6 +3944,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     this.topP = const Value.absent(),
     this.isStream = const Value.absent(),
     this.enableThinking = const Value.absent(),
+    this.timeout = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ApiPresetsCompanion.insert({
@@ -3742,6 +3959,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     this.topP = const Value.absent(),
     this.isStream = const Value.absent(),
     this.enableThinking = const Value.absent(),
+    this.timeout = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name),
@@ -3761,6 +3979,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     Expression<double>? topP,
     Expression<bool>? isStream,
     Expression<bool>? enableThinking,
+    Expression<int>? timeout,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3775,6 +3994,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
       if (topP != null) 'top_p': topP,
       if (isStream != null) 'is_stream': isStream,
       if (enableThinking != null) 'enable_thinking': enableThinking,
+      if (timeout != null) 'timeout': timeout,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3791,6 +4011,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
       Value<double>? topP,
       Value<bool>? isStream,
       Value<bool>? enableThinking,
+      Value<int>? timeout,
       Value<int>? rowid}) {
     return ApiPresetsCompanion(
       id: id ?? this.id,
@@ -3804,6 +4025,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
       topP: topP ?? this.topP,
       isStream: isStream ?? this.isStream,
       enableThinking: enableThinking ?? this.enableThinking,
+      timeout: timeout ?? this.timeout,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3846,6 +4068,9 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     if (enableThinking.present) {
       map['enable_thinking'] = Variable<bool>(enableThinking.value);
     }
+    if (timeout.present) {
+      map['timeout'] = Variable<int>(timeout.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3866,6 +4091,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
           ..write('topP: $topP, ')
           ..write('isStream: $isStream, ')
           ..write('enableThinking: $enableThinking, ')
+          ..write('timeout: $timeout, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5370,6 +5596,16 @@ class $EmojiGroupsTable extends EmojiGroups
   late final GeneratedColumn<String> roleId = GeneratedColumn<String>(
       'role_id', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _isVisibleMeta =
+      const VerificationMeta('isVisible');
+  @override
+  late final GeneratedColumn<bool> isVisible = GeneratedColumn<bool>(
+      'is_visible', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_visible" IN (0, 1))'),
+      defaultValue: const Constant(true));
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -5377,7 +5613,8 @@ class $EmojiGroupsTable extends EmojiGroups
       'created_at', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
   @override
-  List<GeneratedColumn> get $columns => [id, name, type, roleId, createdAt];
+  List<GeneratedColumn> get $columns =>
+      [id, name, type, roleId, isVisible, createdAt];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -5403,6 +5640,10 @@ class $EmojiGroupsTable extends EmojiGroups
       context.handle(_roleIdMeta,
           roleId.isAcceptableOrUnknown(data['role_id']!, _roleIdMeta));
     }
+    if (data.containsKey('is_visible')) {
+      context.handle(_isVisibleMeta,
+          isVisible.isAcceptableOrUnknown(data['is_visible']!, _isVisibleMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -5427,6 +5668,8 @@ class $EmojiGroupsTable extends EmojiGroups
           .read(DriftSqlType.int, data['${effectivePrefix}type'])!),
       roleId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}role_id']),
+      isVisible: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_visible'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
     );
@@ -5447,12 +5690,14 @@ class EmojiGroupEntity extends DataClass
   final String name;
   final EmojiType type;
   final String? roleId;
+  final bool isVisible;
   final int createdAt;
   const EmojiGroupEntity(
       {required this.id,
       required this.name,
       required this.type,
       this.roleId,
+      required this.isVisible,
       required this.createdAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -5465,6 +5710,7 @@ class EmojiGroupEntity extends DataClass
     if (!nullToAbsent || roleId != null) {
       map['role_id'] = Variable<String>(roleId);
     }
+    map['is_visible'] = Variable<bool>(isVisible);
     map['created_at'] = Variable<int>(createdAt);
     return map;
   }
@@ -5476,6 +5722,7 @@ class EmojiGroupEntity extends DataClass
       type: Value(type),
       roleId:
           roleId == null && nullToAbsent ? const Value.absent() : Value(roleId),
+      isVisible: Value(isVisible),
       createdAt: Value(createdAt),
     );
   }
@@ -5488,6 +5735,7 @@ class EmojiGroupEntity extends DataClass
       name: serializer.fromJson<String>(json['name']),
       type: serializer.fromJson<EmojiType>(json['type']),
       roleId: serializer.fromJson<String?>(json['roleId']),
+      isVisible: serializer.fromJson<bool>(json['isVisible']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
     );
   }
@@ -5499,6 +5747,7 @@ class EmojiGroupEntity extends DataClass
       'name': serializer.toJson<String>(name),
       'type': serializer.toJson<EmojiType>(type),
       'roleId': serializer.toJson<String?>(roleId),
+      'isVisible': serializer.toJson<bool>(isVisible),
       'createdAt': serializer.toJson<int>(createdAt),
     };
   }
@@ -5508,12 +5757,14 @@ class EmojiGroupEntity extends DataClass
           String? name,
           EmojiType? type,
           Value<String?> roleId = const Value.absent(),
+          bool? isVisible,
           int? createdAt}) =>
       EmojiGroupEntity(
         id: id ?? this.id,
         name: name ?? this.name,
         type: type ?? this.type,
         roleId: roleId.present ? roleId.value : this.roleId,
+        isVisible: isVisible ?? this.isVisible,
         createdAt: createdAt ?? this.createdAt,
       );
   EmojiGroupEntity copyWithCompanion(EmojiGroupsCompanion data) {
@@ -5522,6 +5773,7 @@ class EmojiGroupEntity extends DataClass
       name: data.name.present ? data.name.value : this.name,
       type: data.type.present ? data.type.value : this.type,
       roleId: data.roleId.present ? data.roleId.value : this.roleId,
+      isVisible: data.isVisible.present ? data.isVisible.value : this.isVisible,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -5533,13 +5785,14 @@ class EmojiGroupEntity extends DataClass
           ..write('name: $name, ')
           ..write('type: $type, ')
           ..write('roleId: $roleId, ')
+          ..write('isVisible: $isVisible, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, type, roleId, createdAt);
+  int get hashCode => Object.hash(id, name, type, roleId, isVisible, createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5548,6 +5801,7 @@ class EmojiGroupEntity extends DataClass
           other.name == this.name &&
           other.type == this.type &&
           other.roleId == this.roleId &&
+          other.isVisible == this.isVisible &&
           other.createdAt == this.createdAt);
 }
 
@@ -5556,6 +5810,7 @@ class EmojiGroupsCompanion extends UpdateCompanion<EmojiGroupEntity> {
   final Value<String> name;
   final Value<EmojiType> type;
   final Value<String?> roleId;
+  final Value<bool> isVisible;
   final Value<int> createdAt;
   final Value<int> rowid;
   const EmojiGroupsCompanion({
@@ -5563,6 +5818,7 @@ class EmojiGroupsCompanion extends UpdateCompanion<EmojiGroupEntity> {
     this.name = const Value.absent(),
     this.type = const Value.absent(),
     this.roleId = const Value.absent(),
+    this.isVisible = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -5571,6 +5827,7 @@ class EmojiGroupsCompanion extends UpdateCompanion<EmojiGroupEntity> {
     required String name,
     required EmojiType type,
     this.roleId = const Value.absent(),
+    this.isVisible = const Value.absent(),
     required int createdAt,
     this.rowid = const Value.absent(),
   })  : id = Value(id),
@@ -5582,6 +5839,7 @@ class EmojiGroupsCompanion extends UpdateCompanion<EmojiGroupEntity> {
     Expression<String>? name,
     Expression<int>? type,
     Expression<String>? roleId,
+    Expression<bool>? isVisible,
     Expression<int>? createdAt,
     Expression<int>? rowid,
   }) {
@@ -5590,6 +5848,7 @@ class EmojiGroupsCompanion extends UpdateCompanion<EmojiGroupEntity> {
       if (name != null) 'name': name,
       if (type != null) 'type': type,
       if (roleId != null) 'role_id': roleId,
+      if (isVisible != null) 'is_visible': isVisible,
       if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -5600,6 +5859,7 @@ class EmojiGroupsCompanion extends UpdateCompanion<EmojiGroupEntity> {
       Value<String>? name,
       Value<EmojiType>? type,
       Value<String?>? roleId,
+      Value<bool>? isVisible,
       Value<int>? createdAt,
       Value<int>? rowid}) {
     return EmojiGroupsCompanion(
@@ -5607,6 +5867,7 @@ class EmojiGroupsCompanion extends UpdateCompanion<EmojiGroupEntity> {
       name: name ?? this.name,
       type: type ?? this.type,
       roleId: roleId ?? this.roleId,
+      isVisible: isVisible ?? this.isVisible,
       createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
     );
@@ -5628,6 +5889,9 @@ class EmojiGroupsCompanion extends UpdateCompanion<EmojiGroupEntity> {
     if (roleId.present) {
       map['role_id'] = Variable<String>(roleId.value);
     }
+    if (isVisible.present) {
+      map['is_visible'] = Variable<bool>(isVisible.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
@@ -5644,6 +5908,7 @@ class EmojiGroupsCompanion extends UpdateCompanion<EmojiGroupEntity> {
           ..write('name: $name, ')
           ..write('type: $type, ')
           ..write('roleId: $roleId, ')
+          ..write('isVisible: $isVisible, ')
           ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -5711,6 +5976,7 @@ typedef $$ChatSessionsTableCreateCompanionBuilder = ChatSessionsCompanion
   required String meId,
   required int lastUpdated,
   Value<bool> enableExtendedChat,
+  Value<bool> enableEmoji,
   Value<bool> enableTextToImage,
   Value<bool> enableIndependentSendButton,
   Value<String?> currentState,
@@ -5718,6 +5984,7 @@ typedef $$ChatSessionsTableCreateCompanionBuilder = ChatSessionsCompanion
   Value<List<String>> worldInfoIds,
   Value<List<String>> textPresetIds,
   Value<String?> apiPresetId,
+  Value<String?> imageApiPresetId,
   Value<String?> backgroundImage,
   Value<int> rowid,
 });
@@ -5728,6 +5995,7 @@ typedef $$ChatSessionsTableUpdateCompanionBuilder = ChatSessionsCompanion
   Value<String> meId,
   Value<int> lastUpdated,
   Value<bool> enableExtendedChat,
+  Value<bool> enableEmoji,
   Value<bool> enableTextToImage,
   Value<bool> enableIndependentSendButton,
   Value<String?> currentState,
@@ -5735,6 +6003,7 @@ typedef $$ChatSessionsTableUpdateCompanionBuilder = ChatSessionsCompanion
   Value<List<String>> worldInfoIds,
   Value<List<String>> textPresetIds,
   Value<String?> apiPresetId,
+  Value<String?> imageApiPresetId,
   Value<String?> backgroundImage,
   Value<int> rowid,
 });
@@ -5784,6 +6053,9 @@ class $$ChatSessionsTableFilterComposer
       column: $table.enableExtendedChat,
       builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<bool> get enableEmoji => $composableBuilder(
+      column: $table.enableEmoji, builder: (column) => ColumnFilters(column));
+
   ColumnFilters<bool> get enableTextToImage => $composableBuilder(
       column: $table.enableTextToImage,
       builder: (column) => ColumnFilters(column));
@@ -5810,6 +6082,10 @@ class $$ChatSessionsTableFilterComposer
 
   ColumnFilters<String> get apiPresetId => $composableBuilder(
       column: $table.apiPresetId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get imageApiPresetId => $composableBuilder(
+      column: $table.imageApiPresetId,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get backgroundImage => $composableBuilder(
       column: $table.backgroundImage,
@@ -5862,6 +6138,9 @@ class $$ChatSessionsTableOrderingComposer
       column: $table.enableExtendedChat,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<bool> get enableEmoji => $composableBuilder(
+      column: $table.enableEmoji, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<bool> get enableTextToImage => $composableBuilder(
       column: $table.enableTextToImage,
       builder: (column) => ColumnOrderings(column));
@@ -5887,6 +6166,10 @@ class $$ChatSessionsTableOrderingComposer
 
   ColumnOrderings<String> get apiPresetId => $composableBuilder(
       column: $table.apiPresetId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get imageApiPresetId => $composableBuilder(
+      column: $table.imageApiPresetId,
+      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get backgroundImage => $composableBuilder(
       column: $table.backgroundImage,
@@ -5917,6 +6200,9 @@ class $$ChatSessionsTableAnnotationComposer
   GeneratedColumn<bool> get enableExtendedChat => $composableBuilder(
       column: $table.enableExtendedChat, builder: (column) => column);
 
+  GeneratedColumn<bool> get enableEmoji => $composableBuilder(
+      column: $table.enableEmoji, builder: (column) => column);
+
   GeneratedColumn<bool> get enableTextToImage => $composableBuilder(
       column: $table.enableTextToImage, builder: (column) => column);
 
@@ -5939,6 +6225,9 @@ class $$ChatSessionsTableAnnotationComposer
 
   GeneratedColumn<String> get apiPresetId => $composableBuilder(
       column: $table.apiPresetId, builder: (column) => column);
+
+  GeneratedColumn<String> get imageApiPresetId => $composableBuilder(
+      column: $table.imageApiPresetId, builder: (column) => column);
 
   GeneratedColumn<String> get backgroundImage => $composableBuilder(
       column: $table.backgroundImage, builder: (column) => column);
@@ -5993,6 +6282,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             Value<String> meId = const Value.absent(),
             Value<int> lastUpdated = const Value.absent(),
             Value<bool> enableExtendedChat = const Value.absent(),
+            Value<bool> enableEmoji = const Value.absent(),
             Value<bool> enableTextToImage = const Value.absent(),
             Value<bool> enableIndependentSendButton = const Value.absent(),
             Value<String?> currentState = const Value.absent(),
@@ -6000,6 +6290,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             Value<List<String>> worldInfoIds = const Value.absent(),
             Value<List<String>> textPresetIds = const Value.absent(),
             Value<String?> apiPresetId = const Value.absent(),
+            Value<String?> imageApiPresetId = const Value.absent(),
             Value<String?> backgroundImage = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -6009,6 +6300,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             meId: meId,
             lastUpdated: lastUpdated,
             enableExtendedChat: enableExtendedChat,
+            enableEmoji: enableEmoji,
             enableTextToImage: enableTextToImage,
             enableIndependentSendButton: enableIndependentSendButton,
             currentState: currentState,
@@ -6016,6 +6308,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             worldInfoIds: worldInfoIds,
             textPresetIds: textPresetIds,
             apiPresetId: apiPresetId,
+            imageApiPresetId: imageApiPresetId,
             backgroundImage: backgroundImage,
             rowid: rowid,
           ),
@@ -6025,6 +6318,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             required String meId,
             required int lastUpdated,
             Value<bool> enableExtendedChat = const Value.absent(),
+            Value<bool> enableEmoji = const Value.absent(),
             Value<bool> enableTextToImage = const Value.absent(),
             Value<bool> enableIndependentSendButton = const Value.absent(),
             Value<String?> currentState = const Value.absent(),
@@ -6032,6 +6326,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             Value<List<String>> worldInfoIds = const Value.absent(),
             Value<List<String>> textPresetIds = const Value.absent(),
             Value<String?> apiPresetId = const Value.absent(),
+            Value<String?> imageApiPresetId = const Value.absent(),
             Value<String?> backgroundImage = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -6041,6 +6336,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             meId: meId,
             lastUpdated: lastUpdated,
             enableExtendedChat: enableExtendedChat,
+            enableEmoji: enableEmoji,
             enableTextToImage: enableTextToImage,
             enableIndependentSendButton: enableIndependentSendButton,
             currentState: currentState,
@@ -6048,6 +6344,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             worldInfoIds: worldInfoIds,
             textPresetIds: textPresetIds,
             apiPresetId: apiPresetId,
+            imageApiPresetId: imageApiPresetId,
             backgroundImage: backgroundImage,
             rowid: rowid,
           ),
@@ -6444,7 +6741,7 @@ typedef $$MomentsPostsTableCreateCompanionBuilder = MomentsPostsCompanion
   Value<String?> content,
   required List<MediaItem> mediaItems,
   required int createdAt,
-  required List<MomentsUser> likes,
+  required List<MomentLike> likes,
   required List<MomentsComment> comments,
   Value<String?> location,
   Value<int> rowid,
@@ -6456,7 +6753,7 @@ typedef $$MomentsPostsTableUpdateCompanionBuilder = MomentsPostsCompanion
   Value<String?> content,
   Value<List<MediaItem>> mediaItems,
   Value<int> createdAt,
-  Value<List<MomentsUser>> likes,
+  Value<List<MomentLike>> likes,
   Value<List<MomentsComment>> comments,
   Value<String?> location,
   Value<int> rowid,
@@ -6490,7 +6787,7 @@ class $$MomentsPostsTableFilterComposer
   ColumnFilters<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
 
-  ColumnWithTypeConverterFilters<List<MomentsUser>, List<MomentsUser>, String>
+  ColumnWithTypeConverterFilters<List<MomentLike>, List<MomentLike>, String>
       get likes => $composableBuilder(
           column: $table.likes,
           builder: (column) => ColumnWithTypeConverterFilters(column));
@@ -6564,7 +6861,7 @@ class $$MomentsPostsTableAnnotationComposer
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
-  GeneratedColumnWithTypeConverter<List<MomentsUser>, String> get likes =>
+  GeneratedColumnWithTypeConverter<List<MomentLike>, String> get likes =>
       $composableBuilder(column: $table.likes, builder: (column) => column);
 
   GeneratedColumnWithTypeConverter<List<MomentsComment>, String> get comments =>
@@ -6605,7 +6902,7 @@ class $$MomentsPostsTableTableManager extends RootTableManager<
             Value<String?> content = const Value.absent(),
             Value<List<MediaItem>> mediaItems = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
-            Value<List<MomentsUser>> likes = const Value.absent(),
+            Value<List<MomentLike>> likes = const Value.absent(),
             Value<List<MomentsComment>> comments = const Value.absent(),
             Value<String?> location = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -6627,7 +6924,7 @@ class $$MomentsPostsTableTableManager extends RootTableManager<
             Value<String?> content = const Value.absent(),
             required List<MediaItem> mediaItems,
             required int createdAt,
-            required List<MomentsUser> likes,
+            required List<MomentLike> likes,
             required List<MomentsComment> comments,
             Value<String?> location = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -7224,6 +7521,8 @@ typedef $$ContactRolesTableCreateCompanionBuilder = ContactRolesCompanion
   required String description,
   Value<String?> appearance,
   Value<List<String>> referenceImages,
+  Value<List<String>> subscribedGroupIds,
+  Value<List<String>> subscribedEmojiIds,
   Value<int> rowid,
 });
 typedef $$ContactRolesTableUpdateCompanionBuilder = ContactRolesCompanion
@@ -7234,6 +7533,8 @@ typedef $$ContactRolesTableUpdateCompanionBuilder = ContactRolesCompanion
   Value<String> description,
   Value<String?> appearance,
   Value<List<String>> referenceImages,
+  Value<List<String>> subscribedGroupIds,
+  Value<List<String>> subscribedEmojiIds,
   Value<int> rowid,
 });
 
@@ -7265,6 +7566,16 @@ class $$ContactRolesTableFilterComposer
       get referenceImages => $composableBuilder(
           column: $table.referenceImages,
           builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnWithTypeConverterFilters<List<String>, List<String>, String>
+      get subscribedGroupIds => $composableBuilder(
+          column: $table.subscribedGroupIds,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnWithTypeConverterFilters<List<String>, List<String>, String>
+      get subscribedEmojiIds => $composableBuilder(
+          column: $table.subscribedEmojiIds,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
 }
 
 class $$ContactRolesTableOrderingComposer
@@ -7293,6 +7604,14 @@ class $$ContactRolesTableOrderingComposer
 
   ColumnOrderings<String> get referenceImages => $composableBuilder(
       column: $table.referenceImages,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get subscribedGroupIds => $composableBuilder(
+      column: $table.subscribedGroupIds,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get subscribedEmojiIds => $composableBuilder(
+      column: $table.subscribedEmojiIds,
       builder: (column) => ColumnOrderings(column));
 }
 
@@ -7323,6 +7642,14 @@ class $$ContactRolesTableAnnotationComposer
   GeneratedColumnWithTypeConverter<List<String>, String> get referenceImages =>
       $composableBuilder(
           column: $table.referenceImages, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<List<String>, String>
+      get subscribedGroupIds => $composableBuilder(
+          column: $table.subscribedGroupIds, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<List<String>, String>
+      get subscribedEmojiIds => $composableBuilder(
+          column: $table.subscribedEmojiIds, builder: (column) => column);
 }
 
 class $$ContactRolesTableTableManager extends RootTableManager<
@@ -7357,6 +7684,8 @@ class $$ContactRolesTableTableManager extends RootTableManager<
             Value<String> description = const Value.absent(),
             Value<String?> appearance = const Value.absent(),
             Value<List<String>> referenceImages = const Value.absent(),
+            Value<List<String>> subscribedGroupIds = const Value.absent(),
+            Value<List<String>> subscribedEmojiIds = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ContactRolesCompanion(
@@ -7366,6 +7695,8 @@ class $$ContactRolesTableTableManager extends RootTableManager<
             description: description,
             appearance: appearance,
             referenceImages: referenceImages,
+            subscribedGroupIds: subscribedGroupIds,
+            subscribedEmojiIds: subscribedEmojiIds,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -7375,6 +7706,8 @@ class $$ContactRolesTableTableManager extends RootTableManager<
             required String description,
             Value<String?> appearance = const Value.absent(),
             Value<List<String>> referenceImages = const Value.absent(),
+            Value<List<String>> subscribedGroupIds = const Value.absent(),
+            Value<List<String>> subscribedEmojiIds = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ContactRolesCompanion.insert(
@@ -7384,6 +7717,8 @@ class $$ContactRolesTableTableManager extends RootTableManager<
             description: description,
             appearance: appearance,
             referenceImages: referenceImages,
+            subscribedGroupIds: subscribedGroupIds,
+            subscribedEmojiIds: subscribedEmojiIds,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -7610,6 +7945,7 @@ typedef $$ApiPresetsTableCreateCompanionBuilder = ApiPresetsCompanion Function({
   Value<double> topP,
   Value<bool> isStream,
   Value<bool> enableThinking,
+  Value<int> timeout,
   Value<int> rowid,
 });
 typedef $$ApiPresetsTableUpdateCompanionBuilder = ApiPresetsCompanion Function({
@@ -7624,6 +7960,7 @@ typedef $$ApiPresetsTableUpdateCompanionBuilder = ApiPresetsCompanion Function({
   Value<double> topP,
   Value<bool> isStream,
   Value<bool> enableThinking,
+  Value<int> timeout,
   Value<int> rowid,
 });
 
@@ -7673,6 +8010,9 @@ class $$ApiPresetsTableFilterComposer
   ColumnFilters<bool> get enableThinking => $composableBuilder(
       column: $table.enableThinking,
       builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get timeout => $composableBuilder(
+      column: $table.timeout, builder: (column) => ColumnFilters(column));
 }
 
 class $$ApiPresetsTableOrderingComposer
@@ -7717,6 +8057,9 @@ class $$ApiPresetsTableOrderingComposer
   ColumnOrderings<bool> get enableThinking => $composableBuilder(
       column: $table.enableThinking,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get timeout => $composableBuilder(
+      column: $table.timeout, builder: (column) => ColumnOrderings(column));
 }
 
 class $$ApiPresetsTableAnnotationComposer
@@ -7760,6 +8103,9 @@ class $$ApiPresetsTableAnnotationComposer
 
   GeneratedColumn<bool> get enableThinking => $composableBuilder(
       column: $table.enableThinking, builder: (column) => column);
+
+  GeneratedColumn<int> get timeout =>
+      $composableBuilder(column: $table.timeout, builder: (column) => column);
 }
 
 class $$ApiPresetsTableTableManager extends RootTableManager<
@@ -7799,6 +8145,7 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
             Value<double> topP = const Value.absent(),
             Value<bool> isStream = const Value.absent(),
             Value<bool> enableThinking = const Value.absent(),
+            Value<int> timeout = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ApiPresetsCompanion(
@@ -7813,6 +8160,7 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
             topP: topP,
             isStream: isStream,
             enableThinking: enableThinking,
+            timeout: timeout,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -7827,6 +8175,7 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
             Value<double> topP = const Value.absent(),
             Value<bool> isStream = const Value.absent(),
             Value<bool> enableThinking = const Value.absent(),
+            Value<int> timeout = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ApiPresetsCompanion.insert(
@@ -7841,6 +8190,7 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
             topP: topP,
             isStream: isStream,
             enableThinking: enableThinking,
+            timeout: timeout,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -8654,6 +9004,7 @@ typedef $$EmojiGroupsTableCreateCompanionBuilder = EmojiGroupsCompanion
   required String name,
   required EmojiType type,
   Value<String?> roleId,
+  Value<bool> isVisible,
   required int createdAt,
   Value<int> rowid,
 });
@@ -8663,6 +9014,7 @@ typedef $$EmojiGroupsTableUpdateCompanionBuilder = EmojiGroupsCompanion
   Value<String> name,
   Value<EmojiType> type,
   Value<String?> roleId,
+  Value<bool> isVisible,
   Value<int> createdAt,
   Value<int> rowid,
 });
@@ -8690,6 +9042,9 @@ class $$EmojiGroupsTableFilterComposer
   ColumnFilters<String> get roleId => $composableBuilder(
       column: $table.roleId, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<bool> get isVisible => $composableBuilder(
+      column: $table.isVisible, builder: (column) => ColumnFilters(column));
+
   ColumnFilters<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
 }
@@ -8715,6 +9070,9 @@ class $$EmojiGroupsTableOrderingComposer
   ColumnOrderings<String> get roleId => $composableBuilder(
       column: $table.roleId, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<bool> get isVisible => $composableBuilder(
+      column: $table.isVisible, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 }
@@ -8739,6 +9097,9 @@ class $$EmojiGroupsTableAnnotationComposer
 
   GeneratedColumn<String> get roleId =>
       $composableBuilder(column: $table.roleId, builder: (column) => column);
+
+  GeneratedColumn<bool> get isVisible =>
+      $composableBuilder(column: $table.isVisible, builder: (column) => column);
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -8774,6 +9135,7 @@ class $$EmojiGroupsTableTableManager extends RootTableManager<
             Value<String> name = const Value.absent(),
             Value<EmojiType> type = const Value.absent(),
             Value<String?> roleId = const Value.absent(),
+            Value<bool> isVisible = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -8782,6 +9144,7 @@ class $$EmojiGroupsTableTableManager extends RootTableManager<
             name: name,
             type: type,
             roleId: roleId,
+            isVisible: isVisible,
             createdAt: createdAt,
             rowid: rowid,
           ),
@@ -8790,6 +9153,7 @@ class $$EmojiGroupsTableTableManager extends RootTableManager<
             required String name,
             required EmojiType type,
             Value<String?> roleId = const Value.absent(),
+            Value<bool> isVisible = const Value.absent(),
             required int createdAt,
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -8798,6 +9162,7 @@ class $$EmojiGroupsTableTableManager extends RootTableManager<
             name: name,
             type: type,
             roleId: roleId,
+            isVisible: isVisible,
             createdAt: createdAt,
             rowid: rowid,
           ),

@@ -80,7 +80,7 @@ class AppDatabase extends _$AppDatabase {
   static bool get hasActiveConnection => _instance != null;
 
   @override
-  int get schemaVersion => 23;
+  int get schemaVersion => 30;
 
   // Migration Strategy
   @override
@@ -212,22 +212,11 @@ class AppDatabase extends _$AppDatabase {
           }
         }
         if (from < 21) {
-          // 极其强健的修复逻辑：如果表已存在但缺少列，则添加列
-          // 如果表不存在，则创建表
+          // 确保 emojis 表存在
           try {
             await m.createTable(emojis);
           } catch (e) {
-            // 表可能已存在，尝试添加缺失的列
-            try {
-              await m.addColumn(emojis, emojis.localPath);
-            } catch (e2) {
-              print('[Migration] localPath column might already exist: $e2');
-            }
-            try {
-              await m.addColumn(emojis, emojis.meaning);
-            } catch (e2) {
-              print('[Migration] meaning column might already exist: $e2');
-            }
+            print('[Migration] emojis table might already exist: $e');
           }
         }
         if (from < 22) {
@@ -245,6 +234,76 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(emojiGroups);
           } catch (e) {
             print('[Migration] Error in version 23: $e');
+          }
+        }
+        if (from < 24) {
+          // 添加 EmojiGroups.isVisible 列
+          try {
+            await m.addColumn(
+                emojiGroups, emojiGroups.isVisible as GeneratedColumn<Object>);
+          } catch (e) {
+            print('[Migration] Error in version 24: $e');
+          }
+        }
+        if (from < 25) {
+          // 添加独立生图 API 预设字段
+          try {
+            await m.addColumn(chatSessions,
+                chatSessions.imageApiPresetId as GeneratedColumn<Object>);
+          } catch (e) {
+            print(
+                '[Migration] Warning: failed to add imageApiPresetId to chatSessions: $e');
+          }
+        }
+        if (from < 26) {
+          // 添加启用表情包开关
+          try {
+            await m.addColumn(chatSessions,
+                chatSessions.enableEmoji as GeneratedColumn<Object>);
+          } catch (e) {
+            print(
+                '[Migration] Warning: failed to add enableEmoji to chatSessions: $e');
+          }
+        }
+        if (from < 27) {
+          // 添加 ContactRoles.subscribedGroupIds 列
+          try {
+            await m.addColumn(contactRoles,
+                contactRoles.subscribedGroupIds as GeneratedColumn<Object>);
+          } catch (e) {
+            print('[Migration] Error in version 27: $e');
+          }
+        }
+        if (from < 28) {
+          // 统一表情池重构：清空所有分组，将所有表情设为全局且未分组
+          try {
+            await m.deleteTable('emoji_groups');
+            await m.createTable(emojiGroups);
+            // 将所有表情更新为全局类型且无分组
+            await customStatement(
+                'UPDATE emojis SET type = 0, group_id = NULL, role_id = NULL');
+            print(
+                '[Migration] Version 28: All emojis flattened to unified pool.');
+          } catch (e) {
+            print('[Migration] Error in version 28: $e');
+          }
+        }
+        if (from < 29) {
+          // 添加 ContactRoles.subscribedEmojiIds 列
+          try {
+            await m.addColumn(contactRoles,
+                contactRoles.subscribedEmojiIds as GeneratedColumn<Object>);
+          } catch (e) {
+            print('[Migration] Error in version 29: $e');
+          }
+        }
+        if (from < 30) {
+          // 添加 ApiPresets.timeout 列
+          try {
+            await m.addColumn(
+                apiPresets, apiPresets.timeout as GeneratedColumn<Object>);
+          } catch (e) {
+            print('[Migration] Error in version 30: $e');
           }
         }
       },
@@ -298,12 +357,14 @@ class AppDatabase extends _$AppDatabase {
           lastUpdated: s.lastUpdated,
           enableExtendedChat: s.enableExtendedChat,
           enableTextToImage: s.enableTextToImage,
+          enableEmoji: s.enableEmoji ?? true,
           enableIndependentSendButton: s.enableIndependentSendButton,
           currentState: s.currentState,
           isPinned: s.isPinned,
           worldInfoIds: s.worldInfoIds,
           textPresetIds: s.textPresetIds,
           apiPresetId: s.apiPresetId,
+          imageApiPresetId: s.imageApiPresetId,
           backgroundImage: s.backgroundImage,
         ),
       );
@@ -350,12 +411,14 @@ class AppDatabase extends _$AppDatabase {
       lastUpdated: s.lastUpdated,
       enableExtendedChat: s.enableExtendedChat,
       enableTextToImage: s.enableTextToImage,
+      enableEmoji: s.enableEmoji ?? true,
       enableIndependentSendButton: s.enableIndependentSendButton,
       currentState: s.currentState,
       isPinned: s.isPinned,
       worldInfoIds: s.worldInfoIds,
       textPresetIds: s.textPresetIds,
       apiPresetId: s.apiPresetId,
+      imageApiPresetId: s.imageApiPresetId,
       backgroundImage: s.backgroundImage,
     );
   }
@@ -475,6 +538,7 @@ class AppDatabase extends _$AppDatabase {
     String id, {
     bool? enableExtendedChat,
     bool? enableTextToImage,
+    bool? enableEmoji,
     bool? enableIndependentSendButton,
   }) {
     return (update(chatSessions)..where((t) => t.id.equals(id))).write(
@@ -488,6 +552,8 @@ class AppDatabase extends _$AppDatabase {
         enableIndependentSendButton: enableIndependentSendButton != null
             ? Value(enableIndependentSendButton)
             : const Value.absent(),
+        enableEmoji:
+            enableEmoji != null ? Value(enableEmoji) : const Value.absent(),
       ),
     );
   }
@@ -531,6 +597,7 @@ class AppDatabase extends _$AppDatabase {
     List<String>? worldInfoIds,
     List<String>? textPresetIds,
     String? apiPresetId,
+    String? imageApiPresetId,
   }) {
     return (update(chatSessions)..where((t) => t.id.equals(id))).write(
       ChatSessionsCompanion(
@@ -540,6 +607,9 @@ class AppDatabase extends _$AppDatabase {
             textPresetIds != null ? Value(textPresetIds) : const Value.absent(),
         apiPresetId:
             apiPresetId != null ? Value(apiPresetId) : const Value.absent(),
+        imageApiPresetId: imageApiPresetId != null
+            ? Value(imageApiPresetId)
+            : const Value.absent(),
       ),
     );
   }
@@ -570,11 +640,27 @@ class AppDatabase extends _$AppDatabase {
         content: e.content,
         mediaItems: e.mediaItems,
         createdAt: DateTime.fromMillisecondsSinceEpoch(e.createdAt),
-        likes: e.likes,
+        likes: e.likes, // 这里现在是 List<MomentLike>
         comments: e.comments,
         location: e.location,
       );
     }).toList();
+  }
+
+  Future<MomentsPost?> getMoment(String id) async {
+    final query = select(momentsPosts)..where((t) => t.id.equals(id));
+    final e = await query.getSingleOrNull();
+    if (e == null) return null;
+    return MomentsPost(
+      id: e.id,
+      user: e.user,
+      content: e.content,
+      mediaItems: e.mediaItems,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(e.createdAt),
+      likes: e.likes,
+      comments: e.comments,
+      location: e.location,
+    );
   }
 
   /// 插入或更新朋友圈动态
@@ -586,7 +672,7 @@ class AppDatabase extends _$AppDatabase {
         content: Value(post.content),
         mediaItems: Value(post.mediaItems),
         createdAt: Value(post.createdAt.millisecondsSinceEpoch),
-        likes: Value(post.likes),
+        likes: Value(post.likes), // 这里现在是 List<MomentLike>
         comments: Value(post.comments),
         location: Value(post.location),
       ),
@@ -635,6 +721,10 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deleteWorldInfo(String id) {
     return (delete(worldInfos)..where((t) => t.id.equals(id))).go();
+  }
+
+  Future<void> deleteWorldInfos(List<String> ids) {
+    return (delete(worldInfos)..where((t) => t.id.isIn(ids))).go();
   }
 
   Future<WorldInfo?> getWorldInfo(String id) async {
@@ -686,6 +776,10 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deleteTextPreset(String id) {
     return (delete(textPresets)..where((t) => t.id.equals(id))).go();
+  }
+
+  Future<void> deleteTextPresets(List<String> ids) {
+    return (delete(textPresets)..where((t) => t.id.isIn(ids))).go();
   }
 
   Future<TextPreset?> getTextPreset(String id) async {
@@ -816,6 +910,8 @@ class AppDatabase extends _$AppDatabase {
             description: e.description,
             appearance: e.appearance,
             referenceImages: e.referenceImages,
+            subscribedGroupIds: e.subscribedGroupIds,
+            subscribedEmojiIds: e.subscribedEmojiIds,
           ),
         )
         .toList();
@@ -831,6 +927,8 @@ class AppDatabase extends _$AppDatabase {
         description: Value(role.description),
         appearance: Value(role.appearance),
         referenceImages: Value(role.referenceImages),
+        subscribedGroupIds: Value(role.subscribedGroupIds),
+        subscribedEmojiIds: Value(role.subscribedEmojiIds),
       ),
       mode: InsertMode.insertOrReplace,
     );
@@ -853,6 +951,8 @@ class AppDatabase extends _$AppDatabase {
       description: e.description,
       appearance: e.appearance,
       referenceImages: e.referenceImages,
+      subscribedGroupIds: e.subscribedGroupIds,
+      subscribedEmojiIds: e.subscribedEmojiIds,
     );
   }
 
@@ -929,6 +1029,7 @@ class AppDatabase extends _$AppDatabase {
             topP: e.topP,
             isStream: e.isStream,
             enableThinking: e.enableThinking,
+            timeout: e.timeout,
           ),
         )
         .toList();
@@ -949,6 +1050,7 @@ class AppDatabase extends _$AppDatabase {
         topP: Value(preset.topP),
         isStream: Value(preset.isStream),
         enableThinking: Value(preset.enableThinking),
+        timeout: Value(preset.timeout),
       ),
       mode: InsertMode.insertOrReplace,
     );
@@ -976,6 +1078,7 @@ class AppDatabase extends _$AppDatabase {
       topP: e.topP,
       isStream: e.isStream,
       enableThinking: e.enableThinking,
+      timeout: e.timeout,
     );
   }
 

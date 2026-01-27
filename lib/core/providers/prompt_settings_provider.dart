@@ -13,6 +13,8 @@ class PromptSettingsProvider extends ChangeNotifier {
   String _roleplayPrompt = '';
   String _realityPrompt = '';
   String _text2ImagePrompt = '';
+  String _text2ImageStyle = 'realistic'; // 默认风格：极致摄影写实
+  String _customText2ImagePrompt = ''; // 用户自定义生图提示词
   bool _enableRealityPrompt = true;
   int _contextLength = 10; // Number of messages
   int _delayedReplySeconds = 10; // 延迟回复时间（秒），0表示立即回复
@@ -22,6 +24,8 @@ class PromptSettingsProvider extends ChangeNotifier {
   String get roleplayPrompt => _roleplayPrompt;
   String get realityPrompt => _realityPrompt;
   String get text2ImagePrompt => _text2ImagePrompt;
+  String get text2ImageStyle => _text2ImageStyle;
+  String get customText2ImagePrompt => _customText2ImagePrompt;
   bool get enableRealityPrompt => _enableRealityPrompt;
   int get contextLength => _contextLength;
   int get delayedReplySeconds => _delayedReplySeconds;
@@ -220,15 +224,15 @@ class PromptSettingsProvider extends ChangeNotifier {
     }
     _realityPrompt = realityPrompt;
 
-    // 加载 text2image_prompt (强制从 assets 加载)
-    try {
-      _text2ImagePrompt = await rootBundle.loadString(
-        'assets/prompts/text2image_prompt.txt',
-      );
-    } catch (e) {
-      debugPrint('Error loading text2image_prompt: $e');
-      _text2ImagePrompt = '';
-    }
+    // 加载 text2image_style
+    _text2ImageStyle = await _db.getSetting('text2image_style') ?? 'realistic';
+
+    // 加载 custom_text2image_prompt
+    _customText2ImagePrompt =
+        await _db.getSetting('custom_text2image_prompt') ?? '';
+
+    // 加载 text2image_prompt (根据风格从 assets 加载)
+    await _loadText2ImagePrompt();
 
     // 加载其他设置
     _enableRealityPrompt = await _db.getSettingBool('enable_reality_prompt') ??
@@ -244,6 +248,65 @@ class PromptSettingsProvider extends ChangeNotifier {
         await _db.getSettingInt('background_active_reply_interval') ??
             _backgroundActiveReplyInterval;
 
+    notifyListeners();
+  }
+
+  /// 加载生图提示词
+  Future<void> _loadText2ImagePrompt() async {
+    if (_text2ImageStyle == 'custom') {
+      _text2ImagePrompt = _customText2ImagePrompt;
+      return;
+    }
+
+    String assetPath;
+    switch (_text2ImageStyle) {
+      case 'anime':
+        assetPath = 'assets/prompts/t2i_anime.txt';
+        break;
+      case 'cyberpunk':
+        assetPath = 'assets/prompts/t2i_cyberpunk.txt';
+        break;
+      case 'oil_painting':
+        assetPath = 'assets/prompts/t2i_oil_painting.txt';
+        break;
+      case 'ink_painting':
+        assetPath = 'assets/prompts/t2i_ink_painting.txt';
+        break;
+      case 'webtoon':
+        assetPath = 'assets/prompts/t2i_webtoon.txt';
+        break;
+      case 'beautiful_lighting':
+        assetPath = 'assets/prompts/t2i_beautiful_lighting.txt';
+        break;
+      case 'realistic':
+      default:
+        assetPath = 'assets/prompts/text2image_prompt.txt';
+        break;
+    }
+
+    try {
+      _text2ImagePrompt = await rootBundle.loadString(assetPath);
+    } catch (e) {
+      debugPrint('Error loading text2image_prompt ($assetPath): $e');
+      _text2ImagePrompt = '';
+    }
+  }
+
+  /// 更新生图风格
+  Future<void> updateText2ImageStyle(String style) async {
+    _text2ImageStyle = style;
+    await _db.setSetting('text2image_style', style);
+    await _loadText2ImagePrompt();
+    notifyListeners();
+  }
+
+  /// 更新自定义生图提示词
+  Future<void> updateCustomText2ImagePrompt(String value) async {
+    _customText2ImagePrompt = value;
+    await _db.setSetting('custom_text2image_prompt', value);
+    if (_text2ImageStyle == 'custom') {
+      _text2ImagePrompt = value;
+    }
     notifyListeners();
   }
 
