@@ -1514,6 +1514,8 @@ LazyDatabase _openConnection() {
         file,
         setup: (db) {
           try {
+            // 设置繁忙超时，减少 database is locked 错误
+            db.execute('PRAGMA busy_timeout = 5000;');
             db.execute('PRAGMA journal_mode = WAL;');
             // 不启用外键约束，避免 insertOrReplace 触发级联删除导致消息丢失
             // db.execute('PRAGMA foreign_keys = ON;');

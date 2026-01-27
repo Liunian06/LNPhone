@@ -56,7 +56,10 @@ void main() async {
   runApp(const LnPhoneApp());
 
   // 延迟初始化服务，避免阻塞应用启动
-  _initializeServicesAsync();
+  // 给予主 Isolate 足够的时间完成数据库迁移和初始化
+  Future.delayed(const Duration(seconds: 3), () {
+    _initializeServicesAsync();
+  });
 }
 
 /// 异步初始化服务，不阻塞应用启动
