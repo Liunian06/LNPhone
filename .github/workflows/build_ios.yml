@@ -24,7 +24,10 @@ jobs:
       - name: Build iOS Release (No Codesign)
         run: |
           # 构建 iOS release 版本，开启混淆，但不进行签名
-          flutter build ios --release --no-codesign --obfuscate --split-debug-info=build/symbols
+          # 显式注入参数以覆盖 Xcode 的签名检查
+          flutter build ios --release --no-codesign --obfuscate --split-debug-info=build/symbols \
+            --extra-gen-snapshot-options="--obfuscate" \
+            --extra-front-end-options="--obfuscate"
 
       - name: Create Payload Directory
         run: |
