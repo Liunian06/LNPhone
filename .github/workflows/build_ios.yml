@@ -23,17 +23,16 @@ jobs:
 
       - name: Build iOS Release (No Codesign)
         run: |
-          # 1. 强制修改项目文件，移除自动签名并设置为手动签名
-          # 这能防止 Flutter 检查 Development Team
-          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' ios/Runner.xcodeproj/project.pbxproj
-          sed -i '' 's/DEVELOPMENT_TEAM = [^;]*;//g' ios/Runner.xcodeproj/project.pbxproj
+          # 1. 注入虚拟的 Development Team ID (10位) 以绕过 Flutter 的预检
+          # 配合 CODE_SIGNING_ALLOWED=NO，Xcode 不会真正去验证这个 ID
+          echo "DEVELOPMENT_TEAM=0000000000" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
           
-          # 2. 在 xcconfig 中注入禁用签名的指令
-          echo "CODE_SIGNING_ALLOWED = NO" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGNING_REQUIRED = NO" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGN_IDENTITY = " >> ios/Flutter/Release.xcconfig
-          echo "PROVISIONING_PROFILE = " >> ios/Flutter/Release.xcconfig
-          echo "PROVISIONING_PROFILE_SPECIFIER = " >> ios/Flutter/Release.xcconfig
+          # 2. 强制修改项目文件，将所有 Automatic 签名改为 Manual
+          # 使用 perl 以确保跨平台的正则兼容性
+          perl -i -pe 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' ios/Runner.xcodeproj/project.pbxproj
           
           # 3. 构建 iOS release 版本
           # 使用 --no-codesign 告诉 Flutter 不要尝试签名
