@@ -23,12 +23,20 @@ jobs:
 
       - name: Build iOS Release (No Codesign)
         run: |
-          # 强制禁用签名配置，防止 Xcode 检查 Development Team
-          echo "CODE_SIGN_IDENTITY = \"\"" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGNING_REQUIRED = NO" >> ios/Flutter/Release.xcconfig
-          echo "CODE_SIGNING_ALLOWED = NO" >> ios/Flutter/Release.xcconfig
+          # 1. 强制修改项目文件，移除自动签名并设置为手动签名
+          # 这能防止 Flutter 检查 Development Team
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/DEVELOPMENT_TEAM = [^;]*;//g' ios/Runner.xcodeproj/project.pbxproj
           
-          # 构建 iOS release 版本，但不进行签名
+          # 2. 在 xcconfig 中注入禁用签名的指令
+          echo "CODE_SIGNING_ALLOWED = NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_REQUIRED = NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGN_IDENTITY = " >> ios/Flutter/Release.xcconfig
+          echo "PROVISIONING_PROFILE = " >> ios/Flutter/Release.xcconfig
+          echo "PROVISIONING_PROFILE_SPECIFIER = " >> ios/Flutter/Release.xcconfig
+          
+          # 3. 构建 iOS release 版本
+          # 使用 --no-codesign 告诉 Flutter 不要尝试签名
           flutter build ios --release --no-codesign
 
       - name: Create Payload Directory
