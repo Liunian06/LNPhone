@@ -23,20 +23,19 @@ jobs:
 
       - name: Build iOS Release (No Codesign)
         run: |
-          # 1. 注入虚拟的 Development Team ID (10位) 以绕过 Flutter 的预检
-          # 配合 CODE_SIGNING_ALLOWED=NO，Xcode 不会真正去验证这个 ID
-          echo "DEVELOPMENT_TEAM=0000000000" >> ios/Flutter/Release.xcconfig
+          # 1. 在 project.pbxproj 中强制注入虚拟 Team ID
+          # Flutter 的预检脚本会直接读取 pbxproj 文件
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual; DEVELOPMENT_TEAM = 0000000000;/g' ios/Runner.xcodeproj/project.pbxproj
+          
+          # 2. 在 xcconfig 中彻底禁用签名逻辑
           echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGN_IDENTITY=" >> ios/Flutter/Release.xcconfig
-          
-          # 2. 强制修改项目文件，将所有 Automatic 签名改为 Manual
-          # 使用 perl 以确保跨平台的正则兼容性
-          perl -i -pe 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' ios/Runner.xcodeproj/project.pbxproj
+          echo "DEVELOPMENT_TEAM=0000000000" >> ios/Flutter/Release.xcconfig
           
           # 3. 构建 iOS release 版本
-          # 使用 --no-codesign 告诉 Flutter 不要尝试签名
-          flutter build ios --release --no-codesign
+          # 添加 -v 以便在失败时查看详细的 xcodebuild 日志
+          flutter build ios --release --no-codesign -v
 
       - name: Create Payload Directory
         run: |
