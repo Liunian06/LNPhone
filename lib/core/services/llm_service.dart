@@ -504,10 +504,19 @@ class LlmService {
     String simpleId,
     Map<String, String> realIdToSimpleId,
   ) {
+    String displayContent = msg.content;
+    // 对于图片消息，content 存储的是本地路径，应该使用 metadata 中的 original_prompt 发送给 AI
+    // 否则 AI 会在上下文中看到路径并模仿输出路径，导致生图失败
+    if (msg.type == MessageType.image &&
+        msg.metadata != null &&
+        msg.metadata!.containsKey('original_prompt')) {
+      displayContent = msg.metadata!['original_prompt'] as String;
+    }
+
     final Map<String, dynamic> jsonMap = {
       'id': simpleId,
       'type': _getTypeNameForJson(msg.type),
-      'content': msg.content,
+      'content': displayContent,
     };
 
     // 处理引用消息，将引用的真实ID转换为简化ID
