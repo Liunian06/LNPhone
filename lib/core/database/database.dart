@@ -80,7 +80,7 @@ class AppDatabase extends _$AppDatabase {
   static bool get hasActiveConnection => _instance != null;
 
   @override
-  int get schemaVersion => 30;
+  int get schemaVersion => 31;
 
   // Migration Strategy
   @override
@@ -306,6 +306,17 @@ class AppDatabase extends _$AppDatabase {
             print('[Migration] Error in version 30: $e');
           }
         }
+        if (from < 31) {
+          // 添加 TextPresets.type 和 TextPresets.isBuiltIn 列
+          try {
+            await m.addColumn(
+                textPresets, textPresets.type as GeneratedColumn<Object>);
+            await m.addColumn(
+                textPresets, textPresets.isBuiltIn as GeneratedColumn<Object>);
+          } catch (e) {
+            print('[Migration] Error in version 31: $e');
+          }
+        }
       },
     );
   }
@@ -500,6 +511,12 @@ class AppDatabase extends _$AppDatabase {
   /// 批量删除消息
   Future<void> deleteMessages(List<String> ids) {
     return (delete(chatMessages)..where((t) => t.id.isIn(ids))).go();
+  }
+
+  /// 清空指定会话的所有消息
+  Future<void> clearSessionMessages(String sessionId) {
+    return (delete(chatMessages)..where((t) => t.sessionId.equals(sessionId)))
+        .go();
   }
 
   /// 获取所有图片类型的消息
@@ -754,6 +771,8 @@ class AppDatabase extends _$AppDatabase {
             id: e.id,
             name: e.name,
             content: e.content,
+            type: e.type,
+            isBuiltIn: e.isBuiltIn,
             createdAt: e.createdAt,
             updatedAt: e.updatedAt,
           ),
@@ -767,6 +786,8 @@ class AppDatabase extends _$AppDatabase {
         id: Value(preset.id),
         name: Value(preset.name),
         content: Value(preset.content),
+        type: Value(preset.type),
+        isBuiltIn: Value(preset.isBuiltIn),
         createdAt: Value(preset.createdAt),
         updatedAt: Value(preset.updatedAt),
       ),
@@ -790,6 +811,8 @@ class AppDatabase extends _$AppDatabase {
       id: e.id,
       name: e.name,
       content: e.content,
+      type: e.type,
+      isBuiltIn: e.isBuiltIn,
       createdAt: e.createdAt,
       updatedAt: e.updatedAt,
     );

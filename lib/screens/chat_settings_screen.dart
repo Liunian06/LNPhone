@@ -275,22 +275,49 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 isDark: isDark,
                 child: ListTile(
                   title: Text(
-                    '选择预设',
+                    '聊天预设',
                     style: TextStyle(
                         fontSize: 16,
                         color: textColor,
                         fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(
-                    chat.textPresetIds.isEmpty
+                    _getSelectedPresetsCount(
+                                chat.textPresetIds, TextPresetType.chat) ==
+                            0
                         ? '未选择'
-                        : '已选择 ${chat.textPresetIds.length} 个',
+                        : '已选择 ${_getSelectedPresetsCount(chat.textPresetIds, TextPresetType.chat)} 个',
                     style: TextStyle(fontSize: 13, color: subtitleColor),
                   ),
                   trailing:
                       Icon(Icons.arrow_forward_ios, size: 16, color: textColor),
-                  onTap: () => _showTextPresetSelector(
-                      context, chatProvider, chat.textPresetIds, isDark),
+                  onTap: () => _showTextPresetSelector(context, chatProvider,
+                      chat.textPresetIds, isDark, TextPresetType.chat),
+                ),
+              ),
+              _buildSettingItem(
+                isDark: isDark,
+                child: ListTile(
+                  title: Text(
+                    '生图预设',
+                    style: TextStyle(
+                        fontSize: 16,
+                        color: textColor,
+                        fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    _getSelectedPresetsCount(
+                                chat.textPresetIds, TextPresetType.image) ==
+                            0
+                        ? '使用全局默认'
+                        : _getSelectedPresetName(
+                            chat.textPresetIds, TextPresetType.image),
+                    style: TextStyle(fontSize: 13, color: subtitleColor),
+                  ),
+                  trailing:
+                      Icon(Icons.arrow_forward_ios, size: 16, color: textColor),
+                  onTap: () => _showTextPresetSelector(context, chatProvider,
+                      chat.textPresetIds, isDark, TextPresetType.image),
                 ),
               ),
 
@@ -334,6 +361,25 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
               ),
 
               const SizedBox(height: 40),
+
+              // 清空聊天记录按钮
+              _buildSettingItem(
+                isDark: isDark,
+                child: ListTile(
+                  title: const Center(
+                    child: Text(
+                      '清空聊天记录',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  onTap: () => _showClearChatConfirm(context, chatProvider),
+                ),
+              ),
+              const SizedBox(height: 40),
             ],
           );
         },
@@ -369,6 +415,22 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
       return preset.name;
     } catch (e) {
       return '未知预设';
+    }
+  }
+
+  int _getSelectedPresetsCount(List<String> ids, TextPresetType type) {
+    return _allTextPresets
+        .where((p) => ids.contains(p.id) && p.type == type)
+        .length;
+  }
+
+  String _getSelectedPresetName(List<String> ids, TextPresetType type) {
+    try {
+      final preset = _allTextPresets
+          .firstWhere((p) => ids.contains(p.id) && p.type == type);
+      return preset.name;
+    } catch (e) {
+      return '使用全局默认';
     }
   }
 
@@ -559,11 +621,15 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     ChatProvider provider,
     List<String> currentIds,
     bool isDark,
+    TextPresetType type,
   ) {
     final selectedIds = List<String>.from(currentIds);
     final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black;
     final subtitleColor = isDark ? Colors.white70 : Colors.black87;
+
+    final filteredPresets =
+        _allTextPresets.where((p) => p.type == type).toList();
 
     showModalBottomSheet(
       context: context,
@@ -584,7 +650,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '选择预设',
+                        type == TextPresetType.chat ? '选择聊天预设' : '选择生图预设',
                         style: TextStyle(fontSize: 18, color: textColor),
                       ),
                       TextButton(
@@ -599,21 +665,21 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   ),
                   const SizedBox(height: 16),
                   Expanded(
-                    child: _allTextPresets.isEmpty
+                    child: filteredPresets.isEmpty
                         ? Center(
                             child: Text('暂无预设',
                                 style: TextStyle(color: textColor)))
                         : ListView.builder(
-                            itemCount: _allTextPresets.length,
+                            itemCount: filteredPresets.length,
                             itemBuilder: (context, index) {
-                              final preset = _allTextPresets[index];
+                              final preset = filteredPresets[index];
                               final isSelected =
                                   selectedIds.contains(preset.id);
                               return CheckboxListTile(
                                 title: Text(preset.name,
                                     style: TextStyle(color: textColor)),
                                 subtitle: Text(
-                                  preset.content,
+                                  preset.isBuiltIn ? '[内置预设]' : preset.content,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(color: subtitleColor),
@@ -623,10 +689,24 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                                 checkColor: Colors.white,
                                 onChanged: (val) {
                                   setState(() {
-                                    if (val == true) {
-                                      selectedIds.add(preset.id);
+                                    if (type == TextPresetType.image) {
+                                      // 生图预设单选
+                                      if (val == true) {
+                                        // 移除其他生图预设
+                                        selectedIds.removeWhere((id) =>
+                                            filteredPresets
+                                                .any((p) => p.id == id));
+                                        selectedIds.add(preset.id);
+                                      } else {
+                                        selectedIds.remove(preset.id);
+                                      }
                                     } else {
-                                      selectedIds.remove(preset.id);
+                                      // 聊天预设多选
+                                      if (val == true) {
+                                        selectedIds.add(preset.id);
+                                      } else {
+                                        selectedIds.remove(preset.id);
+                                      }
                                     }
                                   });
                                 },
@@ -733,5 +813,60 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
         );
       }
     }
+  }
+
+  /// 显示清空聊天记录确认弹窗
+  void _showClearChatConfirm(BuildContext context, ChatProvider provider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('清空聊天记录'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(height: 8),
+            Text(
+              '确定要清空与该角色的所有聊天记录吗？',
+              style: TextStyle(fontSize: 14),
+            ),
+            SizedBox(height: 8),
+            Text(
+              '此操作不可撤销！',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () async {
+              Navigator.pop(context);
+              await provider.clearChatMessages(widget.chatId);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('聊天记录已清空'),
+                    backgroundColor: Colors.redAccent,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            child: const Text('确定清空'),
+          ),
+        ],
+      ),
+    );
   }
 }

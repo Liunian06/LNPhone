@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../core/providers/chat_provider.dart';
+import '../core/providers/prompt_settings_provider.dart';
 import '../core/models/text_preset_model.dart';
 import '../widgets/ios_wallpaper.dart';
 
@@ -16,6 +17,20 @@ class TextPresetListScreen extends StatefulWidget {
 class _TextPresetListScreenState extends State<TextPresetListScreen> {
   bool _isSelectionMode = false;
   final Set<String> _selectedIds = {};
+  TextPresetType _currentType = TextPresetType.chat;
+  late PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _currentType.index);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   void _toggleSelectionMode() {
     setState(() {
@@ -78,6 +93,7 @@ class _TextPresetListScreenState extends State<TextPresetListScreen> {
           child: Column(
             children: [
               _buildHeader(context, isDark),
+              _buildTypeSelector(isDark),
               Expanded(
                 child: Consumer<ChatProvider>(
                   builder: (context, provider, child) {
@@ -88,20 +104,20 @@ class _TextPresetListScreenState extends State<TextPresetListScreen> {
                       );
                     }
 
-                    final list = provider.textPresets;
-                    if (list.isEmpty) {
-                      return _buildEmptyState(isDark);
-                    }
-
-                    return ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      itemCount: list.length,
-                      itemBuilder: (context, index) {
-                        final preset = list[index];
-                        return _buildListItem(
-                            context, preset, provider, isDark);
+                    return PageView(
+                      controller: _pageController,
+                      onPageChanged: (index) {
+                        setState(() {
+                          _currentType = TextPresetType.values[index];
+                          _isSelectionMode = false;
+                          _selectedIds.clear();
+                        });
                       },
+                      children: [
+                        _buildPresetList(provider, TextPresetType.chat, isDark),
+                        _buildPresetList(
+                            provider, TextPresetType.image, isDark),
+                      ],
                     );
                   },
                 ),
@@ -151,7 +167,9 @@ class _TextPresetListScreenState extends State<TextPresetListScreen> {
             onTap: () => Navigator.push(
               context,
               CupertinoPageRoute(
-                  builder: (context) => const TextPresetEditScreen()),
+                builder: (context) =>
+                    TextPresetEditScreen(initialType: _currentType),
+              ),
             ),
             isDark: isDark,
           ),
@@ -183,6 +201,129 @@ class _TextPresetListScreenState extends State<TextPresetListScreen> {
             color:
                 active ? Colors.white : (isDark ? Colors.white : Colors.black),
             size: 24),
+      ),
+    );
+  }
+
+  Widget _buildTypeSelector(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Container(
+        width: double.infinity,
+        height: 44,
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.black.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: AnimatedBuilder(
+          animation: _pageController,
+          builder: (context, child) {
+            double page = 0;
+            if (_pageController.hasClients) {
+              page = _pageController.page ??
+                  _pageController.initialPage.toDouble();
+            } else {
+              page = _currentType.index.toDouble();
+            }
+
+            return Stack(
+              children: [
+                // 滑动背景指示器 - 带有拉伸效果
+                Builder(builder: (context) {
+                  final double totalWidth =
+                      MediaQuery.of(context).size.width - 32;
+                  final double itemWidth = totalWidth / 2;
+                  // 计算拉伸：在中间位置时指示器变长
+                  final double stretchFactor =
+                      (0.5 - (page - 0.5).abs()).clamp(0.0, 0.5) * 0.4;
+                  final double indicatorWidth =
+                      itemWidth * (1.0 + stretchFactor);
+                  // 偏移量调整，使其在滑动时看起来有拉力
+                  final double leftOffset =
+                      (totalWidth / 2) * page - (itemWidth * stretchFactor / 2);
+
+                  return Positioned(
+                    left: leftOffset,
+                    width: indicatorWidth,
+                    top: 4,
+                    bottom: 4,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF007AFF), Color(0xFF00C6FF)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF007AFF).withOpacity(0.4),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildTypeItem(
+                          '聊天预设', TextPresetType.chat, isDark, page),
+                    ),
+                    Expanded(
+                      child: _buildTypeItem(
+                          '生图预设', TextPresetType.image, isDark, page),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeItem(
+      String label, TextPresetType type, bool isDark, double currentPage) {
+    final index = type.index;
+    // 计算当前项的激活程度 (0.0 到 1.0)
+    final double activeFactor =
+        (1.0 - (currentPage - index).abs()).clamp(0.0, 1.0);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        _pageController.animateToPage(
+          index,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutBack,
+        );
+      },
+      child: Center(
+        child: Transform.scale(
+          scale: 1.0 + (0.1 * activeFactor), // 激活时轻微放大
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Color.lerp(
+                isDark ? Colors.white70 : Colors.black54,
+                Colors.white,
+                activeFactor,
+              ),
+              fontSize: 14,
+              fontWeight:
+                  activeFactor > 0.5 ? FontWeight.bold : FontWeight.normal,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -224,6 +365,40 @@ class _TextPresetListScreenState extends State<TextPresetListScreen> {
     );
   }
 
+  Widget _buildPresetList(
+      ChatProvider provider, TextPresetType type, bool isDark) {
+    final list = provider.textPresets.where((p) => p.type == type).toList();
+
+    // 排序逻辑：自定义在前（按更新时间倒序），内置在后
+    list.sort((a, b) {
+      if (a.isBuiltIn != b.isBuiltIn) {
+        return a.isBuiltIn ? 1 : -1; // 自定义在前，内置在后
+      }
+      // 同类型的按更新时间倒序
+      return b.updatedAt.compareTo(a.updatedAt);
+    });
+
+    if (list.isEmpty) {
+      return _buildEmptyState(isDark);
+    }
+
+    return Consumer<PromptSettingsProvider>(
+      builder: (context, promptProvider, child) {
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          itemCount: list.length,
+          itemBuilder: (context, index) {
+            final preset = list[index];
+            final isGlobalDefault = type == TextPresetType.image &&
+                promptProvider.activeImagePresetId == preset.id;
+            return _buildListItem(
+                context, preset, provider, isDark, isGlobalDefault);
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildEmptyState(bool isDark) {
     final textColor = isDark ? Colors.white : Colors.black;
     return Center(
@@ -250,11 +425,15 @@ class _TextPresetListScreenState extends State<TextPresetListScreen> {
   }
 
   Widget _buildListItem(BuildContext context, TextPreset preset,
-      ChatProvider provider, bool isDark) {
+      ChatProvider provider, bool isDark,
+      [bool isGlobalDefault = false]) {
     final textColor = isDark ? Colors.white : Colors.black;
     final cardBgColor = isDark ? Colors.white.withOpacity(0.1) : Colors.white;
-    final borderColor =
-        isDark ? Colors.white.withOpacity(0.05) : Colors.grey.withOpacity(0.1);
+    final borderColor = isGlobalDefault
+        ? const Color(0xFF007AFF).withOpacity(0.5)
+        : (isDark
+            ? Colors.white.withOpacity(0.05)
+            : Colors.grey.withOpacity(0.1));
     final isSelected = _selectedIds.contains(preset.id);
 
     Widget content = Container(
@@ -263,9 +442,20 @@ class _TextPresetListScreenState extends State<TextPresetListScreen> {
         color: cardBgColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isSelected ? const Color(0xFF007AFF) : borderColor,
-          width: isSelected ? 2 : 1,
+          color: isSelected
+              ? const Color(0xFF007AFF)
+              : (isGlobalDefault ? const Color(0xFF007AFF) : borderColor),
+          width: (isSelected || isGlobalDefault) ? 2 : 1,
         ),
+        boxShadow: isGlobalDefault
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF007AFF).withOpacity(0.1),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                )
+              ]
+            : null,
       ),
       child: Row(
         children: [
@@ -292,25 +482,55 @@ class _TextPresetListScreenState extends State<TextPresetListScreen> {
                         color: Color(0xFFFF512F), size: 18),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        preset.name,
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      child: Row(
+                        children: [
+                          Text(
+                            preset.name,
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (isGlobalDefault) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF007AFF).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color:
+                                      const Color(0xFF007AFF).withOpacity(0.3),
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: const Text(
+                                '默认',
+                                style: TextStyle(
+                                  color: Color(0xFF007AFF),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  preset.content,
+                  preset.isBuiltIn ? '' : preset.content,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: textColor.withOpacity(0.6),
                     fontSize: 14,
+                    fontStyle:
+                        preset.isBuiltIn ? FontStyle.italic : FontStyle.normal,
                     height: 1.4,
                   ),
                 ),
@@ -330,7 +550,9 @@ class _TextPresetListScreenState extends State<TextPresetListScreen> {
             )
           : Dismissible(
               key: Key('text_preset_${preset.id}'),
-              direction: DismissDirection.endToStart,
+              direction: preset.isBuiltIn
+                  ? DismissDirection.none
+                  : DismissDirection.endToStart,
               background: Container(
                 alignment: Alignment.centerRight,
                 padding: const EdgeInsets.only(right: 24),
@@ -341,6 +563,7 @@ class _TextPresetListScreenState extends State<TextPresetListScreen> {
                 child: const Icon(CupertinoIcons.delete, color: Colors.white),
               ),
               confirmDismiss: (direction) async {
+                if (preset.isBuiltIn) return false;
                 return await showCupertinoDialog<bool>(
                   context: context,
                   builder: (context) => CupertinoAlertDialog(
@@ -362,12 +585,66 @@ class _TextPresetListScreenState extends State<TextPresetListScreen> {
               },
               onDismissed: (_) => provider.deleteTextPreset(preset.id),
               child: GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  CupertinoPageRoute(
-                    builder: (context) => TextPresetEditScreen(preset: preset),
-                  ),
-                ),
+                onLongPress: preset.type == TextPresetType.image
+                    ? () {
+                        final promptProvider =
+                            context.read<PromptSettingsProvider>();
+                        showCupertinoModalPopup(
+                          context: context,
+                          builder: (context) => CupertinoActionSheet(
+                            title: Text('预设: ${preset.name}'),
+                            actions: [
+                              if (promptProvider.activeImagePresetId !=
+                                  preset.id)
+                                CupertinoActionSheetAction(
+                                  onPressed: () {
+                                    promptProvider
+                                        .updateActiveImagePreset(preset.id);
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('已设为全局默认生图预设'),
+                                        duration: Duration(seconds: 2),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text('设为全局默认'),
+                                ),
+                            ],
+                            cancelButton: CupertinoActionSheetAction(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('取消'),
+                            ),
+                          ),
+                        );
+                      }
+                    : null,
+                onTap: () {
+                  if (preset.isBuiltIn) {
+                    // 内置预设不可编辑
+                    showCupertinoDialog(
+                      context: context,
+                      builder: (context) => CupertinoAlertDialog(
+                        title: const Text('提示'),
+                        content: const Text('内置预设不可编辑'),
+                        actions: [
+                          CupertinoDialogAction(
+                            child: const Text('确定'),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.push(
+                    context,
+                    CupertinoPageRoute(
+                      builder: (context) =>
+                          TextPresetEditScreen(preset: preset),
+                    ),
+                  );
+                },
                 child: content,
               ),
             ),
@@ -378,7 +655,9 @@ class _TextPresetListScreenState extends State<TextPresetListScreen> {
 /// 预设编辑页面
 class TextPresetEditScreen extends StatefulWidget {
   final TextPreset? preset;
-  const TextPresetEditScreen({super.key, this.preset});
+  final TextPresetType initialType;
+  const TextPresetEditScreen(
+      {super.key, this.preset, this.initialType = TextPresetType.chat});
 
   @override
   State<TextPresetEditScreen> createState() => _TextPresetEditScreenState();
@@ -387,6 +666,7 @@ class TextPresetEditScreen extends StatefulWidget {
 class _TextPresetEditScreenState extends State<TextPresetEditScreen> {
   late TextEditingController _nameController;
   late TextEditingController _contentController;
+  late TextPresetType _type;
   bool _isSaving = false;
 
   @override
@@ -395,6 +675,7 @@ class _TextPresetEditScreenState extends State<TextPresetEditScreen> {
     _nameController = TextEditingController(text: widget.preset?.name ?? '');
     _contentController =
         TextEditingController(text: widget.preset?.content ?? '');
+    _type = widget.preset?.type ?? widget.initialType;
   }
 
   @override
@@ -416,6 +697,8 @@ class _TextPresetEditScreenState extends State<TextPresetEditScreen> {
       id: widget.preset?.id ?? now.toString(),
       name: name,
       content: content,
+      type: _type,
+      isBuiltIn: false,
       createdAt: widget.preset?.createdAt ?? now,
       updatedAt: now,
     );
@@ -480,6 +763,9 @@ class _TextPresetEditScreenState extends State<TextPresetEditScreen> {
                 child: ListView(
                   padding: const EdgeInsets.all(20),
                   children: [
+                    _buildInputLabel('分类', isDark),
+                    _buildTypeSelector(isDark),
+                    const SizedBox(height: 24),
                     _buildInputLabel('名称', isDark),
                     _buildTextField(
                       controller: _nameController,
@@ -515,6 +801,90 @@ class _TextPresetEditScreenState extends State<TextPresetEditScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeSelector(bool isDark) {
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withOpacity(0.1)
+            : Colors.black.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Stack(
+        children: [
+          // 滑动背景指示器
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutBack,
+            alignment: _type == TextPresetType.chat
+                ? Alignment.centerLeft
+                : Alignment.centerRight,
+            child: FractionallySizedBox(
+              widthFactor: 0.5,
+              child: Container(
+                margin: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF007AFF),
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF007AFF).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: _buildTypeItem('聊天预设', TextPresetType.chat, isDark),
+              ),
+              Expanded(
+                child: _buildTypeItem('生图预设', TextPresetType.image, isDark),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypeItem(String label, TextPresetType type, bool isDark) {
+    final isSelected = _type == type;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        setState(() {
+          _type = type;
+        });
+      },
+      child: Center(
+        child: AnimatedDefaultTextStyle(
+          duration: const Duration(milliseconds: 300),
+          style: TextStyle(
+            color: isSelected
+                ? Colors.white
+                : (isDark ? Colors.white70 : Colors.black54),
+            fontSize: 14,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            letterSpacing: 0.5,
+          ),
+          child: AnimatedScale(
+            duration: const Duration(milliseconds: 300),
+            scale: isSelected ? 1.1 : 1.0,
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+            ),
           ),
         ),
       ),

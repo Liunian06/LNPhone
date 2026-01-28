@@ -13,6 +13,7 @@ class AppTheme {
   static const Color lightSecondaryText = Colors.grey;
   static const Color lightDivider = Color(0xFFDCDCDC);
   static const Color lightAppBarBackground = Color(0xFFEDEDED);
+  static const Color lightPinnedBackground = Color(0xFFF1F1F1);
 
   // ============= 暗色模式颜色 (根据用户示例图) =============
   static const Color darkBackground = Color(0xFF111111);
@@ -22,6 +23,7 @@ class AppTheme {
   static const Color darkSecondaryText = Color(0xFF8E8E8E);
   static const Color darkDivider = Color(0xFF2A2A2A);
   static const Color darkAppBarBackground = Color(0xFF111111);
+  static const Color darkPinnedBackground = Color(0xFF3D3D41);
 
   // ============= 共用颜色 =============
   static const Color wechatGreen = Color(0xFF07C160);
@@ -232,6 +234,11 @@ extension ThemeExtension on BuildContext {
   Color get appBarBackground => isDarkMode
       ? AppTheme.darkAppBarBackground
       : AppTheme.lightAppBarBackground;
+
+  /// 获取置顶聊天背景色
+  Color get pinnedBackground => isDarkMode
+      ? AppTheme.darkPinnedBackground
+      : AppTheme.lightPinnedBackground;
 
   /// 获取"我的消息"气泡颜色
   Color get myMessageBubbleColor =>

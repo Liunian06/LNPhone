@@ -60,13 +60,21 @@ class GridDefaultApps {
           gradientColors: [Color(0xFF8E8E93), Color(0xFFAEAEB2)],
           isRemovable: false,
         ),
+        'album': const AppModel(
+          id: 'album',
+          name: '相册',
+          type: AppType.system,
+          iconType: IconType.gradient,
+          icon: CupertinoIcons.photo_on_rectangle,
+          gradientColors: [Color(0xFF5AC8FA), Color(0xFF5856D6)],
+        ),
       };
 
   /// 默认第一页网格布局 (4x7=28个位置)
   /// null表示空位
   static List<String?> get defaultPage1Grid => [
         // 第1行
-        'memories', 'stickers', null, 'world_info',
+        'memories', 'stickers', 'album', 'world_info',
         // 第2行
         'text_preset', null, null, null,
         // 第3-6行都是空的

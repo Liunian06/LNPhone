@@ -6,6 +6,7 @@ import '../models/moments_model.dart';
 import '../models/memory_model.dart';
 import '../models/api_preset.dart';
 import '../models/wallet_model.dart';
+import '../models/text_preset_model.dart';
 
 /// List<String> 的转换器
 class StringListConverter extends TypeConverter<List<String>, String> {
@@ -281,6 +282,24 @@ class TransactionDirectionConverter
   }
 }
 
+/// TextPresetType 的转换器
+class TextPresetTypeConverter extends TypeConverter<TextPresetType, int> {
+  const TextPresetTypeConverter();
+
+  @override
+  TextPresetType fromSql(int fromDb) {
+    if (fromDb >= 0 && fromDb < TextPresetType.values.length) {
+      return TextPresetType.values[fromDb];
+    }
+    return TextPresetType.chat;
+  }
+
+  @override
+  int toSql(TextPresetType value) {
+    return value.index;
+  }
+}
+
 /// 钱包交易记录表
 @DataClassName('WalletTransactionEntity')
 class WalletTransactions extends Table {
@@ -454,6 +473,10 @@ class TextPresets extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get content => text()();
+  IntColumn get type => integer()
+      .map(const TextPresetTypeConverter())
+      .withDefault(const Constant(0))();
+  BoolColumn get isBuiltIn => boolean().withDefault(const Constant(false))();
   IntColumn get createdAt => integer()();
   IntColumn get updatedAt => integer()();
 

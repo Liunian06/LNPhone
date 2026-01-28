@@ -67,6 +67,14 @@ class DefaultApps {
           icon: CupertinoIcons.smiley_fill,
           gradientColors: [Color(0xFFF6D365), Color(0xFFFDA085)],
         ),
+        const AppModel(
+          id: 'album',
+          name: '相册',
+          type: AppType.system,
+          iconType: IconType.gradient,
+          icon: CupertinoIcons.photo_on_rectangle,
+          gradientColors: [Color(0xFF5AC8FA), Color(0xFF5856D6)],
+        ),
       ];
 
   /// 第二页应用

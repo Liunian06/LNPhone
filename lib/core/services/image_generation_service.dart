@@ -74,52 +74,30 @@ class ImageGenerationService {
       debugPrint(
           '[ImageGeneration] 使用预设: ${preset.name}, Provider: ${preset.provider}, BaseURL: ${preset.baseUrl}, Model: ${preset.model}');
 
-      // 从数据库读取当前选定的生图风格
-      final style = await _db.getSetting('text2image_style') ?? 'realistic';
+      // 获取当前选定的生图预设
+      String? activePresetId = await _db.getSetting('active_image_preset_id');
+      if (activePresetId == null) {
+        // 兼容旧版本
+        final oldStyle = await _db.getSetting('text2image_style');
+        if (oldStyle != null) {
+          activePresetId =
+              oldStyle == 'custom' ? 't2i_custom_1' : 't2i_$oldStyle';
+        } else {
+          activePresetId = 't2i_realistic';
+        }
+      }
 
       String finalStylePrompt = '';
-
-      if (style == 'custom') {
-        finalStylePrompt =
-            await _db.getSetting('custom_text2image_prompt') ?? '';
-      } else {
-        // 根据风格确定 asset 路径
-        String assetPath;
-        switch (style) {
-          case 'anime':
-            assetPath = 'assets/prompts/t2i_anime.txt';
-            break;
-          case 'cyberpunk':
-            assetPath = 'assets/prompts/t2i_cyberpunk.txt';
-            break;
-          case 'oil_painting':
-            assetPath = 'assets/prompts/t2i_oil_painting.txt';
-            break;
-          case 'ink_painting':
-            assetPath = 'assets/prompts/t2i_ink_painting.txt';
-            break;
-          case 'webtoon':
-            assetPath = 'assets/prompts/t2i_webtoon.txt';
-            break;
-          case 'beautiful_lighting':
-            assetPath = 'assets/prompts/t2i_beautiful_lighting.txt';
-            break;
-          case 'realistic':
-          default:
-            assetPath = 'assets/prompts/text2image_prompt.txt';
-            break;
-        }
-
-        try {
-          finalStylePrompt = await rootBundle.loadString(assetPath);
-        } catch (e) {
-          debugPrint(
-              '[ImageGeneration] Error loading style prompt ($assetPath): $e');
-          // 如果加载失败，尝试加载默认风格
+      final textPreset = await _db.getTextPreset(activePresetId);
+      if (textPreset != null) {
+        if (textPreset.isBuiltIn) {
           try {
-            finalStylePrompt = await rootBundle
-                .loadString('assets/prompts/text2image_prompt.txt');
-          } catch (_) {}
+            finalStylePrompt = await rootBundle.loadString(textPreset.content);
+          } catch (e) {
+            debugPrint('[ImageGeneration] Error loading built-in prompt: $e');
+          }
+        } else {
+          finalStylePrompt = textPreset.content;
         }
       }
 
@@ -139,7 +117,14 @@ class ImageGenerationService {
           buffer.writeln(_currentRole!.appearance);
         }
         if (_currentRole!.referenceImages.isNotEmpty) {
-          refImagePaths.addAll(_currentRole!.referenceImages);
+          // 检查参考图路径是否有效
+          for (final path in _currentRole!.referenceImages) {
+            if (await File(path).exists()) {
+              refImagePaths.add(path);
+            } else {
+              debugPrint('[ImageGeneration] ⚠️ 角色参考图路径失效，已忽略: $path');
+            }
+          }
         }
       }
 
@@ -151,7 +136,14 @@ class ImageGenerationService {
           buffer.writeln(_currentMe!.appearance);
         }
         if (_currentMe!.referenceImages.isNotEmpty) {
-          refImagePaths.addAll(_currentMe!.referenceImages);
+          // 检查参考图路径是否有效
+          for (final path in _currentMe!.referenceImages) {
+            if (await File(path).exists()) {
+              refImagePaths.add(path);
+            } else {
+              debugPrint('[ImageGeneration] ⚠️ 用户参考图路径失效，已忽略: $path');
+            }
+          }
         }
       }
 

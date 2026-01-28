@@ -17,6 +17,7 @@ class WeChatMainScreen extends StatefulWidget {
 
 class _WeChatMainScreenState extends State<WeChatMainScreen> {
   int _currentIndex = 0;
+  late PageController _pageController;
 
   final List<Widget> _tabs = [
     const WeChatScreen(),
@@ -24,6 +25,18 @@ class _WeChatMainScreenState extends State<WeChatMainScreen> {
     MomentsScreen(),
     const MeTab(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,13 +51,23 @@ class _WeChatMainScreenState extends State<WeChatMainScreen> {
 
     return Scaffold(
       backgroundColor: context.chatBackground,
-      body: IndexedStack(index: _currentIndex, children: _tabs),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
           setState(() {
             _currentIndex = index;
           });
+        },
+        children: _tabs,
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          _pageController.animateToPage(
+            index,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
         },
         selectedItemColor: AppTheme.wechatGreen, // 微信绿
         unselectedItemColor: context.secondaryTextColor,

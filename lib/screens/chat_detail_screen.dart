@@ -32,11 +32,14 @@ import 'transfer_result_screen.dart';
 import 'send_red_packet_screen.dart';
 import 'send_transfer_screen.dart';
 import 'emoji_picker_sheet.dart';
+import 'chat_search_delegate.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final String chatId;
+  final String? initialMessageId;
 
-  const ChatDetailScreen({super.key, required this.chatId});
+  const ChatDetailScreen(
+      {super.key, required this.chatId, this.initialMessageId});
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -53,6 +56,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   int _lastMessageCount = 0;
   ChatMessage? _replyingMessage; // 当前正在引用的消息
   bool _showEmojiPicker = false; // 控制是否显示表情选择器
+  String? _highlightedMessageId; // 当前高亮的消息ID
+  Timer? _highlightTimer;
 
   @override
   void initState() {
@@ -67,6 +72,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       final chat = chatProvider.getChat(widget.chatId);
       if (chat != null) {
         _lastMessageCount = chat.messages.length;
+      }
+
+      if (widget.initialMessageId != null) {
+        _jumpToMessage(widget.initialMessageId!);
       }
     });
   }
@@ -87,7 +96,41 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _textController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
+    _highlightTimer?.cancel();
     super.dispose();
+  }
+
+  void _jumpToMessage(String messageId) {
+    final chatProvider = context.read<ChatProvider>();
+    final chat = chatProvider.getChat(widget.chatId);
+    if (chat == null) return;
+
+    final index = chat.messages.indexWhere((m) => m.id == messageId);
+    if (index == -1) return;
+
+    // ListView 是 reverse: true，所以 index 0 是最后一条消息
+    final listViewIndex = chat.messages.length - 1 - index;
+
+    // 滚动到估算位置（由于高度不固定，这里使用估算值）
+    _scrollController.animateTo(
+      listViewIndex * 80.0, // 估算平均高度
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+
+    setState(() {
+      _highlightedMessageId = messageId;
+    });
+
+    // 2秒后取消高亮
+    _highlightTimer?.cancel();
+    _highlightTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _highlightedMessageId = null;
+        });
+      }
+    });
   }
 
   void _removeOverlay() {
@@ -277,7 +320,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                               me: me,
                               isMultiSelectMode: _isMultiSelectMode,
                               isSelected: _selectedMessageIds
-                                  .contains(currentMessage.id),
+                                      .contains(currentMessage.id) ||
+                                  _highlightedMessageId == currentMessage.id,
                               onTap: () {
                                 if (_isMultiSelectMode) {
                                   setState(() {
@@ -1946,6 +1990,15 @@ class MessageItem extends StatelessWidget {
             message.type == MessageType.action) &&
         message.content.trim().isEmpty) {
       return const SizedBox.shrink();
+    }
+
+    // 校验表情包消息的有效性
+    if (message.type == MessageType.emoji) {
+      final emojiProvider = context.read<EmojiProvider>();
+      final emojiId = message.metadata?['emoji_id'] ?? message.content;
+      if (!emojiProvider.isEmojiValidSync(emojiId)) {
+        return const SizedBox.shrink();
+      }
     }
 
     final screenWidth = MediaQuery.of(context).size.width;

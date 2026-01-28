@@ -831,46 +831,14 @@ class EmojiBubble extends StatelessWidget {
               height: 120,
               fit: BoxFit.contain,
               errorBuilder: (context, error, stackTrace) =>
-                  _buildErrorPlaceholder(context, emojiId),
+                  const SizedBox.shrink(),
             ),
           );
         }
 
         // 加载中或失败
-        return Container(
-          constraints: BoxConstraints(maxWidth: maxWidth * 0.5),
-          padding: const EdgeInsets.all(8),
-          child: _buildErrorPlaceholder(context, emojiId),
-        );
+        return const SizedBox.shrink();
       },
-    );
-  }
-
-  Widget _buildErrorPlaceholder(BuildContext context, String text) {
-    return Container(
-      width: 120,
-      height: 120,
-      decoration: BoxDecoration(
-        color: context.isDarkMode ? Colors.grey[800] : Colors.grey[200],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.emoji_emotions,
-                size: 48, color: context.secondaryTextColor),
-            const SizedBox(height: 8),
-            Text(
-              text,
-              style: TextStyle(fontSize: 12, color: context.secondaryTextColor),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

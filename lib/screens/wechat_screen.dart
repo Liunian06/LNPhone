@@ -10,6 +10,7 @@ import '../core/models/world_info_model.dart';
 import '../core/models/text_preset_model.dart';
 import '../core/theme/app_theme.dart';
 import 'chat_detail_screen.dart';
+import 'chat_search_delegate.dart';
 
 class WeChatScreen extends StatefulWidget {
   const WeChatScreen({super.key});
@@ -39,7 +40,23 @@ class _WeChatScreenState extends State<WeChatScreen> {
         actions: [
           IconButton(
             icon: Icon(Icons.search, color: context.primaryTextColor),
-            onPressed: () {},
+            onPressed: () async {
+              final result = await showSearch<ChatSearchResult?>(
+                context: context,
+                delegate: ChatSearchDelegate(),
+              );
+              if (result != null && mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChatDetailScreen(
+                      chatId: result.chatId,
+                      initialMessageId: result.messageId,
+                    ),
+                  ),
+                );
+              }
+            },
           ),
           IconButton(
             icon:
@@ -89,7 +106,7 @@ class _WeChatScreenState extends State<WeChatScreen> {
     );
 
     return Container(
-      color: context.surfaceColor, // Chat item background
+      color: chat.isPinned ? context.pinnedBackground : context.surfaceColor,
       child: GestureDetector(
         onTap: () {
           Navigator.push(
@@ -161,8 +178,11 @@ class _WeChatScreenState extends State<WeChatScreen> {
                         decoration: BoxDecoration(
                           color: const Color(0xFFF43F3F),
                           borderRadius: BorderRadius.circular(9),
-                          border:
-                              Border.all(color: context.surfaceColor, width: 1),
+                          border: Border.all(
+                              color: chat.isPinned
+                                  ? context.pinnedBackground
+                                  : context.surfaceColor,
+                              width: 1),
                         ),
                         child: Center(
                           child: Text(

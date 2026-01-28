@@ -177,13 +177,23 @@ class ContactProvider extends ChangeNotifier {
       // 保存图片到持久化存储
       final savedAvatarPath = await _saveProfileImage(avatarPath, id);
 
+      // 保存参考图到持久化存储
+      final List<String> savedReferenceImages = [];
+      for (var i = 0; i < referenceImages.length; i++) {
+        final savedPath =
+            await _saveProfileImage(referenceImages[i], '${id}_ref_$i');
+        if (savedPath != null) {
+          savedReferenceImages.add(savedPath);
+        }
+      }
+
       final newRole = ContactRole(
         id: id,
         name: name,
         avatarPath: savedAvatarPath,
         description: description,
         appearance: appearance,
-        referenceImages: referenceImages,
+        referenceImages: savedReferenceImages,
       );
       _roles.add(newRole);
       await _saveRole(newRole);
@@ -207,13 +217,23 @@ class ContactProvider extends ChangeNotifier {
       // 保存图片到持久化存储
       final savedAvatarPath = await _saveProfileImage(avatarPath, id);
 
+      // 保存参考图到持久化存储
+      final List<String> savedReferenceImages = [];
+      for (var i = 0; i < referenceImages.length; i++) {
+        final savedPath =
+            await _saveProfileImage(referenceImages[i], '${id}_ref_$i');
+        if (savedPath != null) {
+          savedReferenceImages.add(savedPath);
+        }
+      }
+
       final newMe = ContactMe(
         id: id,
         name: name,
         avatarPath: savedAvatarPath,
         info: info,
         appearance: appearance,
-        referenceImages: referenceImages,
+        referenceImages: savedReferenceImages,
       );
       _meList.add(newMe);
       await _saveMe(newMe);
@@ -244,13 +264,30 @@ class ContactProvider extends ChangeNotifier {
           finalAvatarPath = await _saveProfileImage(avatarPath, id);
         }
 
+        // 处理参考图更新
+        // 简单起见，我们重新保存所有参考图（如果它们不在持久化目录中）
+        // 实际优化可以比较路径，但考虑到参考图数量通常不多，直接处理是可以接受的
+        final List<String> savedReferenceImages = [];
+        for (var i = 0; i < referenceImages.length; i++) {
+          // 检查是否已经是持久化路径
+          final path = referenceImages[i];
+          // 如果路径变了或者是新的临时路径，保存它
+          // _saveProfileImage 内部会检查是否已经在文档目录下
+          final savedPath = await _saveProfileImage(path, '${id}_ref_$i');
+          if (savedPath != null) {
+            savedReferenceImages.add(savedPath);
+          }
+        }
+
         final updatedRole = ContactRole(
           id: id,
           name: name,
           avatarPath: finalAvatarPath,
           description: description,
           appearance: appearance,
-          referenceImages: referenceImages,
+          referenceImages: savedReferenceImages,
+          subscribedGroupIds: oldRole.subscribedGroupIds,
+          subscribedEmojiIds: oldRole.subscribedEmojiIds,
         );
         _roles[index] = updatedRole;
         await _saveRole(updatedRole);
@@ -296,13 +333,23 @@ class ContactProvider extends ChangeNotifier {
           finalAvatarPath = await _saveProfileImage(avatarPath, id);
         }
 
+        // 处理参考图更新
+        final List<String> savedReferenceImages = [];
+        for (var i = 0; i < referenceImages.length; i++) {
+          final path = referenceImages[i];
+          final savedPath = await _saveProfileImage(path, '${id}_ref_$i');
+          if (savedPath != null) {
+            savedReferenceImages.add(savedPath);
+          }
+        }
+
         final updatedMe = ContactMe(
           id: id,
           name: name,
           avatarPath: finalAvatarPath,
           info: info,
           appearance: appearance,
-          referenceImages: referenceImages,
+          referenceImages: savedReferenceImages,
         );
         _meList[index] = updatedMe;
         await _saveMe(updatedMe);

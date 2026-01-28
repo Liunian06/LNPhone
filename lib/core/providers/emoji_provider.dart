@@ -531,11 +531,22 @@ class EmojiProvider extends ChangeNotifier {
   /// 根据ID获取表情包
   Future<EmojiModel?> getEmojiById(String id) async {
     try {
+      // 优先从缓存获取
+      final cached = _allEmojis.where((e) => e.id == id).firstOrNull;
+      if (cached != null) return cached;
+
       final allEmojis = await _db.getAllEmojis();
       return allEmojis.firstWhere((e) => e.id == id);
     } catch (e) {
       return null;
     }
+  }
+
+  /// 同步检查表情是否有效且文件存在
+  bool isEmojiValidSync(String id) {
+    final emoji = _allEmojis.where((e) => e.id == id).firstOrNull;
+    if (emoji == null) return false;
+    return File(emoji.localPath).existsSync();
   }
 
   // --- 导入导出 ---

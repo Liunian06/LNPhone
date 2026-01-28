@@ -2008,6 +2008,23 @@ class $TextPresetsTable extends TextPresets
   late final GeneratedColumn<String> content = GeneratedColumn<String>(
       'content', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  late final GeneratedColumnWithTypeConverter<TextPresetType, int> type =
+      GeneratedColumn<int>('type', aliasedName, false,
+              type: DriftSqlType.int,
+              requiredDuringInsert: false,
+              defaultValue: const Constant(0))
+          .withConverter<TextPresetType>($TextPresetsTable.$convertertype);
+  static const VerificationMeta _isBuiltInMeta =
+      const VerificationMeta('isBuiltIn');
+  @override
+  late final GeneratedColumn<bool> isBuiltIn = GeneratedColumn<bool>(
+      'is_built_in', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_built_in" IN (0, 1))'),
+      defaultValue: const Constant(false));
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -2022,7 +2039,7 @@ class $TextPresetsTable extends TextPresets
       type: DriftSqlType.int, requiredDuringInsert: true);
   @override
   List<GeneratedColumn> get $columns =>
-      [id, name, content, createdAt, updatedAt];
+      [id, name, content, type, isBuiltIn, createdAt, updatedAt];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -2049,6 +2066,12 @@ class $TextPresetsTable extends TextPresets
           content.isAcceptableOrUnknown(data['content']!, _contentMeta));
     } else if (isInserting) {
       context.missing(_contentMeta);
+    }
+    if (data.containsKey('is_built_in')) {
+      context.handle(
+          _isBuiltInMeta,
+          isBuiltIn.isAcceptableOrUnknown(
+              data['is_built_in']!, _isBuiltInMeta));
     }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
@@ -2077,6 +2100,11 @@ class $TextPresetsTable extends TextPresets
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       content: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
+      type: $TextPresetsTable.$convertertype.fromSql(attachedDatabase
+          .typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}type'])!),
+      isBuiltIn: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_built_in'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
       updatedAt: attachedDatabase.typeMapping
@@ -2088,6 +2116,9 @@ class $TextPresetsTable extends TextPresets
   $TextPresetsTable createAlias(String alias) {
     return $TextPresetsTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<TextPresetType, int> $convertertype =
+      const TextPresetTypeConverter();
 }
 
 class TextPresetEntity extends DataClass
@@ -2095,12 +2126,16 @@ class TextPresetEntity extends DataClass
   final String id;
   final String name;
   final String content;
+  final TextPresetType type;
+  final bool isBuiltIn;
   final int createdAt;
   final int updatedAt;
   const TextPresetEntity(
       {required this.id,
       required this.name,
       required this.content,
+      required this.type,
+      required this.isBuiltIn,
       required this.createdAt,
       required this.updatedAt});
   @override
@@ -2109,6 +2144,10 @@ class TextPresetEntity extends DataClass
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
     map['content'] = Variable<String>(content);
+    {
+      map['type'] = Variable<int>($TextPresetsTable.$convertertype.toSql(type));
+    }
+    map['is_built_in'] = Variable<bool>(isBuiltIn);
     map['created_at'] = Variable<int>(createdAt);
     map['updated_at'] = Variable<int>(updatedAt);
     return map;
@@ -2119,6 +2158,8 @@ class TextPresetEntity extends DataClass
       id: Value(id),
       name: Value(name),
       content: Value(content),
+      type: Value(type),
+      isBuiltIn: Value(isBuiltIn),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -2131,6 +2172,8 @@ class TextPresetEntity extends DataClass
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       content: serializer.fromJson<String>(json['content']),
+      type: serializer.fromJson<TextPresetType>(json['type']),
+      isBuiltIn: serializer.fromJson<bool>(json['isBuiltIn']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
     );
@@ -2142,6 +2185,8 @@ class TextPresetEntity extends DataClass
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'content': serializer.toJson<String>(content),
+      'type': serializer.toJson<TextPresetType>(type),
+      'isBuiltIn': serializer.toJson<bool>(isBuiltIn),
       'createdAt': serializer.toJson<int>(createdAt),
       'updatedAt': serializer.toJson<int>(updatedAt),
     };
@@ -2151,12 +2196,16 @@ class TextPresetEntity extends DataClass
           {String? id,
           String? name,
           String? content,
+          TextPresetType? type,
+          bool? isBuiltIn,
           int? createdAt,
           int? updatedAt}) =>
       TextPresetEntity(
         id: id ?? this.id,
         name: name ?? this.name,
         content: content ?? this.content,
+        type: type ?? this.type,
+        isBuiltIn: isBuiltIn ?? this.isBuiltIn,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
@@ -2165,6 +2214,8 @@ class TextPresetEntity extends DataClass
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       content: data.content.present ? data.content.value : this.content,
+      type: data.type.present ? data.type.value : this.type,
+      isBuiltIn: data.isBuiltIn.present ? data.isBuiltIn.value : this.isBuiltIn,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -2176,6 +2227,8 @@ class TextPresetEntity extends DataClass
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('content: $content, ')
+          ..write('type: $type, ')
+          ..write('isBuiltIn: $isBuiltIn, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -2183,7 +2236,8 @@ class TextPresetEntity extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(id, name, content, createdAt, updatedAt);
+  int get hashCode =>
+      Object.hash(id, name, content, type, isBuiltIn, createdAt, updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2191,6 +2245,8 @@ class TextPresetEntity extends DataClass
           other.id == this.id &&
           other.name == this.name &&
           other.content == this.content &&
+          other.type == this.type &&
+          other.isBuiltIn == this.isBuiltIn &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -2199,6 +2255,8 @@ class TextPresetsCompanion extends UpdateCompanion<TextPresetEntity> {
   final Value<String> id;
   final Value<String> name;
   final Value<String> content;
+  final Value<TextPresetType> type;
+  final Value<bool> isBuiltIn;
   final Value<int> createdAt;
   final Value<int> updatedAt;
   final Value<int> rowid;
@@ -2206,6 +2264,8 @@ class TextPresetsCompanion extends UpdateCompanion<TextPresetEntity> {
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.content = const Value.absent(),
+    this.type = const Value.absent(),
+    this.isBuiltIn = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -2214,6 +2274,8 @@ class TextPresetsCompanion extends UpdateCompanion<TextPresetEntity> {
     required String id,
     required String name,
     required String content,
+    this.type = const Value.absent(),
+    this.isBuiltIn = const Value.absent(),
     required int createdAt,
     required int updatedAt,
     this.rowid = const Value.absent(),
@@ -2226,6 +2288,8 @@ class TextPresetsCompanion extends UpdateCompanion<TextPresetEntity> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? content,
+    Expression<int>? type,
+    Expression<bool>? isBuiltIn,
     Expression<int>? createdAt,
     Expression<int>? updatedAt,
     Expression<int>? rowid,
@@ -2234,6 +2298,8 @@ class TextPresetsCompanion extends UpdateCompanion<TextPresetEntity> {
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (content != null) 'content': content,
+      if (type != null) 'type': type,
+      if (isBuiltIn != null) 'is_built_in': isBuiltIn,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -2244,6 +2310,8 @@ class TextPresetsCompanion extends UpdateCompanion<TextPresetEntity> {
       {Value<String>? id,
       Value<String>? name,
       Value<String>? content,
+      Value<TextPresetType>? type,
+      Value<bool>? isBuiltIn,
       Value<int>? createdAt,
       Value<int>? updatedAt,
       Value<int>? rowid}) {
@@ -2251,6 +2319,8 @@ class TextPresetsCompanion extends UpdateCompanion<TextPresetEntity> {
       id: id ?? this.id,
       name: name ?? this.name,
       content: content ?? this.content,
+      type: type ?? this.type,
+      isBuiltIn: isBuiltIn ?? this.isBuiltIn,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -2268,6 +2338,13 @@ class TextPresetsCompanion extends UpdateCompanion<TextPresetEntity> {
     }
     if (content.present) {
       map['content'] = Variable<String>(content.value);
+    }
+    if (type.present) {
+      map['type'] =
+          Variable<int>($TextPresetsTable.$convertertype.toSql(type.value));
+    }
+    if (isBuiltIn.present) {
+      map['is_built_in'] = Variable<bool>(isBuiltIn.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
@@ -2287,6 +2364,8 @@ class TextPresetsCompanion extends UpdateCompanion<TextPresetEntity> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('content: $content, ')
+          ..write('type: $type, ')
+          ..write('isBuiltIn: $isBuiltIn, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -7138,6 +7217,8 @@ typedef $$TextPresetsTableCreateCompanionBuilder = TextPresetsCompanion
   required String id,
   required String name,
   required String content,
+  Value<TextPresetType> type,
+  Value<bool> isBuiltIn,
   required int createdAt,
   required int updatedAt,
   Value<int> rowid,
@@ -7147,6 +7228,8 @@ typedef $$TextPresetsTableUpdateCompanionBuilder = TextPresetsCompanion
   Value<String> id,
   Value<String> name,
   Value<String> content,
+  Value<TextPresetType> type,
+  Value<bool> isBuiltIn,
   Value<int> createdAt,
   Value<int> updatedAt,
   Value<int> rowid,
@@ -7169,6 +7252,14 @@ class $$TextPresetsTableFilterComposer
 
   ColumnFilters<String> get content => $composableBuilder(
       column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<TextPresetType, TextPresetType, int>
+      get type => $composableBuilder(
+          column: $table.type,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<bool> get isBuiltIn => $composableBuilder(
+      column: $table.isBuiltIn, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
@@ -7195,6 +7286,12 @@ class $$TextPresetsTableOrderingComposer
   ColumnOrderings<String> get content => $composableBuilder(
       column: $table.content, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<int> get type => $composableBuilder(
+      column: $table.type, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isBuiltIn => $composableBuilder(
+      column: $table.isBuiltIn, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
@@ -7219,6 +7316,12 @@ class $$TextPresetsTableAnnotationComposer
 
   GeneratedColumn<String> get content =>
       $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<TextPresetType, int> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<bool> get isBuiltIn =>
+      $composableBuilder(column: $table.isBuiltIn, builder: (column) => column);
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -7256,6 +7359,8 @@ class $$TextPresetsTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<String> content = const Value.absent(),
+            Value<TextPresetType> type = const Value.absent(),
+            Value<bool> isBuiltIn = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
             Value<int> updatedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -7264,6 +7369,8 @@ class $$TextPresetsTableTableManager extends RootTableManager<
             id: id,
             name: name,
             content: content,
+            type: type,
+            isBuiltIn: isBuiltIn,
             createdAt: createdAt,
             updatedAt: updatedAt,
             rowid: rowid,
@@ -7272,6 +7379,8 @@ class $$TextPresetsTableTableManager extends RootTableManager<
             required String id,
             required String name,
             required String content,
+            Value<TextPresetType> type = const Value.absent(),
+            Value<bool> isBuiltIn = const Value.absent(),
             required int createdAt,
             required int updatedAt,
             Value<int> rowid = const Value.absent(),
@@ -7280,6 +7389,8 @@ class $$TextPresetsTableTableManager extends RootTableManager<
             id: id,
             name: name,
             content: content,
+            type: type,
+            isBuiltIn: isBuiltIn,
             createdAt: createdAt,
             updatedAt: updatedAt,
             rowid: rowid,

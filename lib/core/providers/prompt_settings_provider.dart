@@ -13,8 +13,7 @@ class PromptSettingsProvider extends ChangeNotifier {
   String _roleplayPrompt = '';
   String _realityPrompt = '';
   String _text2ImagePrompt = '';
-  String _text2ImageStyle = 'realistic'; // 默认风格：极致摄影写实
-  String _customText2ImagePrompt = ''; // 用户自定义生图提示词
+  String _activeImagePresetId = 't2i_realistic'; // 当前选中的生图预设 ID
   bool _enableRealityPrompt = true;
   int _contextLength = 10; // Number of messages
   int _delayedReplySeconds = 10; // 延迟回复时间（秒），0表示立即回复
@@ -24,8 +23,7 @@ class PromptSettingsProvider extends ChangeNotifier {
   String get roleplayPrompt => _roleplayPrompt;
   String get realityPrompt => _realityPrompt;
   String get text2ImagePrompt => _text2ImagePrompt;
-  String get text2ImageStyle => _text2ImageStyle;
-  String get customText2ImagePrompt => _customText2ImagePrompt;
+  String get activeImagePresetId => _activeImagePresetId;
   bool get enableRealityPrompt => _enableRealityPrompt;
   int get contextLength => _contextLength;
   int get delayedReplySeconds => _delayedReplySeconds;
@@ -224,14 +222,23 @@ class PromptSettingsProvider extends ChangeNotifier {
     }
     _realityPrompt = realityPrompt;
 
-    // 加载 text2image_style
-    _text2ImageStyle = await _db.getSetting('text2image_style') ?? 'realistic';
+    // 加载 active_image_preset_id
+    _activeImagePresetId =
+        await _db.getSetting('active_image_preset_id') ?? 't2i_realistic';
 
-    // 加载 custom_text2image_prompt
-    _customText2ImagePrompt =
-        await _db.getSetting('custom_text2image_prompt') ?? '';
+    // 兼容旧版本迁移：如果旧版本使用的是 text2image_style，则映射到新的预设 ID
+    final oldStyle = await _db.getSetting('text2image_style');
+    if (oldStyle != null) {
+      if (oldStyle == 'custom') {
+        _activeImagePresetId = 't2i_custom_1';
+      } else {
+        _activeImagePresetId = 't2i_$oldStyle';
+      }
+      await _db.setSetting('active_image_preset_id', _activeImagePresetId);
+      await _db.deleteSetting('text2image_style');
+    }
 
-    // 加载 text2image_prompt (根据风格从 assets 加载)
+    // 加载 text2image_prompt
     await _loadText2ImagePrompt();
 
     // 加载其他设置
@@ -253,60 +260,31 @@ class PromptSettingsProvider extends ChangeNotifier {
 
   /// 加载生图提示词
   Future<void> _loadText2ImagePrompt() async {
-    if (_text2ImageStyle == 'custom') {
-      _text2ImagePrompt = _customText2ImagePrompt;
+    final preset = await _db.getTextPreset(_activeImagePresetId);
+    if (preset == null) {
+      _text2ImagePrompt = '';
       return;
     }
 
-    String assetPath;
-    switch (_text2ImageStyle) {
-      case 'anime':
-        assetPath = 'assets/prompts/t2i_anime.txt';
-        break;
-      case 'cyberpunk':
-        assetPath = 'assets/prompts/t2i_cyberpunk.txt';
-        break;
-      case 'oil_painting':
-        assetPath = 'assets/prompts/t2i_oil_painting.txt';
-        break;
-      case 'ink_painting':
-        assetPath = 'assets/prompts/t2i_ink_painting.txt';
-        break;
-      case 'webtoon':
-        assetPath = 'assets/prompts/t2i_webtoon.txt';
-        break;
-      case 'beautiful_lighting':
-        assetPath = 'assets/prompts/t2i_beautiful_lighting.txt';
-        break;
-      case 'realistic':
-      default:
-        assetPath = 'assets/prompts/text2image_prompt.txt';
-        break;
-    }
-
-    try {
-      _text2ImagePrompt = await rootBundle.loadString(assetPath);
-    } catch (e) {
-      debugPrint('Error loading text2image_prompt ($assetPath): $e');
-      _text2ImagePrompt = '';
+    if (preset.isBuiltIn) {
+      // 内置预设，content 存储的是 asset 路径
+      try {
+        _text2ImagePrompt = await rootBundle.loadString(preset.content);
+      } catch (e) {
+        debugPrint('Error loading built-in prompt (${preset.content}): $e');
+        _text2ImagePrompt = '';
+      }
+    } else {
+      // 自定义预设，content 存储的是提示词内容
+      _text2ImagePrompt = preset.content;
     }
   }
 
-  /// 更新生图风格
-  Future<void> updateText2ImageStyle(String style) async {
-    _text2ImageStyle = style;
-    await _db.setSetting('text2image_style', style);
+  /// 更新当前选中的生图预设
+  Future<void> updateActiveImagePreset(String presetId) async {
+    _activeImagePresetId = presetId;
+    await _db.setSetting('active_image_preset_id', presetId);
     await _loadText2ImagePrompt();
-    notifyListeners();
-  }
-
-  /// 更新自定义生图提示词
-  Future<void> updateCustomText2ImagePrompt(String value) async {
-    _customText2ImagePrompt = value;
-    await _db.setSetting('custom_text2image_prompt', value);
-    if (_text2ImageStyle == 'custom') {
-      _text2ImagePrompt = value;
-    }
     notifyListeners();
   }
 

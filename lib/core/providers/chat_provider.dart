@@ -162,7 +162,108 @@ class ChatProvider extends ChangeNotifier {
 
   Future<void> refreshTextPresets() async {
     _textPresets = await _database.getAllTextPresets();
+    // 检查是否需要初始化内置生图预设
+    await _initializeBuiltInImagePresets();
     notifyListeners();
+  }
+
+  /// 初始化内置生图预设
+  Future<void> _initializeBuiltInImagePresets() async {
+    final hasBuiltIn = _textPresets.any((p) => p.isBuiltIn);
+    if (hasBuiltIn) return;
+
+    debugPrint('[ChatProvider] 初始化内置生图预设...');
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final builtInPresets = [
+      TextPreset(
+        id: 't2i_realistic',
+        name: '极致摄影写实',
+        content: 'assets/prompts/text2image_prompt.txt',
+        type: TextPresetType.image,
+        isBuiltIn: true,
+        createdAt: now,
+        updatedAt: now,
+      ),
+      TextPreset(
+        id: 't2i_anime',
+        name: '二次元动漫',
+        content: 'assets/prompts/t2i_anime.txt',
+        type: TextPresetType.image,
+        isBuiltIn: true,
+        createdAt: now,
+        updatedAt: now,
+      ),
+      TextPreset(
+        id: 't2i_cyberpunk',
+        name: '赛博朋克',
+        content: 'assets/prompts/t2i_cyberpunk.txt',
+        type: TextPresetType.image,
+        isBuiltIn: true,
+        createdAt: now,
+        updatedAt: now,
+      ),
+      TextPreset(
+        id: 't2i_oil_painting',
+        name: '油画风格',
+        content: 'assets/prompts/t2i_oil_painting.txt',
+        type: TextPresetType.image,
+        isBuiltIn: true,
+        createdAt: now,
+        updatedAt: now,
+      ),
+      TextPreset(
+        id: 't2i_ink_painting',
+        name: '水墨画风格',
+        content: 'assets/prompts/t2i_ink_painting.txt',
+        type: TextPresetType.image,
+        isBuiltIn: true,
+        createdAt: now,
+        updatedAt: now,
+      ),
+      TextPreset(
+        id: 't2i_webtoon',
+        name: '韩漫风格',
+        content: 'assets/prompts/t2i_webtoon.txt',
+        type: TextPresetType.image,
+        isBuiltIn: true,
+        createdAt: now,
+        updatedAt: now,
+      ),
+      TextPreset(
+        id: 't2i_beautiful_lighting',
+        name: '唯美光影',
+        content: 'assets/prompts/t2i_beautiful_lighting.txt',
+        type: TextPresetType.image,
+        isBuiltIn: true,
+        createdAt: now,
+        updatedAt: now,
+      ),
+    ];
+
+    for (final preset in builtInPresets) {
+      await _database.insertTextPreset(preset);
+    }
+
+    // 迁移旧的自定义生图预设
+    final prefs = await SharedPreferences.getInstance();
+    final customPrompt = await _database.getSetting('custom_text2image_prompt');
+    if (customPrompt != null && customPrompt.isNotEmpty) {
+      final customPreset = TextPreset(
+        id: 't2i_custom_1',
+        name: '自定义生图预设 1',
+        content: customPrompt,
+        type: TextPresetType.image,
+        isBuiltIn: false,
+        createdAt: now,
+        updatedAt: now,
+      );
+      await _database.insertTextPreset(customPreset);
+      // 清除旧设置以防重复迁移
+      await _database.deleteSetting('custom_text2image_prompt');
+      debugPrint('[ChatProvider] 已迁移旧的自定义生图预设');
+    }
+
+    _textPresets = await _database.getAllTextPresets();
   }
 
   Future<void> addWorldInfo(WorldInfo info) async {
@@ -320,6 +421,12 @@ class ChatProvider extends ChangeNotifier {
 
   Future<void> deleteChat(String chatId) async {
     await _database.deleteSession(chatId);
+    await _refreshChats();
+  }
+
+  /// 清空聊天记录
+  Future<void> clearChatMessages(String chatId) async {
+    await _database.clearSessionMessages(chatId);
     await _refreshChats();
   }
 
@@ -522,7 +629,9 @@ class ChatProvider extends ChangeNotifier {
           for (final id in chat.textPresetIds) {
             try {
               final preset = allTextPresets.firstWhere((e) => e.id == id);
-              if (preset.content.isNotEmpty) {
+              // 仅聊天预设会被注入到 LLM 上下文中
+              if (preset.type == TextPresetType.chat &&
+                  preset.content.isNotEmpty) {
                 textPresets.add(preset.content);
               }
             } catch (e) {
