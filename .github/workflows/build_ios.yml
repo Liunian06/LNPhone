@@ -23,21 +23,16 @@ jobs:
 
       - name: Build iOS Release (No Codesign)
         run: |
-          # 1. 注入虚拟 Team ID 到 TargetAttributes (绕过 Flutter 预检的关键)
-          # 我们直接修改 Runner Target 的属性块
-          perl -i -pe 's/97C146ED1CF9000F007C117D = \{/97C146ED1CF9000F007C117D = \{ DevelopmentTeam = S8QB4VV633;/g' ios/Runner.xcodeproj/project.pbxproj
-          
-          # 2. 在所有构建配置中注入虚拟 Team ID 并强制手动签名
-          perl -i -pe 's/PRODUCT_BUNDLE_IDENTIFIER = com.example.lnphone2;/PRODUCT_BUNDLE_IDENTIFIER = com.example.lnphone2; DEVELOPMENT_TEAM = S8QB4VV633; CODE_SIGN_STYLE = Manual; CODE_SIGNING_REQUIRED = NO; CODE_SIGNING_ALLOWED = NO;/g' ios/Runner.xcodeproj/project.pbxproj
-          
-          # 3. 覆盖 xcconfig 确保环境一致
+          # 1. 在 xcconfig 中彻底禁用签名逻辑并注入虚拟 Team ID
+          # 此时项目文件已经手动修改过，这里做最后的保险
           echo "DEVELOPMENT_TEAM=S8QB4VV633" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_ALLOWED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGNING_REQUIRED=NO" >> ios/Flutter/Release.xcconfig
           echo "CODE_SIGN_STYLE=Manual" >> ios/Flutter/Release.xcconfig
           
-          # 4. 执行构建，并使用 xcargs 强制覆盖任何可能的残留设置
-          flutter build ios --release --no-codesign --xcargs="CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM=S8QB4VV633"
+          # 2. 执行构建
+          # 使用 --no-codesign 告诉 Flutter 不要尝试签名
+          flutter build ios --release --no-codesign
 
       - name: Create Payload Directory
         run: |
