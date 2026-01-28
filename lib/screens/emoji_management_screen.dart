@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_picker/file_picker.dart' as fp;
 // ignore: depend_on_referenced_packages
 import 'package:path/path.dart' as p;
 import '../core/models/emoji_model.dart';
@@ -434,8 +434,8 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
       return;
     }
 
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
+    final result = await fp.FilePicker.platform.pickFiles(
+      type: fp.FileType.image,
       allowMultiple: true,
     );
 
@@ -859,8 +859,8 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
       return;
     }
 
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
+    final result = await fp.FilePicker.platform.pickFiles(
+      type: fp.FileType.image,
       allowMultiple: true,
     );
 
@@ -1034,8 +1034,8 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
       return;
     }
 
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
+    final result = await fp.FilePicker.platform.pickFiles(
+      type: fp.FileType.image,
       allowMultiple: true,
     );
 

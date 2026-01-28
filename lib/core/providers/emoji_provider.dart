@@ -8,7 +8,7 @@ import '../models/emoji_model.dart';
 import '../models/contact_model.dart';
 import '../services/emoji_zip_service.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_picker/file_picker.dart' as fp;
 
 class EmojiProvider extends ChangeNotifier {
   final AppDatabase _db;
@@ -560,8 +560,8 @@ class EmojiProvider extends ChangeNotifier {
 
   /// 导入表情包 ZIP
   Future<void> importEmojisFromZip({String? targetGroupId}) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
+    final result = await fp.FilePicker.platform.pickFiles(
+      type: fp.FileType.custom,
       allowedExtensions: ['zip'],
     );
 
