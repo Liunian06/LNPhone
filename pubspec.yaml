@@ -27,7 +27,7 @@ dependencies:
   blur: ^4.0.0
   image_picker: ^1.2.1
   path_provider: ^2.1.5
-  file_picker: ^10.3.8
+  file_picker: ^8.0.0
   shared_preferences: ^2.3.5
   share_plus: ^12.0.1
   flutter_file_dialog: ^3.0.3
