@@ -23,6 +23,11 @@ jobs:
 
       - name: Build iOS Release (No Codesign)
         run: |
+          # 强制禁用签名配置，防止 Xcode 检查 Development Team
+          echo "CODE_SIGN_IDENTITY = \"\"" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_REQUIRED = NO" >> ios/Flutter/Release.xcconfig
+          echo "CODE_SIGNING_ALLOWED = NO" >> ios/Flutter/Release.xcconfig
+          
           # 构建 iOS release 版本，但不进行签名
           flutter build ios --release --no-codesign
 
