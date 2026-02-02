@@ -22,8 +22,6 @@ class _EditBalanceScreenState extends State<EditBalanceScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final walletProvider = context.read<WalletProvider>();
-      _controller.text = walletProvider.balance.toStringAsFixed(2);
       _focusNode.requestFocus();
     });
   }
@@ -61,10 +59,14 @@ class _EditBalanceScreenState extends State<EditBalanceScreen> {
     setState(() => _errorText = null);
 
     final walletProvider = context.read<WalletProvider>();
-    walletProvider.setBalance(amount);
+    walletProvider.addIncome(
+      type: WalletTransactionType.recharge,
+      amount: amount,
+      description: '钱包充值',
+    );
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('余额已更新')),
+      const SnackBar(content: Text('充值成功')),
     );
     Navigator.pop(context);
   }
@@ -81,7 +83,7 @@ class _EditBalanceScreenState extends State<EditBalanceScreen> {
       appBar: AppBar(
         backgroundColor: context.appBarBackground,
         title: Text(
-          '设置余额',
+          '充值',
           style: TextStyle(color: context.primaryTextColor),
         ),
         leading: IconButton(
@@ -151,7 +153,7 @@ class _EditBalanceScreenState extends State<EditBalanceScreen> {
             const SizedBox(height: 24),
             // 输入框标题
             Text(
-              '设置新余额 (CNY)',
+              '充值金额 (CNY)',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,

@@ -13,7 +13,12 @@ import '../core/providers/api_settings_provider.dart';
 import '../core/services/llm_service.dart';
 import '../core/models/api_preset.dart';
 import '../core/database/database.dart';
+import '../core/utils/storage_utils.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import '../widgets/emoji_image_widget.dart';
+import '../core/services/emoji_backup_migration.dart';
+import '../core/services/emoji_file_backup_service.dart';
+import '../main.dart' show database;
 
 class EmojiManagementScreen extends StatefulWidget {
   const EmojiManagementScreen({super.key});
@@ -28,6 +33,8 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
   final Set<String> _selectedEmojiIds = {};
   bool _isSelectionMode = false;
   String? _selectedRoleId; // 当前选中的角色ID（用于角色表情Tab）
+  final Set<String> _expandedGroupIds = {}; // 展开的分组ID集合
+  bool _isUngroupedExpanded = true; // 未分组是否展开
 
   @override
   void initState() {
@@ -137,12 +144,6 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
           ] else ...[
             if (_tabController.index == 0) ...[
               IconButton(
-                icon: const Icon(Icons.upload_file),
-                tooltip: '导入表情包',
-                onPressed: () =>
-                    context.read<EmojiProvider>().importEmojisFromZip(),
-              ),
-              IconButton(
                 icon: const Icon(Icons.create_new_folder_outlined),
                 tooltip: '新建分组',
                 onPressed: _addEmojiGroup,
@@ -157,6 +158,8 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
                   _batchImportEmojis();
                 } else if (value == 'pure_batch') {
                   _pureBatchImportEmojis();
+                } else if (value == 'import_zip') {
+                  _importEmojis();
                 }
               },
               itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
@@ -171,6 +174,42 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
                 const PopupMenuItem<String>(
                   value: 'pure_batch',
                   child: Text('纯批量导入 (无打标)'),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'import_zip',
+                  child: Text('导入已打标ZIP包'),
+                ),
+              ],
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'backup_info') {
+                  _showBackupInfo();
+                } else if (value == 'migrate') {
+                  _runMigration();
+                }
+              },
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(
+                  value: 'backup_info',
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 20),
+                      SizedBox(width: 8),
+                      Text('备份信息'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'migrate',
+                  child: Row(
+                    children: [
+                      Icon(Icons.sync, size: 20),
+                      SizedBox(width: 8),
+                      Text('手动迁移备份'),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -261,68 +300,104 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
       padding: const EdgeInsets.all(8),
       children: [
         if (ungroupedEmojis.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-            child: Row(
-              children: [
-                const Text('未分组',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, color: Colors.grey)),
-                const Spacer(),
-                TextButton.icon(
-                  icon: const Icon(Icons.select_all, size: 16),
-                  label: const Text('全选', style: TextStyle(fontSize: 12)),
-                  onPressed: () => _selectAllInGroup(ungroupedEmojis),
-                ),
-              ],
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isUngroupedExpanded = !_isUngroupedExpanded;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    _isUngroupedExpanded
+                        ? Icons.keyboard_arrow_down
+                        : Icons.keyboard_arrow_right,
+                    size: 20,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(width: 4),
+                  Text('未分组 (${ungroupedEmojis.length})',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const Spacer(),
+                  TextButton.icon(
+                    icon: const Icon(Icons.select_all, size: 16),
+                    label: const Text('全选', style: TextStyle(fontSize: 12)),
+                    onPressed: () => _selectAllInGroup(ungroupedEmojis),
+                  ),
+                ],
+              ),
             ),
           ),
-          _buildEmojiGrid(ungroupedEmojis, isDark),
+          if (_isUngroupedExpanded) _buildEmojiGrid(ungroupedEmojis, isDark),
         ],
         for (final group in currentGroups) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(group.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: Icon(
-                        group.isVisible
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                        size: 18,
-                        color: group.isVisible ? Colors.blue : Colors.grey,
+          InkWell(
+            onTap: () {
+              setState(() {
+                if (_expandedGroupIds.contains(group.id)) {
+                  _expandedGroupIds.remove(group.id);
+                } else {
+                  _expandedGroupIds.add(group.id);
+                }
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        _expandedGroupIds.contains(group.id)
+                            ? Icons.keyboard_arrow_down
+                            : Icons.keyboard_arrow_right,
+                        size: 20,
                       ),
-                      tooltip: group.isVisible ? '在面板中显示' : '在面板中隐藏',
-                      onPressed: () => context
-                          .read<EmojiProvider>()
-                          .toggleGroupVisibility(
-                              group.id, !group.isVisible, _selectedRoleId),
-                    ),
-                    const Spacer(),
-                    TextButton.icon(
-                      icon: const Icon(Icons.select_all, size: 16),
-                      label: const Text('全选', style: TextStyle(fontSize: 12)),
-                      onPressed: () => _selectAllInGroup(
-                          emojis.where((e) => e.groupId == group.id).toList()),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline,
-                          size: 18, color: Colors.red),
-                      onPressed: () => _deleteGroup(group),
-                    ),
-                  ],
-                ),
-              ],
+                      const SizedBox(width: 4),
+                      Text(
+                          '${group.name} (${emojis.where((e) => e.groupId == group.id).length})',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: Icon(
+                          group.isVisible
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                          size: 18,
+                          color: group.isVisible ? Colors.blue : Colors.grey,
+                        ),
+                        tooltip: group.isVisible ? '在面板中显示' : '在面板中隐藏',
+                        onPressed: () => context
+                            .read<EmojiProvider>()
+                            .toggleGroupVisibility(
+                                group.id, !group.isVisible, _selectedRoleId),
+                      ),
+                      const Spacer(),
+                      TextButton.icon(
+                        icon: const Icon(Icons.select_all, size: 16),
+                        label: const Text('全选', style: TextStyle(fontSize: 12)),
+                        onPressed: () => _selectAllInGroup(emojis
+                            .where((e) => e.groupId == group.id)
+                            .toList()),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline,
+                            size: 18, color: Colors.red),
+                        onPressed: () => _deleteGroup(group),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-          _buildEmojiGrid(
-              emojis.where((e) => e.groupId == group.id).toList(), isDark),
+          if (_expandedGroupIds.contains(group.id))
+            _buildEmojiGrid(
+                emojis.where((e) => e.groupId == group.id).toList(), isDark),
         ],
         if (emojis.isEmpty)
           Center(
@@ -388,7 +463,7 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
             decoration: BoxDecoration(
               color: isSelected
                   ? Theme.of(context).primaryColor.withValues(alpha: 0.2)
-                  : (isDark ? Colors.grey[800] : Colors.grey[200]),
+                  : Colors.transparent, // 透明背景
               borderRadius: BorderRadius.circular(8),
               border: isSelected
                   ? Border.all(color: Theme.of(context).primaryColor, width: 2)
@@ -399,11 +474,17 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.all(4),
-                    child: Image.file(
-                      File(emoji.localPath),
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Icon(Icons.broken_image),
+                    child: FutureBuilder<String>(
+                      future: StorageUtils.toAbsolutePath(emoji.localPath),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData) {
+                          return EmojiImageWidget(
+                            imagePath: snapshot.data!,
+                            fit: BoxFit.contain,
+                          );
+                        }
+                        return const SizedBox();
+                      },
                     ),
                   ),
                 ),
@@ -494,12 +575,12 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
               if (imagePath != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: Image.file(
-                    File(imagePath),
+                  child: SizedBox(
                     height: 100,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.broken_image, size: 50),
+                    child: EmojiImageWidget(
+                      imagePath: imagePath,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
               TextField(
@@ -1206,7 +1287,18 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.file(File(emoji.localPath), fit: BoxFit.cover),
+                  child: FutureBuilder<String>(
+                    future: StorageUtils.toAbsolutePath(emoji.localPath),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        return EmojiImageWidget(
+                          imagePath: snapshot.data!,
+                          fit: BoxFit.cover,
+                        );
+                      }
+                      return const SizedBox();
+                    },
+                  ),
                 ),
               );
             },
@@ -1227,6 +1319,172 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
       );
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('已转为公共表情')),
+      );
+    }
+  }
+
+  /// 显示备份信息
+  Future<void> _showBackupInfo() async {
+    try {
+      final backupDir = await EmojiFileBackupService.getBackupDir();
+      final backupSize = await EmojiFileBackupService.getBackupDirSize();
+      final provider = context.read<EmojiProvider>();
+      final emojis = await database.getAllEmojis();
+      final hasBackup = emojis
+          .where((e) => e.backupPath != null && e.backupPath!.isNotEmpty)
+          .length;
+
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('备份信息'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('备份目录位置：',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                SelectableText(
+                  backupDir,
+                  style: const TextStyle(fontSize: 12, color: Colors.blue),
+                ),
+                const SizedBox(height: 16),
+                Text('备份目录大小：${backupSize.toStringAsFixed(2)} MB'),
+                const SizedBox(height: 8),
+                Text('总表情包数：${emojis.length} 个'),
+                const SizedBox(height: 8),
+                Text('已有备份：$hasBackup 个'),
+                const SizedBox(height: 8),
+                Text('未备份：${emojis.length - hasBackup} 个'),
+                const SizedBox(height: 16),
+                const Text(
+                  '说明：',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  '• 备份文件存储在应用私有目录\n'
+                  '• 不会出现在相册中\n'
+                  '• 卸载应用时会被删除\n'
+                  '• 新导入的表情会自动创建备份',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('关闭'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('获取备份信息失败: $e')),
+        );
+      }
+    }
+  }
+
+  /// 手动运行迁移
+  Future<void> _runMigration() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('手动迁移备份'),
+        content: const Text(
+          '此操作将为所有未备份的表情包创建文件备份。\n\n'
+          '• 已有备份的表情包会被跳过\n'
+          '• 使用字节复制保持 GIF 透明通道\n'
+          '• 备份文件存储在应用私有目录\n\n'
+          '是否继续？',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('开始迁移'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    // 显示进度对话框
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('正在迁移备份...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final migrationService = EmojiBackupMigration(database);
+      final report = await migrationService.migrate();
+
+      if (!mounted) return;
+      Navigator.pop(context); // 关闭进度对话框
+
+      // 显示结果
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('迁移完成'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('总表情包数：${report.totalEmojis}'),
+                Text('已有备份：${report.alreadyHasBackup}'),
+                Text('成功迁移：${report.migrated}'),
+                if (report.restoredFromBinary > 0)
+                  Text('从二进制恢复：${report.restoredFromBinary}'),
+                if (report.skipped > 0) Text('跳过：${report.skipped}'),
+                if (report.fileNotFound > 0)
+                  Text('文件不存在：${report.fileNotFound}',
+                      style: const TextStyle(color: Colors.orange)),
+                if (report.failed > 0)
+                  Text('失败：${report.failed}',
+                      style: const TextStyle(color: Colors.red)),
+                if (report.error != null)
+                  Text('错误：${report.error}',
+                      style: const TextStyle(color: Colors.red)),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('关闭'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // 关闭进度对话框
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('迁移失败: $e')),
       );
     }
   }

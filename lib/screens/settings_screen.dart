@@ -9,12 +9,15 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter_file_dialog/flutter_file_dialog.dart';
 import 'package:intl/intl.dart';
 import 'package:restart_app/restart_app.dart';
+import 'package:path/path.dart' as path;
 import '../core/providers/system_state_provider.dart';
 import '../core/providers/chat_provider.dart';
 import '../core/providers/contact_provider.dart';
 import '../core/data/grid_default_apps.dart';
+import '../core/utils/storage_utils.dart';
 import '../core/services/api_log_service.dart';
 import '../core/services/app_log_service.dart';
+import '../core/database/database.dart';
 import '../widgets/ios_wallpaper.dart';
 import 'api_settings_screen.dart';
 import 'prompt_settings_screen.dart';
@@ -352,6 +355,22 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
                           onTap: _tryRestoreLegacyData,
                         ),
                         SettingsTile(
+                          title: '管理导出文件',
+                          subtitle: '查看并清理已导出的备份与日志',
+                          icon: CupertinoIcons.doc_on_doc_fill,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const ExportManagementScreen(),
+                            ),
+                          ),
+                          iconGradient: const [
+                            Color(0xFF4facfe),
+                            Color(0xFF00f2fe)
+                          ],
+                        ),
+                        SettingsTile(
                           title: '导出 API 日志',
                           subtitle: '导出 API 调用记录（JSONL 格式）',
                           icon: CupertinoIcons.doc_text_fill,
@@ -450,24 +469,11 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
     );
   }
 
-  void _showStorageInfo() async {
-    final provider = context.read<SystemStateProvider>();
-    final size = await provider.calculateStorageUsage();
-    final sizeInMB = (size / 1024 / 1024).toStringAsFixed(2);
-
-    if (!mounted) return;
-
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('存储占用'),
-        content: Text('当前应用占用空间：$sizeInMB MB\n\n包括自定义壁纸和应用图标'),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('确定'),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
+  void _showStorageInfo() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const StorageStatisticsScreen(),
       ),
     );
   }
@@ -511,7 +517,13 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
       // 重命名文件
       final directory = await getTemporaryDirectory();
       final filePath = '${directory.path}/$fileName';
-      await File(zipPath).copy(filePath);
+      final intermediateFile = File(zipPath);
+      await intermediateFile.copy(filePath);
+
+      // 删除中间临时文件
+      if (await intermediateFile.exists()) {
+        await intermediateFile.delete();
+      }
 
       if (!mounted) return;
 
@@ -1673,7 +1685,7 @@ class _WallpaperSettingsSheetState extends State<_WallpaperSettingsSheet> {
 
       // 复制图片到应用目录
       final directory = await getApplicationDocumentsDirectory();
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_wallpaper.jpg';
+      final fileName = '${StorageUtils.getUniqueTimestamp()}_wallpaper.jpg';
       final savedPath = '${directory.path}/$fileName';
       await file.copy(savedPath);
 
@@ -1959,8 +1971,7 @@ class _IconSettingsScreenState extends State<_IconSettingsScreen> {
 
       // 复制图片到应用目录
       final directory = await getApplicationDocumentsDirectory();
-      final fileName =
-          '${DateTime.now().millisecondsSinceEpoch}_icon_$appId.jpg';
+      final fileName = '${StorageUtils.getUniqueTimestamp()}_icon_$appId.jpg';
       final savedPath = '${directory.path}/$fileName';
       await file.copy(savedPath);
 
@@ -1988,5 +1999,732 @@ class _IconSettingsScreenState extends State<_IconSettingsScreen> {
         );
       }
     }
+  }
+}
+
+/// 导出文件管理界面
+class ExportManagementScreen extends StatefulWidget {
+  const ExportManagementScreen({super.key});
+
+  @override
+  State<ExportManagementScreen> createState() => _ExportManagementScreenState();
+}
+
+class _ExportManagementScreenState extends State<ExportManagementScreen> {
+  List<File> _exportFiles = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExportFiles();
+  }
+
+  Future<void> _loadExportFiles() async {
+    setState(() => _isLoading = true);
+    try {
+      final List<File> files = [];
+      final tempDir = await getTemporaryDirectory();
+      final appDir = await getApplicationDocumentsDirectory();
+
+      // 扫描目录
+      await _scanDirectory(tempDir, files);
+      await _scanDirectory(appDir, files);
+
+      // 按时间排序（最新的在前）
+      files.sort((a, b) {
+        return b.lastModifiedSync().compareTo(a.lastModifiedSync());
+      });
+
+      setState(() {
+        _exportFiles = files;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('加载导出文件失败: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _scanDirectory(Directory dir, List<File> results) async {
+    if (!await dir.exists()) return;
+
+    final List<FileSystemEntity> entities = dir.listSync();
+    for (var entity in entities) {
+      if (entity is File) {
+        final name = path.basename(entity.path);
+        // 匹配导出文件模式
+        if (name.startsWith('api_logs_export_') ||
+            name.startsWith('app_logs_') ||
+            name.startsWith('emojis_export_') ||
+            name.startsWith('backup_') ||
+            name.startsWith('LNPhone-Backup-')) {
+          results.add(entity);
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
+    return Scaffold(
+      backgroundColor: isDark ? Colors.black : const Color(0xFFF5F5F7),
+      body: IOSWallpaper(
+        style: WallpaperStyle.dark,
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(isDark),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CupertinoActivityIndicator())
+                    : _exportFiles.isEmpty
+                        ? _buildEmptyState(textColor)
+                        : _buildFileList(isDark, textColor),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.2)
+        : Colors.black.withValues(alpha: 0.1);
+
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                CupertinoIcons.back,
+                color: textColor,
+                size: 24,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              '管理导出文件',
+              style: TextStyle(
+                color: textColor,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          if (_exportFiles.isNotEmpty)
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              child: const Text('清空全部',
+                  style: TextStyle(color: CupertinoColors.destructiveRed)),
+              onPressed: _clearAllFiles,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(Color textColor) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            CupertinoIcons.doc_text,
+            size: 64,
+            color: textColor.withValues(alpha: 0.3),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '暂无导出文件',
+            style: TextStyle(
+              color: textColor.withValues(alpha: 0.5),
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFileList(bool isDark, Color textColor) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: _exportFiles.length,
+      itemBuilder: (context, index) {
+        final file = _exportFiles[index];
+        final fileName = path.basename(file.path);
+        final fileSize = (file.lengthSync() / 1024 / 1024).toStringAsFixed(2);
+        final modifiedTime =
+            DateFormat('yyyy-MM-dd HH:mm').format(file.lastModifiedSync());
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.1)
+                : Colors.black.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: _getFileColor(fileName).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                _getFileIcon(fileName),
+                color: _getFileColor(fileName),
+              ),
+            ),
+            title: Text(
+              fileName,
+              style: TextStyle(
+                  color: textColor, fontWeight: FontWeight.w600, fontSize: 14),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text(
+              '$fileSize MB • $modifiedTime',
+              style: TextStyle(
+                  color: textColor.withValues(alpha: 0.6), fontSize: 12),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  child: const Icon(CupertinoIcons.share, size: 20),
+                  onPressed: () => _shareFile(file),
+                ),
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  child: const Icon(CupertinoIcons.trash,
+                      color: CupertinoColors.destructiveRed, size: 20),
+                  onPressed: () => _deleteFile(file),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  IconData _getFileIcon(String fileName) {
+    if (fileName.contains('log')) return CupertinoIcons.doc_text_fill;
+    if (fileName.contains('emoji')) return CupertinoIcons.smiley_fill;
+    return CupertinoIcons.archivebox_fill;
+  }
+
+  Color _getFileColor(String fileName) {
+    if (fileName.contains('log')) return CupertinoColors.systemOrange;
+    if (fileName.contains('emoji')) return CupertinoColors.systemPink;
+    return CupertinoColors.systemBlue;
+  }
+
+  void _shareFile(File file) async {
+    await Share.shareXFiles([XFile(file.path)]);
+  }
+
+  void _deleteFile(File file) async {
+    final confirm = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('确认删除'),
+        content: Text('确定要删除文件 ${path.basename(file.path)} 吗？'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.pop(context, false),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('删除'),
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await file.delete();
+      _loadExportFiles();
+    }
+  }
+
+  void _clearAllFiles() async {
+    final confirm = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('清空全部'),
+        content: const Text('确定要删除所有已导出的文件吗？此操作不可撤销。'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.pop(context, false),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('全部删除'),
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      for (var file in _exportFiles) {
+        try {
+          await file.delete();
+        } catch (e) {
+          debugPrint('删除文件失败: ${file.path}, $e');
+        }
+      }
+      _loadExportFiles();
+    }
+  }
+}
+
+class StorageStatisticsScreen extends StatefulWidget {
+  const StorageStatisticsScreen({super.key});
+
+  @override
+  State<StorageStatisticsScreen> createState() =>
+      _StorageStatisticsScreenState();
+}
+
+class _StorageStatisticsScreenState extends State<StorageStatisticsScreen> {
+  bool _isLoading = true;
+  int _totalSize = 0;
+
+  // 统计数据
+  int _chatImageCount = 0;
+  int _chatImageSize = 0;
+
+  int _momentCount = 0;
+  int _momentMediaCount = 0;
+  int _momentMediaSize = 0;
+
+  int _contactAvatarCount = 0;
+  int _contactAvatarSize = 0;
+  int _contactRefCount = 0;
+  int _contactRefSize = 0;
+
+  int _wallpaperCount = 0;
+  int _wallpaperSize = 0;
+  int _iconCount = 0;
+  int _iconSize = 0;
+
+  int _logSize = 0;
+  int _dbSize = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatistics();
+  }
+
+  Future<void> _loadStatistics() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final db = AppDatabase();
+      final appDir = await getApplicationDocumentsDirectory();
+
+      // 1. 聊天统计
+      final sessions = await db.getAllSessions();
+      for (final session in sessions) {
+        // 聊天背景图
+        if (session.backgroundImage != null &&
+            session.backgroundImage!.isNotEmpty) {
+          final file = File(session.backgroundImage!);
+          if (await file.exists()) {
+            _wallpaperSize += await file.length();
+            _wallpaperCount++;
+          }
+        }
+      }
+
+      // 统计所有图片消息
+      final imageMessages = await db.getAllImageMessages();
+      _chatImageCount = imageMessages.length;
+      for (final msg in imageMessages) {
+        if (msg.content.isNotEmpty) {
+          final file = File(msg.content);
+          if (await file.exists()) {
+            _chatImageSize += await file.length();
+          } else {
+            // 尝试相对路径
+            final absPath = '${appDir.path}/${msg.content}';
+            final absFile = File(absPath);
+            if (await absFile.exists()) {
+              _chatImageSize += await absFile.length();
+            }
+          }
+        }
+      }
+
+      // 2. 朋友圈统计
+      final moments = await db.getAllMoments(limit: 10000); // 获取所有动态
+      _momentCount = moments.length;
+      for (final post in moments) {
+        for (final media in post.mediaItems) {
+          _momentMediaCount++;
+          if (media.url.isNotEmpty) {
+            final file = File(media.url);
+            if (await file.exists()) {
+              _momentMediaSize += await file.length();
+            } else {
+              final absPath = '${appDir.path}/${media.url}';
+              final absFile = File(absPath);
+              if (await absFile.exists()) {
+                _momentMediaSize += await absFile.length();
+              }
+            }
+          }
+          if (media.thumbnailUrl != null && media.thumbnailUrl!.isNotEmpty) {
+            final file = File(media.thumbnailUrl!);
+            if (await file.exists()) {
+              _momentMediaSize += await file.length();
+            }
+          }
+        }
+      }
+
+      // 3. 联系人统计
+      final roles = await db.getAllContactRoles();
+      for (final role in roles) {
+        if (role.avatarPath != null && role.avatarPath!.isNotEmpty) {
+          final file = File(role.avatarPath!);
+          if (await file.exists()) {
+            _contactAvatarSize += await file.length();
+            _contactAvatarCount++;
+          }
+        }
+        for (final ref in role.referenceImages) {
+          if (ref.isNotEmpty) {
+            final file = File(ref);
+            if (await file.exists()) {
+              _contactRefSize += await file.length();
+              _contactRefCount++;
+            }
+          }
+        }
+      }
+
+      final mes = await db.getAllContactMes();
+      for (final me in mes) {
+        if (me.avatarPath != null && me.avatarPath!.isNotEmpty) {
+          final file = File(me.avatarPath!);
+          if (await file.exists()) {
+            _contactAvatarSize += await file.length();
+            _contactAvatarCount++;
+          }
+        }
+        for (final ref in me.referenceImages) {
+          if (ref.isNotEmpty) {
+            final file = File(ref);
+            if (await file.exists()) {
+              _contactRefSize += await file.length();
+              _contactRefCount++;
+            }
+          }
+        }
+      }
+
+      // 4. 系统设置统计
+      final systemProvider = context.read<SystemStateProvider>();
+      if (systemProvider.customWallpaperPath != null) {
+        final file = File(systemProvider.customWallpaperPath!);
+        if (await file.exists()) {
+          _wallpaperSize += await file.length();
+          _wallpaperCount++;
+        }
+      }
+      if (systemProvider.customLockScreenWallpaperPath != null) {
+        final file = File(systemProvider.customLockScreenWallpaperPath!);
+        if (await file.exists()) {
+          _wallpaperSize += await file.length();
+          _wallpaperCount++;
+        }
+      }
+
+      _iconCount = systemProvider.customAppIcons.length;
+      for (final iconPath in systemProvider.customAppIcons.values) {
+        final file = File(iconPath);
+        if (await file.exists()) {
+          _iconSize += await file.length();
+        }
+      }
+
+      // 5. 日志统计
+      _logSize += await ApiLogService.getLogFileSize();
+      _logSize += await AppLogService.getLogFileSize();
+
+      // 6. 数据库文件大小
+      final dbFile = File('${appDir.path}/db.sqlite');
+      if (await dbFile.exists()) {
+        _dbSize += await dbFile.length();
+      }
+      final dbWalFile = File('${appDir.path}/db.sqlite-wal');
+      if (await dbWalFile.exists()) {
+        _dbSize += await dbWalFile.length();
+      }
+      final dbShmFile = File('${appDir.path}/db.sqlite-shm');
+      if (await dbShmFile.exists()) {
+        _dbSize += await dbShmFile.length();
+      }
+
+      // 计算总大小
+      _totalSize = _chatImageSize +
+          _momentMediaSize +
+          _contactAvatarSize +
+          _contactRefSize +
+          _wallpaperSize +
+          _iconSize +
+          _logSize +
+          _dbSize;
+    } catch (e) {
+      debugPrint('统计存储空间失败: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  String _formatSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+    return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(2)} GB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.2)
+        : Colors.black.withValues(alpha: 0.1);
+
+    return Scaffold(
+      backgroundColor: isDark ? Colors.black : const Color(0xFFF5F5F7),
+      body: IOSWallpaper(
+        style: WallpaperStyle.dark,
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: bgColor,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Icon(
+                          CupertinoIcons.back,
+                          color: textColor,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Text(
+                      '存储空间统计',
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CupertinoActivityIndicator())
+                    : ListView(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        children: [
+                          _buildTotalCard(isDark, textColor),
+                          const SizedBox(height: 20),
+                          SettingsSection(
+                            title: '详细分布',
+                            children: [
+                              _buildStatItem(
+                                '聊天图片',
+                                '$_chatImageCount 张图片',
+                                _chatImageSize,
+                                CupertinoIcons.photo,
+                                Colors.blue,
+                              ),
+                              _buildStatItem(
+                                '朋友圈媒体',
+                                '$_momentMediaCount 个文件 (共 $_momentCount 条动态)',
+                                _momentMediaSize,
+                                CupertinoIcons.circle_grid_3x3_fill,
+                                Colors.purple,
+                              ),
+                              _buildStatItem(
+                                '联系人数据',
+                                '$_contactAvatarCount 个头像, $_contactRefCount 张参考图',
+                                _contactAvatarSize + _contactRefSize,
+                                CupertinoIcons.person_2_fill,
+                                Colors.orange,
+                              ),
+                              _buildStatItem(
+                                '个性化设置',
+                                '$_wallpaperCount 张壁纸, $_iconCount 个图标',
+                                _wallpaperSize + _iconSize,
+                                CupertinoIcons.paintbrush_fill,
+                                Colors.pink,
+                              ),
+                              _buildStatItem(
+                                '日志文件',
+                                'API日志 & 应用日志',
+                                _logSize,
+                                CupertinoIcons.doc_text_fill,
+                                Colors.brown,
+                              ),
+                              _buildStatItem(
+                                '数据库',
+                                '本地数据库文件',
+                                _dbSize,
+                                CupertinoIcons.layers_fill,
+                                Colors.grey,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTotalCard(bool isDark, Color textColor) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.1)
+            : Colors.black.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          Text(
+            '总占用空间',
+            style: TextStyle(
+              color: textColor.withValues(alpha: 0.6),
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _formatSize(_totalSize),
+            style: TextStyle(
+              color: textColor,
+              fontSize: 40,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(
+    String title,
+    String subtitle,
+    int size,
+    IconData icon,
+    Color iconColor,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: textColor.withValues(alpha: 0.6),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            _formatSize(size),
+            style: TextStyle(
+              color: textColor.withValues(alpha: 0.8),
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

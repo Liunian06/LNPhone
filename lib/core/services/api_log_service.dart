@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import '../models/api_log.dart';
@@ -9,7 +10,15 @@ class ApiLogService {
   /// 获取日志文件路径
   static Future<String> _getLogFilePath() async {
     final directory = await getApplicationDocumentsDirectory();
-    return '${directory.path}/$_logFileName';
+
+    // 获取当前 Isolate 名称，用于区分日志文件，防止多 Isolate 写入冲突
+    final isolateName =
+        Isolate.current.debugName?.replaceAll(' ', '_') ?? 'unknown';
+    final suffix = isolateName.contains('background') ? 'bg' : 'main';
+
+    // 将文件名改为 api_logs_main.jsonl 或 api_logs_bg.jsonl
+    final fileName = _logFileName.replaceFirst('.jsonl', '_$suffix.jsonl');
+    return '${directory.path}/$fileName';
   }
 
   /// 记录API调用日志

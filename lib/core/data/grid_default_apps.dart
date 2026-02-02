@@ -68,6 +68,14 @@ class GridDefaultApps {
           icon: CupertinoIcons.photo_on_rectangle,
           gradientColors: [Color(0xFF5AC8FA), Color(0xFF5856D6)],
         ),
+        'scenario': const AppModel(
+          id: 'scenario',
+          name: '奔现',
+          type: AppType.system,
+          iconType: IconType.gradient,
+          icon: CupertinoIcons.heart_circle_fill,
+          gradientColors: [Color(0xFFFF5E62), Color(0xFFFF9966)],
+        ),
       };
 
   /// 默认第一页网格布局 (4x7=28个位置)
@@ -76,7 +84,7 @@ class GridDefaultApps {
         // 第1行
         'memories', 'stickers', 'album', 'world_info',
         // 第2行
-        'text_preset', null, null, null,
+        'text_preset', 'scenario', null, null,
         // 第3-6行都是空的
         null, null, null, null,
         null, null, null, null,

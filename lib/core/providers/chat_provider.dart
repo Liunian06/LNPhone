@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/chat_model.dart';
 import '../models/api_preset.dart';
@@ -10,14 +13,17 @@ import '../models/contact_model.dart';
 import '../models/moments_model.dart';
 import '../models/world_info_model.dart';
 import '../models/text_preset_model.dart';
+import '../models/wallet_model.dart';
 import '../providers/prompt_settings_provider.dart';
 import '../providers/regex_settings_provider.dart';
+import '../providers/wallet_provider.dart';
 import '../services/llm_service.dart';
 import '../models/prompt_config.dart';
 import '../services/notification_service.dart';
 import '../services/background_service.dart';
 import '../services/image_generation_service.dart';
 import '../database/database.dart' as db;
+import '../utils/storage_utils.dart';
 
 class ChatProvider extends ChangeNotifier {
   List<ChatSession> _chats = [];
@@ -30,8 +36,11 @@ class ChatProvider extends ChangeNotifier {
   final Map<String, bool> _typingStates = {};
   final Map<String, String> _currentStates = {};
   final Map<String, Timer> _debounceTimers = {};
+  final Map<String, int> _chatOffsets = {}; // 记录每个会话已加载的消息偏移量
+  bool _isLoadingMore = false;
 
   List<ChatSession> get chats => _chats;
+  bool get isLoadingMore => _isLoadingMore;
   List<WorldInfo> get worldInfos => _worldInfos;
   List<TextPreset> get textPresets => _textPresets;
   bool get isLoaded => _isLoaded;
@@ -48,7 +57,10 @@ class ChatProvider extends ChangeNotifier {
     // 1. 检查并执行迁移
     await _performMigration();
 
-    // 2. 从数据库加载数据
+    // 2. 执行 Blob 到文件的迁移
+    await _database.migrateBlobsToFiles();
+
+    // 3. 从数据库加载数据
     await _refreshChats();
     await refreshWorldInfos();
     await refreshTextPresets();
@@ -145,14 +157,132 @@ class ChatProvider extends ChangeNotifier {
 
   /// 重新从数据库加载数据到内存
   Future<void> _refreshChats() async {
-    _chats = await _database.getAllSessions();
+    final newSessions = await _database.getAllSessions();
+
+    // 优化：保留已经在内存中加载了更多消息的会话状态
+    for (int i = 0; i < newSessions.length; i++) {
+      final newSession = newSessions[i];
+      final existingIndex = _chats.indexWhere((c) => c.id == newSession.id);
+
+      if (existingIndex != -1) {
+        final existingSession = _chats[existingIndex];
+        // 优化：合并消息列表。保留内存中已加载的旧消息，同时加入数据库中可能存在的新消息
+        final Map<String, ChatMessage> mergedMessages = {};
+        for (var m in existingSession.messages) {
+          mergedMessages[m.id] = m;
+        }
+        for (var m in newSession.messages) {
+          mergedMessages[m.id] = m;
+        }
+
+        final sortedMessages = mergedMessages.values.toList()
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+        newSessions[i] = ChatSession(
+          id: newSession.id,
+          roleId: newSession.roleId,
+          meId: newSession.meId,
+          messages: sortedMessages,
+          lastUpdated: newSession.lastUpdated,
+          enableExtendedChat: newSession.enableExtendedChat,
+          enableTextToImage: newSession.enableTextToImage,
+          enableEmoji: newSession.enableEmoji,
+          enableIndependentSendButton: newSession.enableIndependentSendButton,
+          currentState: newSession.currentState,
+          isPinned: newSession.isPinned,
+          worldInfoIds: newSession.worldInfoIds,
+          textPresetIds: newSession.textPresetIds,
+          apiPresetId: newSession.apiPresetId,
+          imageApiPresetId: newSession.imageApiPresetId,
+          backgroundImage: newSession.backgroundImage,
+          backgroundImageData: newSession.backgroundImageData,
+          unreadCountOverride: newSession.unreadCountOverride,
+        );
+      }
+    }
+
+    _chats = newSessions;
+
     // 恢复状态
     for (final chat in _chats) {
       if (chat.currentState != null) {
         _currentStates[chat.id] = chat.currentState!;
       }
+      // 更新偏移量
+      _chatOffsets[chat.id] = chat.messages.length;
     }
     notifyListeners();
+  }
+
+  /// 加载更多消息
+  Future<void> loadMoreMessages(String chatId) async {
+    if (_isLoadingMore) return;
+
+    final chatIndex = _chats.indexWhere((c) => c.id == chatId);
+    if (chatIndex == -1) return;
+
+    _isLoadingMore = true;
+    notifyListeners();
+
+    try {
+      final currentOffset = _chatOffsets[chatId] ?? 0;
+      final moreMessages = await _database.getMessagesPaged(
+        chatId,
+        limit: 30,
+        offset: currentOffset,
+      );
+
+      if (moreMessages.isNotEmpty) {
+        final chat = _chats[chatIndex];
+        // 将新加载的消息插入到列表前面（因为是向上滚动加载更旧的消息）
+        final updatedMessages = [...moreMessages, ...chat.messages];
+
+        _chats[chatIndex] = ChatSession(
+          id: chat.id,
+          roleId: chat.roleId,
+          meId: chat.meId,
+          messages: updatedMessages,
+          lastUpdated: chat.lastUpdated,
+          enableExtendedChat: chat.enableExtendedChat,
+          enableTextToImage: chat.enableTextToImage,
+          enableEmoji: chat.enableEmoji,
+          enableIndependentSendButton: chat.enableIndependentSendButton,
+          currentState: chat.currentState,
+          isPinned: chat.isPinned,
+          worldInfoIds: chat.worldInfoIds,
+          textPresetIds: chat.textPresetIds,
+          apiPresetId: chat.apiPresetId,
+          imageApiPresetId: chat.imageApiPresetId,
+          backgroundImage: chat.backgroundImage,
+          backgroundImageData: chat.backgroundImageData,
+          unreadCountOverride: chat.unreadCountOverride,
+        );
+
+        _chatOffsets[chatId] = currentOffset + moreMessages.length;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('[ChatProvider] 加载更多消息失败: $e');
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
+  }
+
+  /// 进入聊天详情时，确保加载了初始消息
+  Future<void> enterChat(String chatId) async {
+    final chatIndex = _chats.indexWhere((c) => c.id == chatId);
+    if (chatIndex == -1) return;
+
+    // 如果当前消息数少于 30 条，尝试加载更多以填满初始屏幕
+    if (_chats[chatIndex].messages.length < 30) {
+      final fullChat = await _database.getChatSession(chatId, limit: 30);
+      if (fullChat != null) {
+        _chats[chatIndex] = fullChat;
+        _chatOffsets[chatId] = fullChat.messages.length;
+        notifyListeners();
+      }
+    }
   }
 
   Future<void> refreshWorldInfos() async {
@@ -173,7 +303,7 @@ class ChatProvider extends ChangeNotifier {
     if (hasBuiltIn) return;
 
     debugPrint('[ChatProvider] 初始化内置生图预设...');
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = StorageUtils.getUniqueTimestamp();
     final builtInPresets = [
       TextPreset(
         id: 't2i_realistic',
@@ -312,7 +442,7 @@ class ChatProvider extends ChangeNotifier {
       // 如果存在，将其移动到顶部 (通过更新 lastUpdated)
       final chat = _chats[existingIndex];
       // 使用最新的时间戳
-      final newTime = DateTime.now().millisecondsSinceEpoch;
+      final newTime = StorageUtils.getUniqueTimestamp();
 
       // 使用 update 而不是 insertOrReplace，避免触发级联删除！
       // insertOrReplace 会先删除再插入，导致外键级联删除所有关联的 messages
@@ -329,7 +459,7 @@ class ChatProvider extends ChangeNotifier {
     }
 
     final newId = _generateId();
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final timestamp = StorageUtils.getUniqueTimestamp();
 
     await _database.insertChatSession(
       db.ChatSessionsCompanion(
@@ -357,15 +487,29 @@ class ChatProvider extends ChangeNotifier {
     bool isMe, {
     Map<String, dynamic>? metadata,
     String? sender, // 发送者名称（用于引用显示）
+    Uint8List? messageData,
   }) async {
+    String finalContent = content;
+
+    // 优化：如果是图片消息，优先保存为文件，不再存储 Blob
+    if (type == MessageType.image && content.isNotEmpty) {
+      final msgId = _generateId();
+      final result = await _saveImageWithData(content, 'msg_$msgId');
+      if (result != null) {
+        // 存储相对路径
+        finalContent = await StorageUtils.toRelativePath(result.path);
+      }
+    }
+
     final newMessage = db.ChatMessagesCompanion(
       id: drift.Value(_generateId()),
       sessionId: drift.Value(chatId),
-      content: drift.Value(content),
+      content: drift.Value(finalContent),
+      messageData: const drift.Value(null), // 强制不存 Blob
       isMe: drift.Value(isMe),
       sender: drift.Value(sender),
       type: drift.Value(type),
-      timestamp: drift.Value(DateTime.now().millisecondsSinceEpoch),
+      timestamp: drift.Value(StorageUtils.getUniqueTimestamp()),
       metadata: drift.Value(metadata),
       isRead: drift.Value(isMe), // 自己发的消息默认已读，对方发的默认未读
     );
@@ -393,6 +537,7 @@ class ChatProvider extends ChangeNotifier {
             isMe: drift.Value(m.isMe),
             type: drift.Value(m.type),
             content: drift.Value(m.content),
+            messageData: drift.Value(m.messageData),
             timestamp: drift.Value(m.timestamp),
             metadata: drift.Value(m.metadata),
             isRead: drift.Value(m.isRead),
@@ -433,6 +578,25 @@ class ChatProvider extends ChangeNotifier {
   /// 更新消息内容
   Future<void> updateMessage(String messageId, String newContent) async {
     await _database.updateMessageContent(messageId, newContent);
+    // 同步更新内存中的消息，防止被旧缓存覆盖
+    for (var chat in _chats) {
+      final idx = chat.messages.indexWhere((m) => m.id == messageId);
+      if (idx != -1) {
+        final m = chat.messages[idx];
+        chat.messages[idx] = ChatMessage(
+          id: m.id,
+          isMe: m.isMe,
+          sender: m.sender,
+          type: m.type,
+          content: newContent,
+          messageData: m.messageData,
+          timestamp: m.timestamp,
+          metadata: m.metadata,
+          isRead: m.isRead,
+        );
+        break;
+      }
+    }
     await _refreshChats();
   }
 
@@ -440,24 +604,56 @@ class ChatProvider extends ChangeNotifier {
   Future<void> updateMessageMetadata(
       String messageId, Map<String, dynamic> newMetadata) async {
     await _database.updateMessageMetadata(messageId, newMetadata);
+    // 同步更新内存
+    for (var chat in _chats) {
+      final idx = chat.messages.indexWhere((m) => m.id == messageId);
+      if (idx != -1) {
+        final m = chat.messages[idx];
+        chat.messages[idx] = ChatMessage(
+          id: m.id,
+          isMe: m.isMe,
+          sender: m.sender,
+          type: m.type,
+          content: m.content,
+          messageData: m.messageData,
+          timestamp: m.timestamp,
+          metadata: newMetadata,
+          isRead: m.isRead,
+        );
+        break;
+      }
+    }
     await _refreshChats();
   }
 
   /// 删除单条消息
   Future<void> deleteMessage(String messageId) async {
     await _database.deleteMessage(messageId);
+    // 同步从内存移除，防止刷新时被合并回来
+    for (var chat in _chats) {
+      chat.messages.removeWhere((m) => m.id == messageId);
+    }
     await _refreshChats();
   }
 
   /// 批量删除消息
   Future<void> deleteMessages(List<String> messageIds) async {
     await _database.deleteMessages(messageIds);
+    // 同步从内存移除
+    for (var chat in _chats) {
+      chat.messages.removeWhere((m) => messageIds.contains(m.id));
+    }
     await _refreshChats();
   }
 
   /// 回溯：删除指定时间之后的消息
   Future<void> backtrack(String sessionId, int timestamp) async {
     await _database.deleteMessagesAfter(sessionId, timestamp);
+    // 同步清理内存中的消息，确保回溯后界面立即更新且不会被合并逻辑恢复
+    final chatIndex = _chats.indexWhere((c) => c.id == sessionId);
+    if (chatIndex != -1) {
+      _chats[chatIndex].messages.removeWhere((m) => m.timestamp > timestamp);
+    }
     await _refreshChats();
   }
 
@@ -508,8 +704,42 @@ class ChatProvider extends ChangeNotifier {
   /// 更新聊天的背景图
   Future<void> updateChatBackgroundImage(
       String chatId, String? imagePath) async {
-    await _database.updateSessionBackgroundImage(chatId, imagePath);
+    final result = await _saveImageWithData(imagePath, 'chat_bg_$chatId');
+    await _database.updateSessionBackgroundImage(
+      chatId,
+      result?.path ?? imagePath,
+      result?.data,
+    );
     await _refreshChats();
+  }
+
+  /// 将图片保存到应用文档目录，并返回路径和二进制数据
+  Future<({String path, Uint8List data})?> _saveImageWithData(
+      String? sourcePath, String id) async {
+    if (sourcePath == null || sourcePath.isEmpty) return null;
+    if (sourcePath.startsWith('http')) return null;
+
+    try {
+      final sourceFile = File(sourcePath);
+      if (!await sourceFile.exists()) return null;
+
+      final bytes = await sourceFile.readAsBytes();
+      final appDir = await getApplicationDocumentsDirectory();
+      String finalPath = sourcePath;
+
+      if (!sourcePath.startsWith(appDir.path)) {
+        final timestamp = _generateId();
+        final fileName = 'chat_bg_${id}_$timestamp.jpg';
+        final savedImage = await sourceFile.copy('${appDir.path}/$fileName');
+        finalPath = savedImage.path;
+        debugPrint('[ChatProvider] 背景图已从临时路径物理移动到持久化目录: $finalPath');
+      }
+
+      return (path: finalPath, data: bytes);
+    } catch (e) {
+      debugPrint('[ChatProvider] 处理背景图失败: $e');
+      return null;
+    }
   }
 
   /// 生成 AI 回复
@@ -526,11 +756,13 @@ class ChatProvider extends ChangeNotifier {
     bool enableTextToImage = false,
     bool enableEmoji = true,
     String? imageApiPresetId, // 传入独立生图 API 预设 ID
+    String? imageStylePresetId, // 传入独立生图风格预设 ID
     int delayedReplySeconds = 0,
     List<String> roleMemories = const [], // 角色记忆列表
     Function(String content, String? categoryStr)? onAddMemory, // 添加记忆的回调（带分类）
     RegexSettingsProvider? regexProvider, // 正则设置提供者
     List<String> availableEmojis = const [], // 可用表情列表
+    WalletProvider? walletProvider, // 钱包提供者，用于处理退款
   }) async {
     // 取消该会话之前的延迟任务（防抖）
     _debounceTimers[chatId]?.cancel();
@@ -570,6 +802,19 @@ class ChatProvider extends ChangeNotifier {
 
           // 评论
           for (var comment in post.comments) {
+            final metadata = <String, dynamic>{
+              'post_id': post.id,
+            };
+            // reply_to 存储评论ID（如果是回复评论），而不是用户名
+            if (comment.replyTo != null) {
+              // 查找被回复的评论ID
+              final replyToComment = post.comments.firstWhere(
+                (c) => c.user.id == comment.replyTo!.id,
+                orElse: () => comment, // 如果找不到，使用当前评论（不应该发生）
+              );
+              metadata['reply_to'] = replyToComment.id;
+            }
+
             virtualMessages.add(ChatMessage(
               id: 'v-comment-${comment.id}',
               isMe: comment.user.id == me.id,
@@ -577,10 +822,7 @@ class ChatProvider extends ChangeNotifier {
               type: MessageType.momentComment,
               content: comment.content,
               timestamp: comment.createdAt.millisecondsSinceEpoch,
-              metadata: {
-                'post_id': post.id,
-                'reply_to': comment.replyTo?.name,
-              },
+              metadata: metadata,
             ));
           }
 
@@ -640,7 +882,7 @@ class ChatProvider extends ChangeNotifier {
           }
         }
 
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final timestamp = StorageUtils.getUniqueTimestamp();
 
         // 重新从数据库获取最新的角色和用户信息，确保包含最新的参考图
         final currentRole = (await _database.getContactRole(role.id)) ?? role;
@@ -664,6 +906,7 @@ class ChatProvider extends ChangeNotifier {
           enableTextToImage: enableTextToImage,
           enableEmoji: enableEmoji,
           imageApiPresetId: imageApiPresetId, // 传入独立生图 API 预设 ID
+          imageStylePresetId: imageStylePresetId, // 传入独立生图风格预设 ID
           regexProvider: regexProvider, // 传入正则提供者
         );
 
@@ -702,6 +945,7 @@ class ChatProvider extends ChangeNotifier {
 
                 // 根据响应类型更新目标消息状态
                 String newStatus;
+                bool shouldRefund = false; // 是否需要退款
 
                 // 智能判断：如果 AI 使用了通用的 accept/reject (被解析为 acceptRedpacket/rejectRedpacket)
                 // 但目标消息是转账，则自动修正状态
@@ -714,13 +958,16 @@ class ChatProvider extends ChangeNotifier {
                 } else if (responseMsg.type == MessageType.rejectRedpacket) {
                   if (targetMsg.type == MessageType.transfer) {
                     newStatus = 'rejected'; // 转账被拒绝
+                    shouldRefund = true; // 转账被拒绝需要退款
                   } else {
                     newStatus = 'refunded'; // 红包被退回
+                    shouldRefund = true; // 红包被退回需要退款
                   }
                 } else if (responseMsg.type == MessageType.acceptTransfer) {
                   newStatus = 'accepted';
                 } else if (responseMsg.type == MessageType.rejectTransfer) {
                   newStatus = 'rejected';
+                  shouldRefund = true; // 转账被拒绝需要退款
                 } else {
                   continue;
                 }
@@ -732,6 +979,30 @@ class ChatProvider extends ChangeNotifier {
                 await _database.updateMessageMetadata(targetId, newMetadata);
 
                 debugPrint('[ChatProvider] 更新红包/转账状态: $targetId -> $newStatus');
+
+                // 如果需要退款，将金额返还给用户钱包
+                if (shouldRefund && targetMsg.isMe && walletProvider != null) {
+                  final amount = double.tryParse(targetMsg.content) ?? 0.0;
+                  if (amount > 0) {
+                    final transactionType =
+                        targetMsg.type == MessageType.redpacket
+                            ? WalletTransactionType.redpacket
+                            : WalletTransactionType.transfer;
+
+                    await walletProvider.addIncome(
+                      type: transactionType,
+                      amount: amount,
+                      description: targetMsg.type == MessageType.redpacket
+                          ? '红包退还'
+                          : '转账退还',
+                      relatedContactName: role.name,
+                      relatedSessionId: chatId,
+                      relatedMessageId: targetId,
+                    );
+
+                    debugPrint('[ChatProvider] ✓ 已退款: ¥$amount 到用户钱包');
+                  }
+                }
               } else {
                 debugPrint('[ChatProvider] ❌ 找不到目标消息: $targetId');
               }
@@ -837,7 +1108,7 @@ class ChatProvider extends ChangeNotifier {
                   await NotificationService().showAiReplyNotification(
                     title: role.name,
                     message: message.content,
-                    id: DateTime.now().millisecondsSinceEpoch % 100000,
+                    id: StorageUtils.getUniqueTimestamp() % 100000,
                   );
                 } catch (e) {
                   debugPrint('发送通知失败: $e');
@@ -864,18 +1135,20 @@ class ChatProvider extends ChangeNotifier {
                 // 查找目标朋友圈或评论
                 final moments = await _database.getAllMoments();
                 String? postId;
-                MomentsUser? replyTo;
+                String? replyToCommentId; // 改为存储评论ID
 
                 for (var post in moments) {
                   if (post.id == targetId || 'v-post-${post.id}' == targetId) {
+                    // 直接评论朋友圈动态
                     postId = post.id;
                     break;
                   }
                   for (var comment in post.comments) {
                     if (comment.id == targetId ||
                         'v-comment-${comment.id}' == targetId) {
+                      // 回复某条评论
                       postId = post.id;
-                      replyTo = comment.user;
+                      replyToCommentId = comment.id; // 存储评论ID
                       break;
                     }
                   }
@@ -891,12 +1164,27 @@ class ChatProvider extends ChangeNotifier {
                   final post = await _database.getMoment(postId);
                   if (post != null) {
                     final comments = List<MomentsComment>.from(post.comments);
+
+                    // 根据评论ID查找被回复的用户
+                    MomentsUser? replyToUser;
+                    if (replyToCommentId != null) {
+                      try {
+                        final replyToComment = post.comments.firstWhere(
+                          (c) => c.id == replyToCommentId,
+                        );
+                        replyToUser = replyToComment.user;
+                      } catch (e) {
+                        debugPrint(
+                            '[ChatProvider] ⚠️ 找不到被回复的评论: $replyToCommentId');
+                      }
+                    }
+
                     comments.add(MomentsComment(
-                      id: 'c_ai_${DateTime.now().millisecondsSinceEpoch}',
+                      id: 'c_ai_${StorageUtils.getUniqueTimestamp()}',
                       user: momentUser,
                       content: msg.content,
                       createdAt: DateTime.now(),
-                      replyTo: replyTo,
+                      replyTo: replyToUser, // 使用查找到的用户信息
                     ));
                     await _database
                         .insertMoment(post.copyWith(comments: comments));
@@ -1007,8 +1295,6 @@ class ChatProvider extends ChangeNotifier {
   }
 
   String _generateId() {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final random = Random().nextInt(10000);
-    return '$timestamp-$random';
+    return StorageUtils.getUniqueTimestamp().toString();
   }
 }

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/providers/chat_provider.dart';
 import '../core/models/world_info_model.dart';
 import '../widgets/ios_wallpaper.dart';
+import '../core/utils/storage_utils.dart';
 
 /// 世界书列表页面 - ChatProvider 重构版
 class WorldInfoListScreen extends StatefulWidget {
@@ -410,7 +411,7 @@ class _WorldInfoEditScreenState extends State<WorldInfoEditScreen> {
 
     setState(() => _isSaving = true);
 
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = StorageUtils.getUniqueTimestamp();
     final info = WorldInfo(
       id: widget.info?.id ?? now.toString(),
       name: name,

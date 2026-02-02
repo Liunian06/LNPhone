@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:gal/gal.dart';
 import '../core/providers/chat_provider.dart';
 import '../core/providers/contact_provider.dart';
+import '../core/database/database.dart';
 import '../core/models/chat_model.dart';
 import '../core/models/contact_model.dart';
+import '../core/utils/storage_utils.dart';
 import '../core/theme/app_theme.dart';
 
 class AlbumScreen extends StatefulWidget {
@@ -19,6 +21,8 @@ class AlbumScreen extends StatefulWidget {
 class _AlbumScreenState extends State<AlbumScreen> {
   late PageController _pageController;
   int _currentIndex = 0;
+  bool _isSelectMode = false;
+  final Set<ChatMessage> _selectedMessages = {};
 
   @override
   void initState() {
@@ -35,6 +39,8 @@ class _AlbumScreenState extends State<AlbumScreen> {
   void _onPageChanged(int index) {
     setState(() {
       _currentIndex = index;
+      _isSelectMode = false;
+      _selectedMessages.clear();
     });
   }
 
@@ -46,6 +52,109 @@ class _AlbumScreenState extends State<AlbumScreen> {
     );
   }
 
+  void _toggleSelectMode() {
+    setState(() {
+      _isSelectMode = !_isSelectMode;
+      if (!_isSelectMode) _selectedMessages.clear();
+    });
+  }
+
+  void _toggleMessageSelection(ChatMessage message) {
+    setState(() {
+      if (_selectedMessages.contains(message)) {
+        _selectedMessages.remove(message);
+      } else {
+        _selectedMessages.add(message);
+      }
+    });
+  }
+
+  Future<void> _batchDownload() async {
+    if (_selectedMessages.isEmpty) return;
+
+    int successCount = 0;
+    int failCount = 0;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    for (var msg in _selectedMessages) {
+      try {
+        final absPath = await StorageUtils.toAbsolutePath(msg.content);
+        await Gal.putImage(absPath);
+        successCount++;
+      } catch (e) {
+        failCount++;
+      }
+    }
+
+    if (mounted) {
+      Navigator.pop(context); // 关闭加载框
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('下载完成: 成功 $successCount, 失败 $failCount')),
+      );
+      setState(() {
+        _isSelectMode = false;
+        _selectedMessages.clear();
+      });
+    }
+  }
+
+  void _batchDelete() {
+    if (_selectedMessages.isEmpty) return;
+    _showDeleteConfirm(context, _selectedMessages.toList());
+  }
+
+  void _showDeleteConfirm(BuildContext context, List<ChatMessage> messages) {
+    showCupertinoDialog(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('确认删除'),
+        content: Text('确定要删除选中的 ${messages.length} 张照片吗？\n删除后聊天记录中的图片也将失效。'),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () async {
+              Navigator.pop(context);
+              await _performDelete(messages);
+            },
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performDelete(List<ChatMessage> messages) async {
+    final chatProvider = context.read<ChatProvider>();
+
+    for (var msg in messages) {
+      // 1. 删除物理文件
+      if (!msg.content.startsWith('http')) {
+        await StorageUtils.deleteFile(msg.content);
+      }
+      // 2. 更新数据库消息内容
+      await chatProvider.updateMessage(msg.id, '[图片已删除]');
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已成功删除选中的照片')),
+      );
+      setState(() {
+        _isSelectMode = false;
+        _selectedMessages.clear();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -54,59 +163,137 @@ class _AlbumScreenState extends State<AlbumScreen> {
         backgroundColor: context.appBarBackground,
         elevation: 0,
         title: Text(
-          _currentIndex == 0 ? '所有照片' : '角色相册',
+          _isSelectMode
+              ? '已选择 ${_selectedMessages.length} 项'
+              : (_currentIndex == 0 ? '所有照片' : '角色相册'),
           style: TextStyle(
               color: context.primaryTextColor,
               fontSize: 18,
               fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios,
-              color: context.primaryTextColor, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: _isSelectMode
+            ? TextButton(
+                onPressed: _toggleSelectMode,
+                child: Text('取消',
+                    style: TextStyle(color: context.primaryTextColor)),
+              )
+            : IconButton(
+                icon: Icon(Icons.arrow_back_ios,
+                    color: context.primaryTextColor, size: 20),
+                onPressed: () => Navigator.pop(context),
+              ),
+        actions: [
+          if (!_isSelectMode && _currentIndex == 0)
+            IconButton(
+              icon: Icon(Icons.check_circle_outline,
+                  color: context.primaryTextColor),
+              onPressed: _toggleSelectMode,
+            ),
+        ],
       ),
       body: PageView(
         controller: _pageController,
         onPageChanged: _onPageChanged,
-        children: const [
-          AllPhotosView(),
-          RoleAlbumsView(),
+        physics: _isSelectMode ? const NeverScrollableScrollPhysics() : null,
+        children: [
+          AllPhotosView(
+            isSelectMode: _isSelectMode,
+            selectedMessages: _selectedMessages,
+            onToggleSelection: _toggleMessageSelection,
+            onShowDeleteConfirm: (msgs) => _showDeleteConfirm(context, msgs),
+          ),
+          const RoleAlbumsView(),
         ],
       ),
-      bottomNavigationBar: SizedBox(
-        height: 60, // 增加底栏高度
-        child: CupertinoTabBar(
-          backgroundColor: context.appBarBackground,
-          activeColor: const Color(0xFF07C160),
-          inactiveColor: context.secondaryTextColor,
-          currentIndex: _currentIndex,
-          onTap: _onTabTapped,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Padding(
-                padding: EdgeInsets.only(top: 8.0),
-                child: Icon(CupertinoIcons.photo_fill),
-              ),
-              label: '所有照片',
+      bottomNavigationBar: _isSelectMode
+          ? _buildBatchActionBottomBar()
+          : _buildNormalBottomBar(context),
+    );
+  }
+
+  Widget _buildBatchActionBottomBar() {
+    return Container(
+      height: 60 + MediaQuery.of(context).padding.bottom,
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+      decoration: BoxDecoration(
+        color: context.appBarBackground,
+        border:
+            Border(top: BorderSide(color: context.dividerColor, width: 0.5)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildActionButton(Icons.download, '保存',
+              _selectedMessages.isNotEmpty ? _batchDownload : null),
+          _buildActionButton(Icons.delete_outline, '删除',
+              _selectedMessages.isNotEmpty ? _batchDelete : null,
+              color: Colors.red),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton(IconData icon, String label, VoidCallback? onTap,
+      {Color? color}) {
+    final finalColor =
+        onTap == null ? Colors.grey : (color ?? context.primaryTextColor);
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: finalColor, size: 24),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(color: finalColor, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNormalBottomBar(BuildContext context) {
+    return SizedBox(
+      height: 60,
+      child: CupertinoTabBar(
+        backgroundColor: context.appBarBackground,
+        activeColor: const Color(0xFF07C160),
+        inactiveColor: context.secondaryTextColor,
+        currentIndex: _currentIndex,
+        onTap: _onTabTapped,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Padding(
+              padding: EdgeInsets.only(top: 8.0),
+              child: Icon(CupertinoIcons.photo_fill),
             ),
-            BottomNavigationBarItem(
-              icon: Padding(
-                padding: EdgeInsets.only(top: 8.0),
-                child: Icon(CupertinoIcons.person_2_square_stack_fill),
-              ),
-              label: '角色相册',
+            label: '所有照片',
+          ),
+          BottomNavigationBarItem(
+            icon: Padding(
+              padding: EdgeInsets.only(top: 8.0),
+              child: Icon(CupertinoIcons.person_2_square_stack_fill),
             ),
-          ],
-        ),
+            label: '角色相册',
+          ),
+        ],
       ),
     );
   }
 }
 
 class AllPhotosView extends StatelessWidget {
-  const AllPhotosView({super.key});
+  final bool isSelectMode;
+  final Set<ChatMessage> selectedMessages;
+  final Function(ChatMessage) onToggleSelection;
+  final Function(List<ChatMessage>) onShowDeleteConfirm;
+
+  const AllPhotosView({
+    super.key,
+    required this.isSelectMode,
+    required this.selectedMessages,
+    required this.onToggleSelection,
+    required this.onShowDeleteConfirm,
+  });
 
   String _getDateString(int timestamp) {
     final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
@@ -130,19 +317,18 @@ class AllPhotosView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<ChatProvider, List<ChatMessage>>(
-      selector: (_, provider) {
-        final List<ChatMessage> allImages = [];
-        for (var chat in provider.chats) {
-          for (var m in chat.messages) {
-            if (m.type == MessageType.image) {
-              allImages.add(m);
-            }
-          }
+    return FutureBuilder<List<ChatMessage>>(
+      future: AppDatabase().getAllImageMessages(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
         }
-        return allImages..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      },
-      builder: (context, allImageMessages, child) {
+
+        final allImageMessages = snapshot.data!
+            .where((m) => m.content.isNotEmpty && m.content != '[图片已删除]')
+            .toList();
+        allImageMessages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
         if (allImageMessages.isEmpty) {
           return Center(
             child: Text('暂无照片',
@@ -150,7 +336,6 @@ class AllPhotosView extends StatelessWidget {
           );
         }
 
-        // 按日期分组并收集来源
         final Map<String, List<ChatMessage>> groupedMessages = {};
         final Map<String, Set<String>> groupedSources = {};
 
@@ -162,7 +347,6 @@ class AllPhotosView extends StatelessWidget {
           }
           groupedMessages[dateStr]!.add(msg);
 
-          // 收集来源名称
           if (msg.sender != null && msg.sender!.isNotEmpty) {
             groupedSources[dateStr]!.add(msg.sender!);
           } else {
@@ -225,9 +409,18 @@ class AllPhotosView extends StatelessWidget {
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
                     final messages = groupedMessages[date]!;
+                    final msg = messages[index];
                     return PhotoGridItem(
-                      message: messages[index],
+                      message: msg,
                       allMessages: allImageMessages,
+                      isSelectMode: isSelectMode,
+                      isSelected: selectedMessages.contains(msg),
+                      onTap: () {
+                        if (isSelectMode) {
+                          onToggleSelection(msg);
+                        }
+                      },
+                      onShowDeleteConfirm: (msgs) => onShowDeleteConfirm(msgs),
                     );
                   },
                   childCount: groupedMessages[date]!.length,
@@ -247,86 +440,128 @@ class RoleAlbumsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<ChatProvider, ContactProvider>(
-      builder: (context, chatProvider, contactProvider, child) {
-        final roles = contactProvider.roles;
+    return Consumer<ContactProvider>(
+      builder: (context, contactProvider, child) {
+        return FutureBuilder<Map<String, List<ChatMessage>>>(
+          future: _getRoleImageMap(contactProvider),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-        // 优化：预先建立 roleId 到 chat 的映射，避免在循环中多次查找
-        final chatMap = {
-          for (var chat in chatProvider.chats) chat.roleId: chat
-        };
-
-        final rolesWithPhotos = roles.where((role) {
-          final chat = chatMap[role.id];
-          if (chat == null) return false;
-          return chat.messages.any((m) => m.type == MessageType.image);
-        }).toList();
-
-        if (rolesWithPhotos.isEmpty) {
-          return Center(
-            child: Text('暂无角色相册',
-                style: TextStyle(color: context.secondaryTextColor)),
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          itemCount: rolesWithPhotos.length,
-          separatorBuilder: (context, index) =>
-              const SizedBox(height: 12), // 增加间隔
-          itemBuilder: (context, index) {
-            final role = rolesWithPhotos[index];
-            final chat = chatMap[role.id]!;
-            final roleImages = chat.messages
-                .where((m) => m.type == MessageType.image)
+            final roleImageMap = snapshot.data!;
+            final rolesWithPhotos = contactProvider.roles
+                .where((role) =>
+                    roleImageMap.containsKey(role.id) &&
+                    roleImageMap[role.id]!.isNotEmpty)
                 .toList();
-            roleImages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: context.surfaceColor,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: CupertinoListTile(
-                padding: const EdgeInsets.all(12),
-                leadingSize: 60,
-                leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: roleImages.isNotEmpty
-                      ? Image.file(
-                          File(roleImages.first.content),
-                          fit: BoxFit.cover,
-                          width: 60,
-                          height: 60,
-                          cacheWidth: 120, // 优化：限制解码大小
-                          cacheHeight: 120,
-                        )
-                      : Container(color: context.dividerColor),
-                ),
-                title: Text(role.name,
-                    style: TextStyle(
-                        color: context.primaryTextColor,
-                        fontWeight: FontWeight.w600)),
-                subtitle: Text('${roleImages.length} 张照片',
+            if (rolesWithPhotos.isEmpty) {
+              return Center(
+                child: Text('暂无角色相册',
                     style: TextStyle(color: context.secondaryTextColor)),
-                trailing: const CupertinoListTileChevron(),
-                onTap: () {
-                  Navigator.of(context).push(
-                    CupertinoPageRoute(
-                      builder: (context) => RoleAlbumDetailScreen(
-                        role: role,
-                        messages: roleImages,
-                      ),
+              );
+            }
+
+            return ListView.separated(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              itemCount: rolesWithPhotos.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final role = rolesWithPhotos[index];
+                final roleImages = roleImageMap[role.id]!;
+
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: context.surfaceColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: CupertinoListTile(
+                    padding: const EdgeInsets.all(12),
+                    leadingSize: 60,
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: roleImages.isNotEmpty
+                          ? FutureBuilder<String>(
+                              future: StorageUtils.ensureFileExists(
+                                  roleImages.first.content,
+                                  backupData: roleImages.first.messageData),
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData) {
+                                  return const SizedBox.shrink();
+                                }
+                                final file = File(snapshot.data!);
+                                if (!file.existsSync()) {
+                                  return Container(color: context.dividerColor);
+                                }
+                                return Image.file(
+                                  file,
+                                  fit: BoxFit.cover,
+                                  width: 60,
+                                  height: 60,
+                                  cacheWidth: 120,
+                                  cacheHeight: 120,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Container(color: context.dividerColor),
+                                );
+                              },
+                            )
+                          : Container(color: context.dividerColor),
                     ),
-                  );
-                },
-              ),
+                    title: Text(role.name,
+                        style: TextStyle(
+                            color: context.primaryTextColor,
+                            fontWeight: FontWeight.w600)),
+                    subtitle: Text('${roleImages.length} 张照片',
+                        style: TextStyle(color: context.secondaryTextColor)),
+                    trailing: const CupertinoListTileChevron(),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        CupertinoPageRoute(
+                          builder: (context) => RoleAlbumDetailScreen(
+                            role: role,
+                            messages: roleImages,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
             );
           },
         );
       },
     );
+  }
+
+  Future<Map<String, List<ChatMessage>>> _getRoleImageMap(
+      ContactProvider contactProvider) async {
+    final db = AppDatabase();
+    final allSessions = await db.getAllSessions();
+    final Map<String, List<ChatMessage>> roleImageMap = {};
+
+    for (var session in allSessions) {
+      final roleId = session.roleId;
+      final sessionImages = await db.getMessages(session.id);
+      final imageMessages = sessionImages
+          .where((m) => m.type == MessageType.image && m.content != '[图片已删除]')
+          .toList();
+
+      if (imageMessages.isNotEmpty) {
+        if (!roleImageMap.containsKey(roleId)) {
+          roleImageMap[roleId] = [];
+        }
+        roleImageMap[roleId]!.addAll(imageMessages);
+      }
+    }
+
+    for (var roleId in roleImageMap.keys) {
+      roleImageMap[roleId]!.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    }
+
+    return roleImageMap;
   }
 }
 
@@ -371,6 +606,12 @@ class RoleAlbumDetailScreen extends StatelessWidget {
           return PhotoGridItem(
             message: messages[index],
             allMessages: messages,
+            isSelectMode: false,
+            isSelected: false,
+            onTap: () {},
+            onShowDeleteConfirm: (msgs) {
+              // 详情页暂不支持批量删除，仅支持长按删除
+            },
           );
         },
       ),
@@ -381,11 +622,19 @@ class RoleAlbumDetailScreen extends StatelessWidget {
 class PhotoGridItem extends StatelessWidget {
   final ChatMessage message;
   final List<ChatMessage> allMessages;
+  final bool isSelectMode;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final Function(List<ChatMessage>) onShowDeleteConfirm;
 
   const PhotoGridItem({
     super.key,
     required this.message,
     required this.allMessages,
+    required this.isSelectMode,
+    required this.isSelected,
+    required this.onTap,
+    required this.onShowDeleteConfirm,
   });
 
   void _showFullScreen(BuildContext context) {
@@ -395,6 +644,7 @@ class PhotoGridItem extends StatelessWidget {
         builder: (context) => FullScreenPhotoViewer(
           imageMessages: allMessages,
           initialIndex: initialIndex,
+          onDelete: (msg) => onShowDeleteConfirm([msg]),
         ),
       ),
     );
@@ -403,20 +653,66 @@ class PhotoGridItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => _showFullScreen(context),
-      onLongPress: () => _showSaveDialog(context),
-      child: Hero(
-        tag: 'album_${message.id}',
-        child: Image.file(
-          File(message.content),
-          fit: BoxFit.cover,
-          cacheWidth: 300, // 优化：网格缩略图限制解码大小，大幅减少内存占用
-        ),
+      onTap: isSelectMode ? onTap : () => _showFullScreen(context),
+      onLongPress: isSelectMode ? null : () => _showLongPressMenu(context),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Hero(
+            tag: 'album_${message.id}',
+            child: _buildImage(message.content),
+          ),
+          if (isSelectMode)
+            Positioned(
+              right: 4,
+              top: 4,
+              child: Icon(
+                isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: isSelected ? const Color(0xFF07C160) : Colors.white70,
+                size: 22,
+              ),
+            ),
+        ],
       ),
     );
   }
 
-  void _showSaveDialog(BuildContext context) {
+  Widget _buildImage(String content) {
+    if (content.startsWith('http')) {
+      return Image.network(
+        content,
+        fit: BoxFit.cover,
+        cacheWidth: 300,
+        errorBuilder: (context, error, stackTrace) => _buildErrorPlaceholder(),
+      );
+    } else {
+      return FutureBuilder<String>(
+        future: StorageUtils.ensureFileExists(content,
+            backupData: message.messageData),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return Container(color: Colors.grey[200]);
+          final file = File(snapshot.data!);
+          if (!file.existsSync()) return _buildErrorPlaceholder();
+          return Image.file(
+            file,
+            fit: BoxFit.cover,
+            cacheWidth: 300,
+            errorBuilder: (context, error, stackTrace) =>
+                _buildErrorPlaceholder(),
+          );
+        },
+      );
+    }
+  }
+
+  Widget _buildErrorPlaceholder() {
+    return Container(
+      color: Colors.grey[300],
+      child: const Icon(Icons.broken_image, color: Colors.grey, size: 24),
+    );
+  }
+
+  void _showLongPressMenu(BuildContext context) {
     showCupertinoModalPopup(
       context: context,
       builder: (context) => CupertinoActionSheet(
@@ -425,17 +721,23 @@ class PhotoGridItem extends StatelessWidget {
             onPressed: () async {
               Navigator.pop(context);
               try {
-                await Gal.putImage(message.content);
-                if (context.mounted) {
-                  _showToast(context, '保存成功', '照片已保存到相册');
-                }
+                final absPath =
+                    await StorageUtils.toAbsolutePath(message.content);
+                await Gal.putImage(absPath);
+                _showToast(context, '保存成功', '照片已保存到相册');
               } catch (e) {
-                if (context.mounted) {
-                  _showToast(context, '保存失败', e.toString());
-                }
+                _showToast(context, '保存失败', e.toString());
               }
             },
             child: const Text('保存到相册'),
+          ),
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.pop(context);
+              onShowDeleteConfirm([message]);
+            },
+            child: const Text('删除照片'),
           ),
         ],
         cancelButton: CupertinoActionSheetAction(
@@ -467,11 +769,13 @@ class PhotoGridItem extends StatelessWidget {
 class FullScreenPhotoViewer extends StatefulWidget {
   final List<ChatMessage> imageMessages;
   final int initialIndex;
+  final Function(ChatMessage) onDelete;
 
   const FullScreenPhotoViewer({
     super.key,
     required this.imageMessages,
     required this.initialIndex,
+    required this.onDelete,
   });
 
   @override
@@ -547,11 +851,25 @@ class _FullScreenPhotoViewerState extends State<FullScreenPhotoViewer> {
                 minScale: 0.5,
                 maxScale: 4.0,
                 child: Center(
-                  child: Image.file(
-                    File(message.content),
-                    fit: BoxFit.contain,
-                    width: double.infinity,
-                    height: double.infinity,
+                  child: FutureBuilder<String>(
+                    future: StorageUtils.ensureFileExists(message.content,
+                        backupData: message.messageData),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const CircularProgressIndicator(
+                            color: Colors.white);
+                      }
+                      final file = File(snapshot.data!);
+                      if (!file.existsSync()) return _buildErrorPlaceholder();
+                      return Image.file(
+                        file,
+                        fit: BoxFit.contain,
+                        width: double.infinity,
+                        height: double.infinity,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _buildErrorPlaceholder(),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -572,17 +890,23 @@ class _FullScreenPhotoViewerState extends State<FullScreenPhotoViewer> {
               Navigator.pop(context);
               try {
                 final currentPath = widget.imageMessages[_currentIndex].content;
-                await Gal.putImage(currentPath);
-                if (context.mounted) {
-                  _showToast(context, '保存成功', '照片已保存到相册');
-                }
+                final absPath = await StorageUtils.toAbsolutePath(currentPath);
+                await Gal.putImage(absPath);
+                _showToast(context, '保存成功', '照片已保存到相册');
               } catch (e) {
-                if (context.mounted) {
-                  _showToast(context, '保存失败', e.toString());
-                }
+                _showToast(context, '保存失败', e.toString());
               }
             },
             child: const Text('保存到相册'),
+          ),
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.pop(context);
+              widget.onDelete(widget.imageMessages[_currentIndex]);
+              Navigator.pop(context); // 删除后退出全屏
+            },
+            child: const Text('删除照片'),
           ),
         ],
         cancelButton: CupertinoActionSheetAction(
@@ -605,6 +929,19 @@ class _FullScreenPhotoViewerState extends State<FullScreenPhotoViewer> {
             child: const Text('确定'),
             onPressed: () => Navigator.pop(context),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorPlaceholder() {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.broken_image, color: Colors.white, size: 64),
+          SizedBox(height: 16),
+          Text('图片加载失败', style: TextStyle(color: Colors.white)),
         ],
       ),
     );

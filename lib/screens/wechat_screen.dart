@@ -9,6 +9,7 @@ import '../core/database/database.dart';
 import '../core/models/world_info_model.dart';
 import '../core/models/text_preset_model.dart';
 import '../core/theme/app_theme.dart';
+import '../core/utils/storage_utils.dart';
 import 'chat_detail_screen.dart';
 import 'chat_search_delegate.dart';
 
@@ -139,12 +140,27 @@ class _WeChatScreenState extends State<WeChatScreen> {
                     child: role.avatarPath != null
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(6),
-                            child: Image.file(
-                              File(role.avatarPath!),
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Icon(Icons.person,
-                                    color: context.secondaryTextColor);
+                            child: FutureBuilder<String>(
+                              future: StorageUtils.ensureFileExists(
+                                  role.avatarPath!,
+                                  backupData: role.avatarData),
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData) {
+                                  return const SizedBox.shrink();
+                                }
+                                final file = File(snapshot.data!);
+                                if (!file.existsSync()) {
+                                  return Icon(Icons.person,
+                                      color: context.secondaryTextColor);
+                                }
+                                return Image.file(
+                                  file,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Icon(Icons.person,
+                                        color: context.secondaryTextColor);
+                                  },
+                                );
                               },
                             ),
                           )
@@ -513,10 +529,28 @@ class _CreateChatSheetState extends State<CreateChatSheet> {
         final role = provider.roles[index];
         return ListTile(
           leading: CircleAvatar(
-            backgroundImage: role.avatarPath != null
-                ? FileImage(File(role.avatarPath!))
-                : null,
-            child: role.avatarPath == null ? Text(role.name[0]) : null,
+            backgroundColor: Colors.grey[300],
+            child: role.avatarPath != null
+                ? FutureBuilder<String>(
+                    future: StorageUtils.ensureFileExists(role.avatarPath!,
+                        backupData: role.avatarData),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) return const SizedBox.shrink();
+                      final file = File(snapshot.data!);
+                      if (!file.existsSync()) return Text(role.name[0]);
+                      return ClipOval(
+                        child: Image.file(
+                          file,
+                          fit: BoxFit.cover,
+                          width: 40,
+                          height: 40,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Text(role.name[0]),
+                        ),
+                      );
+                    },
+                  )
+                : Text(role.name[0]),
           ),
           title: Text(role.name),
           subtitle: Text(
@@ -557,9 +591,28 @@ class _CreateChatSheetState extends State<CreateChatSheet> {
         final me = provider.meList[index];
         return ListTile(
           leading: CircleAvatar(
-            backgroundImage:
-                me.avatarPath != null ? FileImage(File(me.avatarPath!)) : null,
-            child: me.avatarPath == null ? Text(me.name[0]) : null,
+            backgroundColor: Colors.grey[300],
+            child: me.avatarPath != null
+                ? FutureBuilder<String>(
+                    future: StorageUtils.ensureFileExists(me.avatarPath!,
+                        backupData: me.avatarData),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) return const SizedBox.shrink();
+                      final file = File(snapshot.data!);
+                      if (!file.existsSync()) return Text(me.name[0]);
+                      return ClipOval(
+                        child: Image.file(
+                          file,
+                          fit: BoxFit.cover,
+                          width: 40,
+                          height: 40,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Text(me.name[0]),
+                        ),
+                      );
+                    },
+                  )
+                : Text(me.name[0]),
           ),
           title: Text(me.name),
           subtitle: Text(

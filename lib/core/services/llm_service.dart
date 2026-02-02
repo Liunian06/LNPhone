@@ -36,6 +36,7 @@ class LlmService {
     bool enableTextToImage = false,
     bool enableEmoji = true,
     String? imageApiPresetId, // 传入独立生图 API 预设 ID
+    String? imageStylePresetId, // 传入独立生图风格预设 ID
     RegexSettingsProvider? regexProvider,
   }) async {
     print('[LLM] ========== 开始生成回复 ==========');
@@ -97,6 +98,7 @@ class LlmService {
       history,
       systemPrompt,
       promptConfig.contextLength,
+      enableTimestamp: promptConfig.enableRealityPrompt,
     );
     final messages = buildResult['messages'] as List<Map<String, dynamic>>;
     final idMapping = buildResult['idMapping'] as Map<String, String>;
@@ -191,6 +193,7 @@ class LlmService {
           enableTextToImage: enableTextToImage,
           enableEmoji: enableEmoji,
           imageApiPresetId: imageApiPresetId,
+          imageStylePresetId: imageStylePresetId,
           regexProvider: regexProvider,
         );
         print('[LLM] ✓ 解析成功，得到 ${parsedMessages.length} 条消息');
@@ -400,8 +403,9 @@ class LlmService {
   static Future<Map<String, dynamic>> _buildMessagesWithSimpleIds(
     List<ChatMessage> history,
     String systemPrompt,
-    int contextLength,
-  ) async {
+    int contextLength, {
+    bool enableTimestamp = false,
+  }) async {
     final messages = <Map<String, dynamic>>[];
     // 简化ID -> 真实ID 的映射表
     final idMapping = <String, String>{};
@@ -432,6 +436,7 @@ class LlmService {
         msg,
         simpleId,
         realIdToSimpleId,
+        enableTimestamp: enableTimestamp,
       );
 
       if (msg.type == MessageType.image || msg.type == MessageType.moment) {
@@ -502,8 +507,9 @@ class LlmService {
   static String _buildJsonMessageContentWithSimpleId(
     ChatMessage msg,
     String simpleId,
-    Map<String, String> realIdToSimpleId,
-  ) {
+    Map<String, String> realIdToSimpleId, {
+    bool enableTimestamp = false,
+  }) {
     String displayContent = msg.content;
     // 对于图片消息，content 存储的是本地路径，应该使用 metadata 中的 original_prompt 发送给 AI
     // 否则 AI 会在上下文中看到路径并模仿输出路径，导致生图失败
@@ -519,8 +525,21 @@ class LlmService {
       'content': displayContent,
     };
 
+    // 如果开启了真实时间感知，添加时间戳
+    if (enableTimestamp) {
+      // 将毫秒时间戳转换为 UTC+8 时区的格式化字符串
+      final dateTime = DateTime.fromMillisecondsSinceEpoch(msg.timestamp)
+          .toUtc()
+          .add(const Duration(hours: 8));
+      final formattedTime = DateFormat('yyyy-MM-dd HH:mm:ss').format(dateTime);
+      jsonMap['timestamp'] = formattedTime;
+    }
+
     // 处理引用消息，将引用的真实ID转换为简化ID
-    if (msg.metadata != null && msg.metadata!.containsKey('quote')) {
+    // 注意：朋友圈评论不使用 ref，而是使用 reply_to
+    if (msg.type != MessageType.momentComment &&
+        msg.metadata != null &&
+        msg.metadata!.containsKey('quote')) {
       try {
         final quote = msg.metadata!['quote'] as Map<String, dynamic>;
         final quoteRealId = quote['id'] as String;
@@ -561,8 +580,16 @@ class LlmService {
           if (title.isNotEmpty) jsonMap['title'] = title;
           break;
         case MessageType.momentComment:
-          final replyTo = msg.metadata!['reply_to'] as String? ?? '';
-          if (replyTo.isNotEmpty) jsonMap['reply_to'] = replyTo;
+          // reply_to 存储的是评论ID，需要转换为简化ID
+          final replyToCommentId = msg.metadata!['reply_to'] as String? ?? '';
+          if (replyToCommentId.isNotEmpty) {
+            // 将评论ID转换为虚拟消息ID格式
+            final replyToVirtualId = 'v-comment-$replyToCommentId';
+            final replyToSimpleId = realIdToSimpleId[replyToVirtualId];
+            if (replyToSimpleId != null) {
+              jsonMap['reply_to'] = replyToSimpleId;
+            }
+          }
           // 增加 root_id 感知，让 AI 知道这条评论属于哪条朋友圈
           final postId = msg.metadata!['post_id'] as String? ?? '';
           if (postId.isNotEmpty) {
@@ -637,6 +664,13 @@ class LlmService {
         return 'moment_comment';
       case MessageType.momentLike:
         return 'moment_like';
+      // 沉浸模式专用类型
+      case MessageType.scene:
+        return 'scene';
+      case MessageType.narration:
+        return 'narration';
+      case MessageType.options:
+        return 'options';
     }
   }
 

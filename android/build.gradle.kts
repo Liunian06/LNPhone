@@ -26,6 +26,12 @@ subprojects {
                 targetCompatibility = JavaVersion.VERSION_17
             }
         }
+        // 强制所有 Kotlin 任务使用 JVM 17 目标，解决 audioplayers 等插件的兼容性问题
+        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+            compilerOptions {
+                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+            }
+        }
     }
 }
 subprojects {

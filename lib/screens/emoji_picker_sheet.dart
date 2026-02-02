@@ -5,6 +5,8 @@ import '../core/models/emoji_model.dart';
 import '../core/models/contact_model.dart';
 import '../core/providers/emoji_provider.dart';
 import '../core/providers/contact_provider.dart';
+import '../core/utils/storage_utils.dart';
+import '../widgets/emoji_image_widget.dart';
 
 class EmojiPickerSheet extends StatefulWidget {
   final String roleId;
@@ -77,7 +79,7 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
     final displayGroups = [...subscribedGroups, ...unsubscribedGroups];
 
     return Container(
-      height: 350,
+      // 移除固定高度，让父容器控制高度
       color: isDark ? Colors.grey[900] : Colors.white,
       child: Column(
         children: [
@@ -164,8 +166,22 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
                           : Colors.transparent,
                     ),
                     child: iconPath != null
-                        ? Image.file(File(iconPath),
-                            width: 24, height: 24, fit: BoxFit.contain)
+                        ? FutureBuilder<String>(
+                            future: StorageUtils.toAbsolutePath(iconPath),
+                            builder: (context, snapshot) {
+                              if (snapshot.hasData) {
+                                return SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: EmojiImageWidget(
+                                    imagePath: snapshot.data!,
+                                    fit: BoxFit.contain,
+                                  ),
+                                );
+                              }
+                              return const SizedBox(width: 24, height: 24);
+                            },
+                          )
                         : Icon(iconData,
                             size: 24,
                             color: isSelected
@@ -193,7 +209,7 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
         crossAxisCount: 5,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
-        childAspectRatio: 1,
+        childAspectRatio: 0.85, // 调整比例以容纳文字
       ),
       itemCount: emojis.length,
       itemBuilder: (context, index) {
@@ -201,18 +217,44 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
         return GestureDetector(
           onTap: () => widget.onEmojiSelected(emoji),
           child: Tooltip(
-            message: emoji.meaning,
+            message: emoji.rawContent ?? emoji.meaning,
             child: Container(
               decoration: BoxDecoration(
                 color: isDark ? Colors.grey[800] : Colors.grey[200],
                 borderRadius: BorderRadius.circular(8),
               ),
               padding: const EdgeInsets.all(4),
-              child: Image.file(
-                File(emoji.localPath),
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.broken_image, size: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Expanded(
+                    child: FutureBuilder<String>(
+                      future: StorageUtils.toAbsolutePath(emoji.localPath),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData) {
+                          return EmojiImageWidget(
+                            imagePath: snapshot.data!,
+                            fit: BoxFit.contain,
+                            errorWidget:
+                                const Icon(Icons.broken_image, size: 20),
+                          );
+                        }
+                        return const SizedBox();
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    emoji.meaning,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isDark ? Colors.grey[400] : Colors.grey[700],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
             ),
           ),
@@ -243,7 +285,7 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
             crossAxisCount: 5,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
-            childAspectRatio: 1,
+            childAspectRatio: 0.85, // 调整比例以容纳文字
           ),
           itemCount: emojis.length,
           itemBuilder: (context, index) {
@@ -251,18 +293,44 @@ class _EmojiPickerSheetState extends State<EmojiPickerSheet> {
             return GestureDetector(
               onTap: () => widget.onEmojiSelected(emoji),
               child: Tooltip(
-                message: emoji.meaning,
+                message: emoji.rawContent ?? emoji.meaning,
                 child: Container(
                   decoration: BoxDecoration(
                     color: isDark ? Colors.grey[800] : Colors.grey[200],
                     borderRadius: BorderRadius.circular(8),
                   ),
                   padding: const EdgeInsets.all(4),
-                  child: Image.file(
-                    File(emoji.localPath),
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.broken_image, size: 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Expanded(
+                        child: FutureBuilder<String>(
+                          future: StorageUtils.toAbsolutePath(emoji.localPath),
+                          builder: (context, snapshot) {
+                            if (snapshot.hasData) {
+                              return EmojiImageWidget(
+                                imagePath: snapshot.data!,
+                                fit: BoxFit.contain,
+                                errorWidget:
+                                    const Icon(Icons.broken_image, size: 20),
+                              );
+                            }
+                            return const SizedBox();
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        emoji.meaning,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isDark ? Colors.grey[400] : Colors.grey[700],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                 ),
               ),

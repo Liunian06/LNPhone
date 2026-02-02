@@ -2,7 +2,7 @@ name: lnphone2
 description: "AI Native Phone System - iOS Style Interface"
 publish_to: 'none'
 
-version: 1.8.4+1
+version: 1.8.22+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -43,8 +43,12 @@ dependencies:
   sqlite3_flutter_libs: ^0.5.26
   flutter_background_service: ^5.1.0
   permission_handler: ^12.0.1
+  device_info_plus: ^11.2.0
   restart_app: ^1.3.2
   gal: ^2.3.2
+  audioplayers: ^6.5.1
+  flutter_image: ^4.1.1
+  image: ^4.0.17
 
 dev_dependencies:
   flutter_test:

@@ -63,12 +63,7 @@ class _SendTransferScreenState extends State<SendTransferScreen> {
       return;
     }
 
-    if (amount > 200000) {
-      setState(() {
-        _errorMessage = '单笔转账金额不能超过20万元';
-      });
-      return;
-    }
+    // 移除20万元转账上限限制
 
     final walletProvider = context.read<WalletProvider>();
     if (amount > walletProvider.balance) {

@@ -13,6 +13,7 @@ import '../core/providers/prompt_settings_provider.dart';
 import '../core/providers/regex_settings_provider.dart';
 import '../core/providers/memory_provider.dart';
 import '../core/providers/emoji_provider.dart';
+import '../core/providers/wallet_provider.dart';
 
 /// 编辑/发布朋友圈界面
 class EditMomentScreen extends StatefulWidget {
@@ -742,6 +743,7 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
     final momentsProvider = context.read<MomentsProvider>();
     final memoryProvider = context.read<MemoryProvider>();
     final emojiProvider = context.read<EmojiProvider>();
+    final walletProvider = context.read<WalletProvider>();
 
     for (final role in mentionedRoles) {
       // 找到该角色的聊天会话
@@ -796,6 +798,7 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
             );
           },
           regexProvider: regexProvider,
+          walletProvider: walletProvider,
         );
       });
     }

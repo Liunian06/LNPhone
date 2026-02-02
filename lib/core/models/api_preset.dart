@@ -1,8 +1,16 @@
 import 'dart:convert';
+import '../utils/storage_utils.dart';
 
-enum ApiProvider { openai, gemini, volcengine, openaicompatible }
+enum ApiProvider {
+  openai,
+  gemini,
+  volcengine,
+  openaicompatible,
+  minimax,
+  groklike
+}
 
-enum ApiPresetType { chat, image }
+enum ApiPresetType { chat, image, voice }
 
 class ApiPreset {
   String id;
@@ -17,6 +25,8 @@ class ApiPreset {
   bool isStream;
   bool enableThinking;
   int timeout; // 超时时间（秒）
+  String? voiceId; // 语音 ID (Minimax)
+  int? audioChannel; // 音频声道 (Minimax)
 
   ApiPreset({
     required this.id,
@@ -31,6 +41,8 @@ class ApiPreset {
     this.isStream = true,
     this.enableThinking = true,
     this.timeout = 120,
+    this.voiceId,
+    this.audioChannel,
   });
 
   Map<String, dynamic> toJson() {
@@ -47,12 +59,14 @@ class ApiPreset {
       'isStream': isStream,
       'enableThinking': enableThinking,
       'timeout': timeout,
+      'voiceId': voiceId,
+      'audioChannel': audioChannel,
     };
   }
 
   factory ApiPreset.fromJson(Map<String, dynamic> json) {
     return ApiPreset(
-      id: json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: json['id'] ?? StorageUtils.getUniqueTimestamp().toString(),
       name: json['name'] ?? 'New Preset',
       type: ApiPresetType.values[json['type'] ?? 0],
       provider: ApiProvider.values[json['provider'] ?? 0],
@@ -64,6 +78,8 @@ class ApiPreset {
       isStream: json['isStream'] ?? true,
       enableThinking: json['enableThinking'] ?? true,
       timeout: json['timeout'] ?? 120,
+      voiceId: json['voiceId'],
+      audioChannel: json['audioChannel'],
     );
   }
 
@@ -80,6 +96,8 @@ class ApiPreset {
     bool? isStream,
     bool? enableThinking,
     int? timeout,
+    String? voiceId,
+    int? audioChannel,
   }) {
     return ApiPreset(
       id: id ?? this.id,
@@ -94,6 +112,8 @@ class ApiPreset {
       isStream: isStream ?? this.isStream,
       enableThinking: enableThinking ?? this.enableThinking,
       timeout: timeout ?? this.timeout,
+      voiceId: voiceId ?? this.voiceId,
+      audioChannel: audioChannel ?? this.audioChannel,
     );
   }
 }

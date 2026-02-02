@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../database/database.dart';
 import '../models/memory_model.dart';
+import '../utils/storage_utils.dart';
 
 /// 记忆管理 Provider
 /// 管理角色的持久化记忆，支持跨会话保存
@@ -76,7 +77,7 @@ class MemoryProvider extends ChangeNotifier {
     String? sourceSessionId,
     MemoryCategory category = MemoryCategory.general,
   }) async {
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = StorageUtils.getUniqueTimestamp();
     final memory = RoleMemory(
       id: _generateId(),
       roleId: roleId,
@@ -122,7 +123,7 @@ class MemoryProvider extends ChangeNotifier {
           memories[index] = memories[index].copyWith(
             content: content,
             category: category,
-            updatedAt: DateTime.now().millisecondsSinceEpoch,
+            updatedAt: StorageUtils.getUniqueTimestamp(),
           );
           break;
         }
@@ -309,8 +310,6 @@ class MemoryProvider extends ChangeNotifier {
   }
 
   String _generateId() {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final random = Random().nextInt(10000);
-    return 'mem-$timestamp-$random';
+    return 'mem-${StorageUtils.getUniqueTimestamp()}';
   }
 }

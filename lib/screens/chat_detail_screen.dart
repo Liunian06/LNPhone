@@ -1,10 +1,13 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import '../core/database/database.dart';
 import '../core/providers/chat_provider.dart';
 import '../core/providers/contact_provider.dart';
@@ -15,12 +18,14 @@ import '../core/providers/moments_provider.dart';
 import '../core/providers/memory_provider.dart';
 import '../core/providers/wallet_provider.dart';
 import '../core/providers/emoji_provider.dart';
+import '../core/utils/storage_utils.dart';
 import '../core/services/llm_service.dart';
 import '../core/services/notification_service.dart';
 import '../core/models/api_preset.dart';
 import '../core/models/chat_model.dart';
 import '../core/models/contact_model.dart';
 import '../core/models/moments_model.dart';
+import '../core/models/text_preset_model.dart';
 import '../core/theme/app_theme.dart';
 import '../widgets/message_bubbles.dart';
 import '../widgets/chat_context_menu.dart';
@@ -33,6 +38,7 @@ import 'send_red_packet_screen.dart';
 import 'send_transfer_screen.dart';
 import 'emoji_picker_sheet.dart';
 import 'chat_search_delegate.dart';
+import 'scenario_screen.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final String chatId;
@@ -45,7 +51,8 @@ class ChatDetailScreen extends StatefulWidget {
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
 }
 
-class _ChatDetailScreenState extends State<ChatDetailScreen> {
+class _ChatDetailScreenState extends State<ChatDetailScreen>
+    with WidgetsBindingObserver {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
@@ -58,26 +65,180 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   bool _showEmojiPicker = false; // 控制是否显示表情选择器
   String? _highlightedMessageId; // 当前高亮的消息ID
   Timer? _highlightTimer;
+  int _newMessagesCount = 0; // 新消息计数
+  bool _isAtBottom = true; // 是否在最底端
+  int _lastSeenTimestamp = 0; // 用户已查看到的最新消息时间戳
+
+  // 键盘高度管理 - 用于实现微信式的平滑切换
+  double _keyboardHeight = 0; // 当前键盘高度（实时跟踪系统键盘）
+  double _cachedKeyboardHeight = 280; // 缓存的键盘高度（用于面板高度同步）
+  static const double _defaultPanelHeight = 280; // 默认面板高度（首次使用时）
+  bool _isKeyboardVisible = false; // 键盘是否可见
+  bool _isTransitioningToKeyboard = false; // 是否正在从面板切换到键盘
 
   @override
   void initState() {
     super.initState();
-    // 进入聊天界面时，标记所有消息为已读
+
+    // 注册键盘高度监听
+    WidgetsBinding.instance.addObserver(this);
+
+    // 添加焦点监听器：当输入框获取焦点时（输入法拉起），关闭表情包和扩展菜单
+    _focusNode.addListener(_onFocusChange);
+
+    // 进入聊天界面时，标记所有消息为已读并确保加载了初始消息
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final chatProvider = context.read<ChatProvider>();
+      chatProvider.enterChat(widget.chatId);
       chatProvider.markSessionAsRead(widget.chatId);
       _scrollToBottom();
+
+      // 添加滚动监听用于分页加载
+      _scrollController.addListener(_onScroll);
 
       // 初始化消息数量，避免首次build触发不必要的滚动
       final chat = chatProvider.getChat(widget.chatId);
       if (chat != null) {
         _lastMessageCount = chat.messages.length;
+        // 初始化时，将当前最新消息的时间戳设为"已查看"
+        if (chat.messages.isNotEmpty) {
+          _lastSeenTimestamp = chat.messages.last.timestamp;
+        }
       }
 
       if (widget.initialMessageId != null) {
         _jumpToMessage(widget.initialMessageId!);
       }
     });
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    // 监听键盘高度变化
+    final bottomInset = WidgetsBinding
+            .instance.platformDispatcher.views.first.viewInsets.bottom /
+        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+
+    final wasKeyboardVisible = _isKeyboardVisible;
+    _isKeyboardVisible = bottomInset > 0;
+
+    if (bottomInset > 0) {
+      // 键盘正在显示，始终更新实时键盘高度
+      if (bottomInset != _keyboardHeight) {
+        setState(() {
+          _keyboardHeight = bottomInset;
+        });
+      }
+      // 缓存键盘高度（用于面板同步）
+      if (bottomInset > 100) {
+        _cachedKeyboardHeight = bottomInset;
+      }
+      // 键盘已弹起，结束过渡状态
+      // 关键修复：只有当键盘高度接近缓存高度时才结束过渡，避免中途抖动
+      if (_isTransitioningToKeyboard) {
+        // 当键盘高度达到缓存高度的 90% 以上，或超过 200px 时，认为过渡完成
+        final targetHeight = _cachedKeyboardHeight > 200
+            ? _cachedKeyboardHeight
+            : _defaultPanelHeight;
+        if (bottomInset >= targetHeight * 0.9 || bottomInset >= 250) {
+          setState(() {
+            _isTransitioningToKeyboard = false;
+          });
+        }
+      }
+    } else if (wasKeyboardVisible && bottomInset == 0) {
+      // 键盘刚刚完全收起
+      setState(() {
+        _keyboardHeight = 0;
+      });
+    }
+  }
+
+  /// 输入框焦点变化监听：实现表情包、输入法、扩展菜单三者互斥
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) {
+      // 输入框获取焦点时（输入法拉起），关闭表情包和扩展菜单
+      if (_showEmojiPicker || _showAttachmentOptions) {
+        setState(() {
+          _showEmojiPicker = false;
+          _showAttachmentOptions = false;
+        });
+      }
+    }
+  }
+
+  /// 获取统一的面板/键盘高度
+  /// 核心策略：面板高度始终与键盘高度同步，确保切换时无任何高度变化
+  double get _unifiedPanelHeight {
+    return _cachedKeyboardHeight > 200
+        ? _cachedKeyboardHeight
+        : _defaultPanelHeight;
+  }
+
+  /// 获取当前底部占位区域应显示的高度
+  /// 新策略：只要有任何面板/键盘显示，高度始终使用统一高度
+  double get _bottomSpacerHeight {
+    // 有面板显示时，使用统一高度
+    if (_showEmojiPicker || _showAttachmentOptions) {
+      return _unifiedPanelHeight;
+    }
+
+    // 正在从面板切换到键盘，保持高度
+    if (_isTransitioningToKeyboard) {
+      return _unifiedPanelHeight;
+    }
+
+    // 键盘显示时，使用实时键盘高度
+    if (_isKeyboardVisible && _keyboardHeight > 0) {
+      return _keyboardHeight;
+    }
+
+    // 都不显示
+    return 0;
+  }
+
+  /// 处理面板切换（表情/扩展/键盘）
+  /// 新策略：面板作为蒙版覆盖在键盘位置，切换时无需等待键盘收起
+  void _handlePanelSwitch({required bool isEmoji}) {
+    final isCurrentlyShowingPanel =
+        isEmoji ? _showEmojiPicker : _showAttachmentOptions;
+
+    if (isCurrentlyShowingPanel) {
+      // 当前显示面板，点击切换到键盘
+      setState(() {
+        _isTransitioningToKeyboard = true;
+        if (isEmoji) {
+          _showEmojiPicker = false;
+        } else {
+          _showAttachmentOptions = false;
+        }
+      });
+      _focusNode.requestFocus();
+    } else {
+      // 从键盘或其他面板切换到目标面板
+      // 新策略：面板立即显示覆盖在键盘上，然后异步收起键盘
+
+      // Step 1: 如果键盘正在显示，先缓存当前键盘高度
+      if (_isKeyboardVisible && _keyboardHeight > 100) {
+        _cachedKeyboardHeight = _keyboardHeight;
+      }
+
+      // Step 2: 立即显示面板（面板会覆盖在键盘上方）
+      setState(() {
+        if (isEmoji) {
+          _showEmojiPicker = true;
+          _showAttachmentOptions = false;
+        } else {
+          _showAttachmentOptions = true;
+          _showEmojiPicker = false;
+        }
+      });
+
+      // Step 3: 异步收起键盘（面板已经覆盖，用户看不到键盘收起过程）
+      FocusScope.of(context).unfocus();
+      SystemChannels.textInput.invokeMethod('TextInput.hide');
+    }
   }
 
   void _scrollToBottom() {
@@ -90,11 +251,40 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     }
   }
 
+  void _onScroll() {
+    if (_scrollController.hasClients) {
+      // 判断是否在底端 (reverse: true, 所以 pixels 为 0 是底端)
+      final isAtBottom = _scrollController.position.pixels <= 50;
+      if (isAtBottom != _isAtBottom) {
+        setState(() {
+          _isAtBottom = isAtBottom;
+          if (isAtBottom) {
+            _newMessagesCount = 0; // 回到底部清空计数
+            // 更新已查看时间戳为当前最新消息
+            final chatProvider = context.read<ChatProvider>();
+            final chat = chatProvider.getChat(widget.chatId);
+            if (chat != null && chat.messages.isNotEmpty) {
+              _lastSeenTimestamp = chat.messages.last.timestamp;
+            }
+          }
+        });
+      }
+
+      // 当滚动到顶部（即 maxScrollExtent，因为 reverse: true）时加载更多
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 200) {
+        context.read<ChatProvider>().loadMoreMessages(widget.chatId);
+      }
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // 移除键盘监听
     _removeOverlay();
     _textController.dispose();
     _scrollController.dispose();
+    _focusNode.removeListener(_onFocusChange); // 移除焦点监听器
     _focusNode.dispose();
     _highlightTimer?.cancel();
     super.dispose();
@@ -148,12 +338,52 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           return const Scaffold(body: Center(child: Text('聊天不存在')));
         }
 
-        // 监听消息数量变化，自动滚动到底部
+        // 监听消息数量变化
         if (chat.messages.length > _lastMessageCount) {
+          // 优化：只统计时间戳比已查看时间戳更新的对方消息
+          // 这样可以避免将向上滑动加载的历史记录误认为新消息
+          final newMessages = chat.messages
+              .where((m) => m.timestamp > _lastSeenTimestamp && !m.isMe)
+              .toList();
+          final unreadDiff = newMessages.length;
+
+          // 保存新消息插入前的滚动位置
+          final oldScrollOffset = _scrollController.hasClients
+              ? _scrollController.position.pixels
+              : 0.0;
+
           _lastMessageCount = chat.messages.length;
-          // 使用 addPostFrameCallback 确保在列表构建完成后滚动
+
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _scrollToBottom();
+            if (!mounted) return;
+            if (_isAtBottom) {
+              _scrollToBottom();
+            } else {
+              // 只有对方发来的消息才统计和显示气泡
+              if (unreadDiff > 0) {
+                setState(() {
+                  _newMessagesCount += unreadDiff;
+                });
+              }
+
+              // 关键：解决抖动问题
+              // 在 reverse: true 的列表中，新消息插入底部会改变滚动锚点
+              // 我们需要手动保持当前查看位置不变
+              if (_scrollController.hasClients && oldScrollOffset > 0) {
+                // 尝试跳回原来的偏移量
+                // 注意：这里无法精确计算新消息的高度，因为它可能还未渲染
+                // 但通常 Flutter 会自动保持视觉位置，如果仍有抖动，可以尝试延迟调整
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _scrollController.hasClients) {
+                    // 仅在偏移量有明显变化时才调整（减少不必要的跳转）
+                    final currentOffset = _scrollController.position.pixels;
+                    if ((currentOffset - oldScrollOffset).abs() > 5) {
+                      _scrollController.jumpTo(oldScrollOffset);
+                    }
+                  }
+                });
+              }
+            }
           });
         } else if (chat.messages.length < _lastMessageCount) {
           // 消息减少（如删除），只更新计数，不滚动
@@ -183,10 +413,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
           onTap: () {
             _removeOverlay();
             FocusScope.of(context).unfocus();
-            setState(() => _showEmojiPicker = false);
+            setState(() {
+              _showEmojiPicker = false;
+              _showAttachmentOptions = false;
+            });
           },
           child: Scaffold(
-            resizeToAvoidBottomInset: true,
+            resizeToAvoidBottomInset: false, // 禁用自动调整，手动管理底部区域
             backgroundColor: context.chatBackground,
             appBar: AppBar(
               backgroundColor: context.appBarBackground,
@@ -280,8 +513,24 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         horizontal: 12,
                         vertical: 10,
                       ),
-                      itemCount: chat.messages.length,
+                      itemCount: chat.messages.length +
+                          (chatProvider.isLoadingMore ? 1 : 0),
                       itemBuilder: (context, index) {
+                        if (index == chat.messages.length &&
+                            chatProvider.isLoadingMore) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                          );
+                        }
+
                         final messageIndex = chat.messages.length - 1 - index;
                         final currentMessage = chat.messages[messageIndex];
 
@@ -379,6 +628,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 ],
               ),
             ),
+            floatingActionButton: _buildNewMessageBubble(),
+            floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
           ),
         );
       },
@@ -524,8 +775,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               final newMetadata =
                   Map<String, dynamic>.from(message.metadata ?? {});
               newMetadata['status'] = 'accepted';
-              newMetadata['acceptedTime'] =
-                  DateTime.now().millisecondsSinceEpoch;
+              newMetadata['acceptedTime'] = StorageUtils.getUniqueTimestamp();
               chatProvider.updateMessageMetadata(message.id, newMetadata);
 
               // 将转账金额添加到钱包余额
@@ -574,228 +824,237 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   Widget _buildInputArea(
       ChatProvider chatProvider, ContactRole role, ContactMe me) {
+    final spacerHeight = _bottomSpacerHeight;
+    final panelHeight = _unifiedPanelHeight;
+    final showPanel = _showEmojiPicker || _showAttachmentOptions;
+
     return Container(
       decoration: BoxDecoration(
         color: context.inputBackground,
         border:
             Border(top: BorderSide(color: context.dividerColor, width: 0.5)),
       ),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 输入框区域
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Row(
-                children: [
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Container(
-                      constraints: const BoxConstraints(minHeight: 40),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: context.surfaceColor,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: context.isDarkMode
-                              ? const Color(0xFF48484A)
-                              : Colors.transparent,
-                          width: 0.5,
-                        ),
-                      ),
-                      child: TextField(
-                        controller: _textController,
-                        focusNode: _focusNode,
-                        style: TextStyle(color: context.primaryTextColor),
-                        minLines: 1,
-                        maxLines: 3,
-                        textInputAction: TextInputAction.send,
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(vertical: 8),
-                          filled: false,
-                          isDense: true,
-                        ),
-                        onSubmitted: (value) {
-                          _sendMessage(chatProvider);
-                          // 发送后重新请求焦点，保持输入法不关闭
-                          _focusNode.requestFocus();
-                        },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 输入框区域（始终显示）
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(
+              children: [
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    constraints: const BoxConstraints(minHeight: 40),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: context.surfaceColor,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: context.isDarkMode
+                            ? const Color(0xFF48484A)
+                            : Colors.transparent,
+                        width: 0.5,
                       ),
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      _showEmojiPicker
-                          ? Icons.keyboard
-                          : Icons.sentiment_satisfied_alt_outlined,
-                      color: context.primaryTextColor,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _showEmojiPicker = !_showEmojiPicker;
-                        _showAttachmentOptions = false;
-                        if (_showEmojiPicker) {
-                          FocusScope.of(context).unfocus();
-                        } else {
-                          _focusNode.requestFocus();
-                        }
-                      });
-                    },
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      _showAttachmentOptions
-                          ? Icons.keyboard
-                          : Icons.add_circle_outline,
-                      color: context.primaryTextColor,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _showAttachmentOptions = !_showAttachmentOptions;
-                        _showEmojiPicker = false;
-                        if (_showAttachmentOptions) {
-                          FocusScope.of(context).unfocus();
-                        } else {
-                          _focusNode.requestFocus();
-                        }
-                      });
-                    },
-                  ),
-                  if (chatProvider
-                          .getChat(widget.chatId)
-                          ?.enableIndependentSendButton ??
-                      false) ...[
-                    const SizedBox(width: 8),
-                    ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: _textController,
-                      builder: (context, value, child) {
-                        final isEmpty = value.text.trim().isEmpty;
-                        return GestureDetector(
-                          onTap: () {
-                            if (isEmpty) {
-                              // 续写 - 强制立即回复
-                              _sendMessage(chatProvider,
-                                  isContinue: true, forceImmediate: true);
-                            } else {
-                              // 发送 - 仍然使用延迟回复（因为用户可能还有下一条消息）
-                              _sendMessage(chatProvider, forceImmediate: false);
-                            }
-                          },
-                          child: Container(
-                            height: 34,
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF07C160),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              isEmpty ? '续写' : '发送',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        );
+                    child: TextField(
+                      controller: _textController,
+                      focusNode: _focusNode,
+                      style: TextStyle(color: context.primaryTextColor),
+                      minLines: 1,
+                      maxLines: 3,
+                      textInputAction: TextInputAction.send,
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                        filled: false,
+                        isDense: true,
+                      ),
+                      onSubmitted: (value) {
+                        _sendMessage(chatProvider);
+                        // 发送后重新请求焦点，保持输入法不关闭
+                        _focusNode.requestFocus();
                       },
                     ),
-                  ],
-                ],
-              ),
-            ),
-            // 引用预览区域
-            if (_replyingMessage != null)
-              Builder(
-                builder: (context) {
-                  // 从最新的消息列表中获取被引用消息
-                  // 避免因 Consumer2 重建导致 _replyingMessage 指向过时对象
-                  final chat = chatProvider.getChat(widget.chatId);
-                  final freshMessage = chat?.messages.firstWhere(
-                    (m) => m.id == _replyingMessage!.id,
-                    orElse: () => _replyingMessage!,
-                  );
-
-                  final targetMessage = freshMessage ?? _replyingMessage!;
-                  final senderName = _resolveSenderName(
-                    isMe: targetMessage.isMe,
-                    sender: targetMessage.sender,
-                    me: me,
-                    role: role,
-                  );
-
-                  return Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    color: context.surfaceColor.withOpacity(0.5),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 4,
-                          height: 36,
-                          color: context.primaryTextColor,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '回复 $senderName',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: context.primaryTextColor,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                _replyingMessage!.displayText,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: context.secondaryTextColor,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    _showEmojiPicker
+                        ? Icons.keyboard
+                        : Icons.sentiment_satisfied_alt_outlined,
+                    color: context.primaryTextColor,
+                  ),
+                  onPressed: () => _handlePanelSwitch(isEmoji: true),
+                ),
+                IconButton(
+                  icon: Icon(
+                    _showAttachmentOptions
+                        ? Icons.keyboard
+                        : Icons.add_circle_outline,
+                    color: context.primaryTextColor,
+                  ),
+                  onPressed: () => _handlePanelSwitch(isEmoji: false),
+                ),
+                if (chatProvider
+                        .getChat(widget.chatId)
+                        ?.enableIndependentSendButton ??
+                    false) ...[
+                  const SizedBox(width: 8),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _textController,
+                    builder: (context, value, child) {
+                      final isEmpty = value.text.trim().isEmpty;
+                      return GestureDetector(
+                        onTap: () {
+                          if (isEmpty) {
+                            // 续写 - 强制立即回复
+                            _sendMessage(chatProvider,
+                                isContinue: true, forceImmediate: true);
+                          } else {
+                            // 发送 - 仍然使用延迟回复（因为用户可能还有下一条消息）
+                            _sendMessage(chatProvider, forceImmediate: false);
+                          }
+                        },
+                        child: Container(
+                          height: 34,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF07C160),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            isEmpty ? '续写' : '发送',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
-                        IconButton(
-                          icon: Icon(Icons.close,
-                              size: 18, color: context.secondaryTextColor),
-                          onPressed: () {
-                            setState(() {
-                              _replyingMessage = null;
-                            });
-                          },
+                      );
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+          // 引用预览区域
+          if (_replyingMessage != null)
+            Builder(
+              builder: (context) {
+                // 从最新的消息列表中获取被引用消息
+                // 避免因 Consumer2 重建导致 _replyingMessage 指向过时对象
+                final chat = chatProvider.getChat(widget.chatId);
+                final freshMessage = chat?.messages.firstWhere(
+                  (m) => m.id == _replyingMessage!.id,
+                  orElse: () => _replyingMessage!,
+                );
+
+                final targetMessage = freshMessage ?? _replyingMessage!;
+                final senderName = _resolveSenderName(
+                  isMe: targetMessage.isMe,
+                  sender: targetMessage.sender,
+                  me: me,
+                  role: role,
+                );
+
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  color: context.surfaceColor.withOpacity(0.5),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 4,
+                        height: 36,
+                        color: context.primaryTextColor,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '回复 $senderName',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: context.primaryTextColor,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _replyingMessage!.displayText,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: context.secondaryTextColor,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close,
+                            size: 18, color: context.secondaryTextColor),
+                        onPressed: () {
+                          setState(() {
+                            _replyingMessage = null;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          // 底部面板区域 - 使用 Stack 实现蒙版式切换
+          // 底层：固定高度的占位区域（键盘或面板空间）
+          // 上层：面板内容（表情/扩展），覆盖在键盘上方
+          SizedBox(
+            height: spacerHeight,
+            child: Stack(
+              children: [
+                // 底层：键盘占位（实际键盘由系统在更底层渲染）
+                // 这里是透明占位，确保布局高度正确
+                const SizedBox.expand(),
+                // 上层：面板内容（覆盖在键盘位置）
+                if (showPanel)
+                  Positioned.fill(
+                    child: Container(
+                      color: context.inputBackground,
+                      height: panelHeight,
+                      child: _buildBottomPanel(role),
                     ),
-                  );
-                },
-              ),
-            // 附件选项区域（可选显示，放在输入框下方）
-            if (_showAttachmentOptions) _buildAttachmentOptionsPanel(),
-            // 表情选择器区域
-            if (_showEmojiPicker)
-              SizedBox(
-                height: 300,
-                child: EmojiPickerSheet(
-                  roleId: role.id,
-                  onEmojiSelected: (emoji) {
-                    _sendEmoji(emoji);
-                  },
-                ),
-              ),
-          ],
-        ),
+                  ),
+              ],
+            ),
+          ),
+          // 底部安全区域
+          SizedBox(height: MediaQuery.of(context).padding.bottom),
+        ],
       ),
     );
+  }
+
+  /// 构建底部面板内容（表情/扩展/空白键盘占位）
+  Widget _buildBottomPanel(ContactRole role) {
+    if (_showEmojiPicker) {
+      return EmojiPickerSheet(
+        roleId: role.id,
+        onEmojiSelected: (emoji) {
+          _sendEmoji(emoji);
+        },
+      );
+    } else if (_showAttachmentOptions) {
+      return _buildAttachmentOptionsPanel();
+    }
+    // 键盘显示时，这里是空白占位（实际键盘由系统渲染在最底层）
+    return const SizedBox.shrink();
   }
 
   Widget _buildAttachmentOptionsPanel() {
@@ -806,6 +1065,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _AttachmentOptionData(Icons.location_on, '位置', _handleInputLocation),
       _AttachmentOptionData(Icons.redeem, '红包', _handleSendRedPacket),
       _AttachmentOptionData(Icons.payments, '转账', _handleSendTransfer),
+      _AttachmentOptionData(Icons.auto_awesome, '沉浸模式', _handleStartScenario),
       // 后续可以在这里添加更多功能
     ];
 
@@ -813,19 +1073,17 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     const int itemsPerPage = 8;
     final int pageCount = (allOptions.length / itemsPerPage).ceil();
 
-    return SizedBox(
-      height: 200, // 两行按钮 + padding (减小12px)
-      child: PageView.builder(
-        itemCount: pageCount,
-        itemBuilder: (context, pageIndex) {
-          final startIndex = pageIndex * itemsPerPage;
-          final endIndex =
-              (startIndex + itemsPerPage).clamp(0, allOptions.length);
-          final pageOptions = allOptions.sublist(startIndex, endIndex);
+    // 不使用固定高度，让 AnimatedContainer 控制高度
+    return PageView.builder(
+      itemCount: pageCount,
+      itemBuilder: (context, pageIndex) {
+        final startIndex = pageIndex * itemsPerPage;
+        final endIndex =
+            (startIndex + itemsPerPage).clamp(0, allOptions.length);
+        final pageOptions = allOptions.sublist(startIndex, endIndex);
 
-          return _buildAttachmentPage(pageOptions);
-        },
-      ),
+        return _buildAttachmentPage(pageOptions);
+      },
     );
   }
 
@@ -842,41 +1100,45 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       row2.add(i < options.length ? options[i] : null);
     }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 第一行
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: row1.map((opt) {
-              if (opt == null) {
-                return const SizedBox(width: 68);
-              }
-              return _buildAttachmentOption(
-                icon: opt.icon,
-                label: opt.label,
-                onTap: opt.onTap,
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 12),
-          // 第二行
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: row2.map((opt) {
-              if (opt == null) {
-                return const SizedBox(width: 68);
-              }
-              return _buildAttachmentOption(
-                icon: opt.icon,
-                label: opt.label,
-                onTap: opt.onTap,
-              );
-            }).toList(),
-          ),
-        ],
+    // 使用 Center 和 MainAxisAlignment.center 确保内容在面板中垂直居中
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // 第一行
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: row1.map((opt) {
+                if (opt == null) {
+                  return const SizedBox(width: 70);
+                }
+                return _buildAttachmentOption(
+                  icon: opt.icon,
+                  label: opt.label,
+                  onTap: opt.onTap,
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 24), // 增加一点行间距
+            // 第二行
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: row2.map((opt) {
+                if (opt == null) {
+                  return const SizedBox(width: 70);
+                }
+                return _buildAttachmentOption(
+                  icon: opt.icon,
+                  label: opt.label,
+                  onTap: opt.onTap,
+                );
+              }).toList(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1169,6 +1431,110 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
+  /// 处理进入沉浸模式
+  void _handleStartScenario() {
+    setState(() => _showAttachmentOptions = false);
+
+    final chatProvider = context.read<ChatProvider>();
+    final contactProvider = context.read<ContactProvider>();
+    final apiProvider = context.read<ApiSettingsProvider>();
+    final chat = chatProvider.getChat(widget.chatId);
+    if (chat == null) return;
+
+    final role = contactProvider.roles.firstWhere(
+      (r) => r.id == chat.roleId,
+      orElse: () => ContactRole(
+        id: 'unknown',
+        name: '未知用户',
+        description: '',
+        avatarPath: null,
+      ),
+    );
+
+    final me = contactProvider.meList.firstWhere(
+      (m) => m.id == chat.meId,
+      orElse: () =>
+          ContactMe(id: 'unknown', name: '我', info: '', avatarPath: null),
+    );
+
+    // 获取 API 预设
+    final activePreset = _getApiPresetForChat(chat, apiProvider);
+    if (activePreset == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('无法找到可用的 API 预设，请在设置中配置 API'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    // 显示初始场景输入对话框
+    final sceneController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('开始沉浸模式'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '描述你们见面的场景：',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: sceneController,
+              decoration: const InputDecoration(
+                hintText: '例如：我们约在一家咖啡馆见面...',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              final scene = sceneController.text.trim();
+              if (scene.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('请输入场景描述')),
+                );
+                return;
+              }
+              Navigator.pop(dialogContext);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ScenarioScreen(
+                    role: role,
+                    me: me,
+                    apiPreset: activePreset,
+                    imageApiPresetId: chat.imageApiPresetId,
+                    imageStylePresetId:
+                        chat.textPresetIds.cast<String?>().firstWhere(
+                              (id) => chatProvider.textPresets.any((p) =>
+                                  p.id == id && p.type == TextPresetType.image),
+                              orElse: () => null,
+                            ),
+                    initialScene: scene,
+                  ),
+                ),
+              );
+            },
+            child: const Text('开始'),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// 触发 AI 回复（用于发送特殊消息后）
   void _triggerAiResponse() async {
     if (!mounted) return;
@@ -1181,6 +1547,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final momentsProvider = context.read<MomentsProvider>();
     final memoryProvider = context.read<MemoryProvider>();
     final emojiProvider = context.read<EmojiProvider>();
+    final walletProvider = context.read<WalletProvider>();
     final chatId = widget.chatId;
 
     final chat = chatProvider.getChat(chatId);
@@ -1265,6 +1632,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       enableTextToImage: chat.enableTextToImage,
       enableEmoji: chat.enableEmoji,
       imageApiPresetId: chat.imageApiPresetId,
+      imageStylePresetId: chat.textPresetIds.cast<String?>().firstWhere(
+            (id) => chatProvider.textPresets
+                .any((p) => p.id == id && p.type == TextPresetType.image),
+            orElse: () => null,
+          ),
       delayedReplySeconds: promptProvider.delayedReplySeconds,
       roleMemories: memoryProvider
           .getMemoriesForRole(role.id)
@@ -1280,6 +1652,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         );
       },
       regexProvider: regexProvider,
+      walletProvider: walletProvider,
     );
   }
 
@@ -1296,6 +1669,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final momentsProvider = context.read<MomentsProvider>();
     final memoryProvider = context.read<MemoryProvider>();
     final emojiProvider = context.read<EmojiProvider>();
+    final walletProvider = context.read<WalletProvider>();
     final chatId = widget.chatId;
 
     // 提前获取用户人设信息（用于发送消息和引用）
@@ -1444,6 +1818,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       enableTextToImage: chat.enableTextToImage,
       enableEmoji: chat.enableEmoji,
       imageApiPresetId: chat.imageApiPresetId,
+      imageStylePresetId: chat.textPresetIds.cast<String?>().firstWhere(
+            (id) => chatProvider.textPresets
+                .any((p) => p.id == id && p.type == TextPresetType.image),
+            orElse: () => null,
+          ),
       delayedReplySeconds:
           forceImmediate ? 0 : promptProvider.delayedReplySeconds,
       roleMemories: memoryProvider
@@ -1460,6 +1839,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         );
       },
       regexProvider: regexProvider,
+      walletProvider: walletProvider,
     );
   }
 
@@ -1548,8 +1928,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       message.metadata!.containsKey('original_prompt'))
                   ? () {
                       _removeOverlay();
-                      _showOriginalPromptDialog(
-                          message.metadata!['original_prompt']);
+                      _showOriginalPromptDialog(message);
                     }
                   : null,
             ),
@@ -1593,15 +1972,94 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  void _showOriginalPromptDialog(String prompt) {
+  void _showOriginalPromptDialog(ChatMessage message) {
+    final prompt = message.metadata?['original_prompt'] as String? ?? '';
+    final genMetadata =
+        message.metadata?['image_gen_metadata'] as Map<String, dynamic>?;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('原始生图输入'),
+        title: const Text('生图详情'),
         content: SingleChildScrollView(
-          child: SelectableText(
-            prompt,
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('原始输入：',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              SelectableText(
+                prompt,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
+              ),
+              if (genMetadata != null) ...[
+                const SizedBox(height: 16),
+                const Text('API 预设：',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(genMetadata['api_preset_name'] ?? '未知'),
+                const SizedBox(height: 12),
+                const Text('风格预设：',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(genMetadata['style_preset_name'] ?? '无'),
+                const SizedBox(height: 12),
+                const Text('风格提示词：',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(genMetadata['style_prompt'] ?? '无',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                if (genMetadata['character_appearance'] != null) ...[
+                  const SizedBox(height: 12),
+                  const Text('角色外貌参考：',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(genMetadata['character_appearance'],
+                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
+                if (genMetadata['user_appearance'] != null) ...[
+                  const SizedBox(height: 12),
+                  const Text('用户外貌参考：',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(genMetadata['user_appearance'],
+                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
+                if (genMetadata['ref_image_paths'] != null &&
+                    (genMetadata['ref_image_paths'] as List).isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text('参考图：',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 80,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount:
+                          (genMetadata['ref_image_paths'] as List).length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final path =
+                            (genMetadata['ref_image_paths'] as List)[index];
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.file(
+                            File(path),
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                              width: 80,
+                              height: 80,
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.broken_image),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ],
+            ],
           ),
         ),
         actions: [
@@ -1609,9 +2067,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             onPressed: () {
               Clipboard.setData(ClipboardData(text: prompt));
               ScaffoldMessenger.of(context)
-                  .showSnackBar(const SnackBar(content: Text('已复制到剪贴板')));
+                  .showSnackBar(const SnackBar(content: Text('已复制原始输入')));
             },
-            child: const Text('复制'),
+            child: const Text('复制输入'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1704,6 +2162,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final momentsProvider = context.read<MomentsProvider>();
     final memoryProvider = context.read<MemoryProvider>();
     final emojiProvider = context.read<EmojiProvider>();
+    final walletProvider = context.read<WalletProvider>();
     final chatId = widget.chatId;
 
     await chatProvider.backtrack(chatId, message.timestamp);
@@ -1775,6 +2234,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       enableTextToImage: chat.enableTextToImage,
       enableEmoji: chat.enableEmoji,
       imageApiPresetId: chat.imageApiPresetId,
+      imageStylePresetId: chat.textPresetIds.cast<String?>().firstWhere(
+            (id) => chatProvider.textPresets
+                .any((p) => p.id == id && p.type == TextPresetType.image),
+            orElse: () => null,
+          ),
       delayedReplySeconds: 0, // 回溯后通常立即回复
       roleMemories: memoryProvider
           .getMemoriesForRole(role.id)
@@ -1790,6 +2254,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         );
       },
       regexProvider: regexProvider,
+      walletProvider: walletProvider,
     );
   }
 
@@ -1836,23 +2301,23 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     return GestureDetector(
       onTap: onTap,
       child: SizedBox(
-        width: 68,
+        width: 70,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 52,
-              height: 52,
+              width: 56,
+              height: 56,
               decoration: BoxDecoration(
                 color: context.surfaceColor,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, size: 26, color: context.primaryTextColor),
+              child: Icon(icon, size: 28, color: context.primaryTextColor),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               label,
-              style: TextStyle(fontSize: 11, color: context.primaryTextColor),
+              style: TextStyle(fontSize: 12, color: context.primaryTextColor),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1943,6 +2408,75 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ),
       );
     }
+  }
+
+  /// 构建新消息提醒气泡
+  Widget? _buildNewMessageBubble() {
+    if (_newMessagesCount <= 0 || _isAtBottom) return null;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 60), // 避开输入框
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _newMessagesCount = 0;
+            // 更新已查看时间戳
+            final chatProvider = context.read<ChatProvider>();
+            final chat = chatProvider.getChat(widget.chatId);
+            if (chat != null && chat.messages.isNotEmpty) {
+              _lastSeenTimestamp = chat.messages.last.timestamp;
+            }
+          });
+          _scrollToBottom();
+        },
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.blue.withOpacity(0.9),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              const Icon(Icons.arrow_downward, color: Colors.white, size: 20),
+              Positioned(
+                top: 2,
+                right: 2,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 16,
+                    minHeight: 16,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$_newMessagesCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -2051,28 +2585,11 @@ class MessageItem extends StatelessWidget {
   }
 
   Widget _buildAvatar(String? path, bool isMe) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: isMe ? Colors.orange[100] : Colors.grey[300],
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: path != null
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: Image.file(
-                File(path),
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Icon(
-                    Icons.person,
-                    color: isMe ? Colors.orange : Colors.grey,
-                  );
-                },
-              ),
-            )
-          : Icon(Icons.person, color: isMe ? Colors.orange : Colors.grey),
+    return _CachedAvatar(
+      path: path,
+      isMe: isMe,
+      role: role,
+      me: me,
     );
   }
 
@@ -2175,6 +2692,10 @@ class MessageItem extends StatelessWidget {
       case MessageType.rejectRedpacket:
       case MessageType.acceptTransfer:
       case MessageType.rejectTransfer:
+      // 沉浸模式专用类型（在沉浸模式界面中处理，普通聊天界面不显示）
+      case MessageType.scene:
+      case MessageType.narration:
+      case MessageType.options:
         return const SizedBox.shrink();
     }
 
@@ -2475,6 +2996,26 @@ class _ImageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (imagePath == '[图片已删除]') {
+      return Container(
+        width: 120,
+        height: 120,
+        decoration: BoxDecoration(
+          color: Colors.grey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: Colors.grey.withOpacity(0.2)),
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.delete_outline, color: Colors.grey, size: 32),
+            SizedBox(height: 8),
+            Text('图片已删除', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ],
+        ),
+      );
+    }
+
     return Container(
       constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: 200),
       decoration: BoxDecoration(
@@ -2493,14 +3034,7 @@ class _ImageBubble extends StatelessWidget {
       return Image.network(
         imagePath,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            width: 100,
-            height: 100,
-            color: Colors.grey[300],
-            child: const Icon(Icons.broken_image, color: Colors.grey),
-          );
-        },
+        errorBuilder: (context, error, stackTrace) => _buildErrorPlaceholder(),
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return Container(
@@ -2513,19 +3047,28 @@ class _ImageBubble extends StatelessWidget {
       );
     } else {
       // 本地文件
-      return Image.file(
-        File(imagePath),
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            width: 100,
-            height: 100,
-            color: Colors.grey[300],
-            child: const Icon(Icons.broken_image, color: Colors.grey),
+      return FutureBuilder<String>(
+        future: StorageUtils.toAbsolutePath(imagePath),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const SizedBox.shrink();
+          return Image.file(
+            File(snapshot.data!),
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) =>
+                _buildErrorPlaceholder(),
           );
         },
       );
     }
+  }
+
+  Widget _buildErrorPlaceholder() {
+    return Container(
+      width: 100,
+      height: 100,
+      color: Colors.grey[300],
+      child: const Icon(Icons.broken_image, color: Colors.grey),
+    );
   }
 }
 
@@ -2656,11 +3199,55 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
       final imagePath = currentImage.content;
 
       if (imagePath.startsWith('http')) {
-        // 网络图片
-        await Gal.putImage(imagePath);
+        // 网络图片 - gal 库不支持直接从 URL 保存，需要先下载
+        // 这里使用 putImageBytes 方法
+        final response = await http.get(Uri.parse(imagePath));
+        if (response.statusCode == 200) {
+          // 根据 Content-Type 判断格式，默认使用 jpg
+          final contentType = response.headers['content-type'] ?? 'image/jpeg';
+          String ext = 'jpg';
+          if (contentType.contains('png')) {
+            ext = 'png';
+          } else if (contentType.contains('webp')) {
+            ext = 'webp';
+          } else if (contentType.contains('gif')) {
+            ext = 'gif';
+          }
+
+          // 创建临时文件保存
+          final tempDir = await getTemporaryDirectory();
+          final tempFile = File('${tempDir.path}/temp_save_image.$ext');
+          await tempFile.writeAsBytes(response.bodyBytes);
+          await Gal.putImage(tempFile.path);
+          await tempFile.delete(); // 清理临时文件
+        } else {
+          throw Exception('下载图片失败');
+        }
       } else {
-        // 本地图片
-        await Gal.putImage(imagePath);
+        // 本地图片 - 转换为绝对路径
+        final absPath = await StorageUtils.toAbsolutePath(imagePath);
+        final file = File(absPath);
+
+        if (!await file.exists()) {
+          throw Exception('图片文件不存在');
+        }
+
+        // 检测实际的图片格式（通过文件头魔数）
+        final bytes = await file.readAsBytes();
+        String? actualFormat = _detectImageFormat(bytes);
+
+        if (actualFormat != null &&
+            !absPath.toLowerCase().endsWith(actualFormat)) {
+          // 如果实际格式与扩展名不匹配，创建正确扩展名的临时文件
+          final tempDir = await getTemporaryDirectory();
+          final tempFile =
+              File('${tempDir.path}/temp_save_image.$actualFormat');
+          await tempFile.writeAsBytes(bytes);
+          await Gal.putImage(tempFile.path);
+          await tempFile.delete(); // 清理临时文件
+        } else {
+          await Gal.putImage(absPath);
+        }
       }
 
       if (context.mounted) {
@@ -2677,41 +3264,260 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
     }
   }
 
+  /// 通过文件头魔数检测图片格式
+  String? _detectImageFormat(Uint8List bytes) {
+    if (bytes.length < 12) return null;
+
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    if (bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      return 'png';
+    }
+
+    // JPEG: FF D8 FF
+    if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+      return 'jpg';
+    }
+
+    // GIF: 47 49 46 38
+    if (bytes[0] == 0x47 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x38) {
+      return 'gif';
+    }
+
+    // WebP: 52 49 46 46 ... 57 45 42 50
+    if (bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes.length > 11 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return 'webp';
+    }
+
+    return null;
+  }
+
   Widget _buildImage(String imagePath) {
+    if (imagePath == '[图片已删除]') {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.delete_outline, color: Colors.white54, size: 64),
+            SizedBox(height: 16),
+            Text('图片已删除', style: TextStyle(color: Colors.white54)),
+          ],
+        ),
+      );
+    }
+
     if (imagePath.startsWith('http')) {
       return Image.network(
         imagePath,
         fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) {
-          return const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.broken_image, color: Colors.white, size: 64),
-                SizedBox(height: 16),
-                Text('图片加载失败', style: TextStyle(color: Colors.white)),
-              ],
-            ),
-          );
-        },
+        errorBuilder: (context, error, stackTrace) => _buildErrorPlaceholder(),
       );
     } else {
-      return Image.file(
-        File(imagePath),
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) {
-          return const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.broken_image, color: Colors.white, size: 64),
-                SizedBox(height: 16),
-                Text('图片加载失败', style: TextStyle(color: Colors.white)),
-              ],
-            ),
+      return FutureBuilder<String>(
+        future: StorageUtils.toAbsolutePath(imagePath),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          return Image.file(
+            File(snapshot.data!),
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) =>
+                _buildErrorPlaceholder(),
           );
         },
       );
     }
+  }
+
+  Widget _buildErrorPlaceholder() {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.broken_image, color: Colors.white, size: 64),
+          SizedBox(height: 16),
+          Text('图片加载失败', style: TextStyle(color: Colors.white)),
+        ],
+      ),
+    );
+  }
+}
+
+/// 全局头像路径缓存，避免重复异步解析导致的闪烁
+class _AvatarPathCache {
+  static final Map<String, String> _cache = {};
+
+  static String? get(String key) => _cache[key];
+  static void set(String key, String value) => _cache[key] = value;
+}
+
+/// 缓存头像组件 - 避免每次 rebuild 都重新加载头像
+class _CachedAvatar extends StatefulWidget {
+  final String? path;
+  final bool isMe;
+  final ContactRole role;
+  final ContactMe me;
+
+  const _CachedAvatar({
+    required this.path,
+    required this.isMe,
+    required this.role,
+    required this.me,
+  });
+
+  @override
+  State<_CachedAvatar> createState() => _CachedAvatarState();
+}
+
+class _CachedAvatarState extends State<_CachedAvatar> {
+  String? _cachedAbsolutePath;
+  bool _isLoading = true;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAvatar(useCache: true);
+  }
+
+  @override
+  void didUpdateWidget(_CachedAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 仅当路径改变时才重新加载
+    if (oldWidget.path != widget.path) {
+      _loadAvatar(useCache: true);
+    }
+  }
+
+  Future<void> _loadAvatar({bool useCache = false}) async {
+    if (widget.path == null || widget.path!.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
+      }
+      return;
+    }
+
+    // 1. 尝试从内存缓存同步获取，避免 Loading 状态
+    if (useCache) {
+      final cachedPath = _AvatarPathCache.get(widget.path!);
+      if (cachedPath != null) {
+        if (mounted) {
+          setState(() {
+            _cachedAbsolutePath = cachedPath;
+            _isLoading = false;
+            _hasError = false;
+          });
+        }
+        return; // 命中缓存，直接返回
+      }
+    }
+
+    // 2. 缓存未命中，进入异步加载（会显示 Loading 或占位）
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _hasError = false;
+      });
+    }
+
+    try {
+      // 获取备份数据
+      Uint8List? backupData;
+      if (widget.isMe) {
+        backupData = widget.me.avatarData;
+      } else {
+        backupData = widget.role.avatarData;
+      }
+
+      final absPath = await StorageUtils.ensureFileExists(
+        widget.path!,
+        backupData: backupData,
+      );
+
+      if (!mounted) return;
+
+      // 验证文件存在性
+      final file = File(absPath);
+      if (await file.exists()) {
+        // 存入缓存
+        _AvatarPathCache.set(widget.path!, absPath);
+
+        setState(() {
+          _cachedAbsolutePath = absPath;
+          _isLoading = false;
+          _hasError = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: widget.isMe ? Colors.orange[100] : Colors.grey[300],
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: _buildContent(),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    if (_isLoading) {
+      return const SizedBox.shrink();
+    }
+
+    if (_hasError || _cachedAbsolutePath == null) {
+      return Icon(
+        Icons.person,
+        color: widget.isMe ? Colors.orange : Colors.grey,
+      );
+    }
+
+    return Image.file(
+      File(_cachedAbsolutePath!),
+      fit: BoxFit.cover,
+      // 使用 gaplessPlayback 防止图片切换时闪烁
+      gaplessPlayback: true,
+      errorBuilder: (context, error, stackTrace) {
+        return Icon(
+          Icons.person,
+          color: widget.isMe ? Colors.orange : Colors.grey,
+        );
+      },
+    );
   }
 }

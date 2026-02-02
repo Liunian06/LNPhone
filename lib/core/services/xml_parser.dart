@@ -4,6 +4,7 @@ import '../models/chat_model.dart';
 import 'image_generation_service.dart';
 import '../database/database.dart';
 import '../providers/regex_settings_provider.dart';
+import '../utils/storage_utils.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 /// 响应解析器
@@ -21,6 +22,7 @@ class ResponseParser {
     bool enableTextToImage = false,
     bool enableEmoji = true,
     String? imageApiPresetId, // 传入独立生图 API 预设 ID
+    String? imageStylePresetId, // 传入独立生图风格预设 ID
     RegexSettingsProvider? regexProvider,
   }) async {
     print('[ResponseParser] ========== 开始解析响应 ==========');
@@ -52,7 +54,8 @@ class ResponseParser {
             simpleIdToRealId: simpleIdToRealId,
             enableTextToImage: enableTextToImage,
             enableEmoji: enableEmoji,
-            imageApiPresetId: imageApiPresetId);
+            imageApiPresetId: imageApiPresetId,
+            imageStylePresetId: imageStylePresetId);
       } catch (e) {
         print('[ResponseParser] ⚠️ JSON 解析失败: $e');
 
@@ -86,7 +89,8 @@ class ResponseParser {
                   simpleIdToRealId: simpleIdToRealId,
                   enableTextToImage: enableTextToImage,
                   enableEmoji: enableEmoji,
-                  imageApiPresetId: imageApiPresetId);
+                  imageApiPresetId: imageApiPresetId,
+                  imageStylePresetId: imageStylePresetId);
             } catch (e2) {
               print('[ResponseParser] ⚠️ 修复后的 JSON 解析仍然失败: $e2');
             }
@@ -110,7 +114,8 @@ class ResponseParser {
                   simpleIdToRealId: simpleIdToRealId,
                   enableTextToImage: enableTextToImage,
                   enableEmoji: enableEmoji,
-                  imageApiPresetId: imageApiPresetId);
+                  imageApiPresetId: imageApiPresetId,
+                  imageStylePresetId: imageStylePresetId);
             }
           } catch (e3) {
             print('[ResponseParser] ⚠️ 进一步修复后的 JSON 解析仍然失败: $e3');
@@ -125,7 +130,8 @@ class ResponseParser {
                   simpleIdToRealId: simpleIdToRealId,
                   enableTextToImage: enableTextToImage,
                   enableEmoji: enableEmoji,
-                  imageApiPresetId: imageApiPresetId);
+                  imageApiPresetId: imageApiPresetId,
+                  imageStylePresetId: imageStylePresetId);
             } catch (e4) {
               print('[ResponseParser] ⚠️ 去除反斜杠后的 JSON 解析仍然失败: $e4');
             }
@@ -140,7 +146,8 @@ class ResponseParser {
                   simpleIdToRealId: simpleIdToRealId,
                   enableTextToImage: enableTextToImage,
                   enableEmoji: enableEmoji,
-                  imageApiPresetId: imageApiPresetId);
+                  imageApiPresetId: imageApiPresetId,
+                  imageStylePresetId: imageStylePresetId);
             } catch (e5) {
               print('[ResponseParser] ⚠️ 去除空格后的 JSON 解析仍然失败: $e5');
             }
@@ -159,6 +166,7 @@ class ResponseParser {
         enableTextToImage: enableTextToImage,
         enableEmoji: enableEmoji,
         imageApiPresetId: imageApiPresetId,
+        imageStylePresetId: imageStylePresetId,
         regexProvider: regexProvider);
   }
 
@@ -169,6 +177,7 @@ class ResponseParser {
     bool enableTextToImage = false,
     bool enableEmoji = true,
     String? imageApiPresetId,
+    String? imageStylePresetId,
   }) async {
     final messages = <ChatMessage>[];
     dynamic decoded;
@@ -198,21 +207,22 @@ class ResponseParser {
         return [];
       }
 
-      final message = await _parseJsonItem(
+      final parsedMessages = await _parseJsonItem(
         item,
         '$messageIdPrefix-$messageIndex',
         simpleIdToRealId: simpleIdToRealId,
         enableTextToImage: enableTextToImage,
         enableEmoji: enableEmoji,
         imageApiPresetId: imageApiPresetId,
+        imageStylePresetId: imageStylePresetId,
       );
 
-      if (message != null) {
+      for (final message in parsedMessages) {
         messages.add(message);
-        messageIndex++;
         print(
             '[ResponseParser] ✓ 添加消息: type=${message.type}, id=${message.id}');
       }
+      messageIndex++;
     }
 
     print(
@@ -220,22 +230,37 @@ class ResponseParser {
     return messages;
   }
 
-  static Future<ChatMessage?> _parseJsonItem(
+  /// 解析单个 JSON 项，返回消息列表（支持多图输出）
+  static Future<List<ChatMessage>> _parseJsonItem(
     Map<String, dynamic> item,
     String messageId, {
     Map<String, String>? simpleIdToRealId,
     bool enableTextToImage = false,
     bool enableEmoji = true,
     String? imageApiPresetId,
+    String? imageStylePresetId,
   }) async {
     final typeStr = item['type'] as String?;
-    String content = item['content'] as String? ?? '';
+
+    // content 可能是 String 或 List（如 options 类型）
+    String content;
+    final contentValue = item['content'];
+    if (contentValue is String) {
+      content = contentValue;
+    } else if (contentValue is List) {
+      // 对于 options 等类型，content 是数组，在 switch 中单独处理
+      content = '';
+    } else if (contentValue != null) {
+      content = contentValue.toString();
+    } else {
+      content = '';
+    }
 
     // 不再自动删除内容中的空格，由正则规则控制
 
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final timestamp = StorageUtils.getUniqueTimestamp();
 
-    if (typeStr == null) return null;
+    if (typeStr == null) return [];
 
     // 处理引用 ID
     String? refId = item['ref'] as String?;
@@ -277,7 +302,7 @@ class ResponseParser {
         if (!enableEmoji) {
           print(
               '[ResponseParser] ⚠️ 检测到表情包消息，但表情包功能未启用 (enableEmoji=false)，已忽略');
-          return null;
+          return [];
         }
         type = MessageType.emoji;
         // 尝试从 content 中提取 ID，如果 content 本身就是 ID
@@ -291,30 +316,54 @@ class ResponseParser {
         if (!enableTextToImage) {
           print(
               '[ResponseParser] ⚠️ 检测到图片消息，但文生图功能未启用 (enableTextToImage=false)，已忽略');
-          return null; // 如果未启用文生图，则忽略图片消息
+          return []; // 如果未启用文生图，则忽略图片消息
         }
-        type = MessageType.image;
         // 触发图片生成
-        String stylePrompt = '';
-        try {
-          stylePrompt = await rootBundle
-              .loadString('assets/prompts/text2image_prompt.txt');
-        } catch (e) {
-          // ignore
-        }
         final includeCharacter = item['includeCharacter'] as bool? ?? false;
         final includeUser = item['includeUser'] as bool? ?? false;
 
-        final imagePath = await ImageGenerationService().generateImage(
+        final imageResult = await ImageGenerationService().generateImage(
           content,
-          stylePrompt,
+          null, // 不再传入硬编码的风格提示词，由 ImageGenerationService 根据预设 ID 获取
           includeCharacter: includeCharacter,
           includeUser: includeUser,
           imageApiPresetId: imageApiPresetId,
+          imageStylePresetId: imageStylePresetId,
         );
-        if (imagePath != null) {
-          content = imagePath; // 替换内容为本地图片路径
-          metadata['original_prompt'] = item['content'] as String? ?? '';
+
+        if (imageResult != null) {
+          final paths = imageResult['paths'] as List<dynamic>?;
+          final originalPrompt = item['content'] as String? ?? '';
+
+          // 如果有多张图片，返回多条消息
+          if (paths != null && paths.length > 1) {
+            final imageMessages = <ChatMessage>[];
+            for (int i = 0; i < paths.length; i++) {
+              final imagePath = paths[i] as String;
+              final imageMetadata = Map<String, dynamic>.from(metadata);
+              imageMetadata['original_prompt'] = originalPrompt;
+              imageMetadata['image_gen_metadata'] = imageResult;
+              imageMetadata['image_index'] = i;
+              imageMetadata['total_images'] = paths.length;
+
+              imageMessages.add(ChatMessage(
+                id: '$messageId-img$i',
+                isMe: false,
+                type: MessageType.image,
+                content: imagePath,
+                timestamp: StorageUtils.getUniqueTimestamp(),
+                metadata: imageMetadata,
+                isRead: false,
+              ));
+            }
+            return imageMessages;
+          }
+
+          // 单张图片，正常处理
+          content = imageResult['path'] as String;
+          metadata['original_prompt'] = originalPrompt;
+          metadata['image_gen_metadata'] = imageResult;
+          type = MessageType.image;
         } else {
           content = '图片生成失败';
           type = MessageType.words; // 降级为文本
@@ -379,8 +428,47 @@ class ResponseParser {
       case 'moment_like':
         type = MessageType.momentLike;
         break;
+
+      // ========== 沉浸模式专用类型 ==========
+      case 'scene':
+        type = MessageType.scene;
+        // 提取场景元数据（不在此处生成图片，由 ScenarioProvider 统一处理）
+        final generate = item['generate'] as bool? ?? true;
+        final location = item['location'] as String?;
+        final time = item['time'] as String?;
+        final weather = item['weather'] as String?;
+
+        metadata['generate'] = generate;
+        if (location != null) metadata['location'] = location;
+        if (time != null) metadata['time'] = time;
+        if (weather != null) metadata['weather'] = weather;
+        // 场景生图由 ScenarioProvider._handleSceneMessage() 统一处理
+        // 这里只存储原始描述
+        metadata['original_prompt'] = content;
+        break;
+
+      case 'narration':
+        type = MessageType.narration;
+        break;
+
+      case 'options':
+        type = MessageType.options;
+        // options 的 content 是一个数组，直接从 item 获取原始值
+        final optionsList = contentValue;
+        if (optionsList is List) {
+          metadata['options'] = optionsList;
+          // 将选项转为可读文本用于 content
+          content = optionsList.map((o) {
+            if (o is Map) {
+              return o['text'] ?? '';
+            }
+            return o.toString();
+          }).join(' / ');
+        }
+        break;
+
       default:
-        return null;
+        return [];
     }
 
     // 特殊处理 accept/reject/moment_comment/moment_like 的 target_id
@@ -396,15 +484,17 @@ class ResponseParser {
       }
     }
 
-    return ChatMessage(
-      id: messageId,
-      isMe: false,
-      type: type,
-      content: content,
-      timestamp: timestamp,
-      metadata: metadata.isEmpty ? null : metadata,
-      isRead: false,
-    );
+    return [
+      ChatMessage(
+        id: messageId,
+        isMe: false,
+        type: type,
+        content: content,
+        timestamp: timestamp,
+        metadata: metadata.isEmpty ? null : metadata,
+        isRead: false,
+      )
+    ];
   }
 
   static Future<List<ChatMessage>> _parseXml(
@@ -414,6 +504,7 @@ class ResponseParser {
     bool enableTextToImage = false,
     bool enableEmoji = true,
     String? imageApiPresetId,
+    String? imageStylePresetId,
     RegexSettingsProvider? regexProvider,
   }) async {
     print('[ResponseParser] (XML) 开始解析 XML...');
@@ -487,7 +578,7 @@ class ResponseParser {
                 isMe: false,
                 type: MessageType.words,
                 content: xmlToParse,
-                timestamp: DateTime.now().millisecondsSinceEpoch,
+                timestamp: StorageUtils.getUniqueTimestamp(),
                 isRead: false,
               ),
             );
@@ -510,7 +601,7 @@ class ResponseParser {
               isMe: false,
               type: MessageType.words,
               content: content,
-              timestamp: DateTime.now().millisecondsSinceEpoch,
+              timestamp: StorageUtils.getUniqueTimestamp(),
               isRead: false,
             ),
           );
@@ -537,6 +628,7 @@ class ResponseParser {
           enableTextToImage: enableTextToImage,
           enableEmoji: enableEmoji,
           imageApiPresetId: imageApiPresetId,
+          imageStylePresetId: imageStylePresetId,
         );
 
         if (message != null) {
@@ -555,7 +647,7 @@ class ResponseParser {
             isMe: false,
             type: MessageType.words,
             content: content,
-            timestamp: DateTime.now().millisecondsSinceEpoch,
+            timestamp: StorageUtils.getUniqueTimestamp(),
             isRead: false,
           ),
         );
@@ -578,10 +670,11 @@ class ResponseParser {
     bool enableTextToImage = false,
     bool enableEmoji = true,
     String? imageApiPresetId,
+    String? imageStylePresetId,
   }) async {
     // 不再自动删除内容中的空格，由正则规则控制
 
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final timestamp = StorageUtils.getUniqueTimestamp();
 
     String? refId = element.getAttribute('ref');
     if (refId == null || refId.isEmpty) {
@@ -690,31 +783,27 @@ class ResponseParser {
           return null; // 如果未启用文生图，则忽略图片消息
         }
         // 触发图片生成
-        String stylePrompt = '';
-        try {
-          stylePrompt = await rootBundle
-              .loadString('assets/prompts/text2image_prompt.txt');
-        } catch (e) {
-          // ignore
-        }
         final includeCharacterStr = element.getAttribute('includeCharacter');
         final includeUserStr = element.getAttribute('includeUser');
         final includeCharacter = includeCharacterStr?.toLowerCase() == 'true';
         final includeUser = includeUserStr?.toLowerCase() == 'true';
 
-        final imagePath = await ImageGenerationService().generateImage(
+        final imageResult = await ImageGenerationService().generateImage(
           content,
-          stylePrompt,
+          null, // 不再传入硬编码的风格提示词，由 ImageGenerationService 根据预设 ID 获取
           includeCharacter: includeCharacter,
           includeUser: includeUser,
           imageApiPresetId: imageApiPresetId,
+          imageStylePresetId: imageStylePresetId,
         );
         String finalContent = content;
         MessageType finalType = MessageType.image;
 
-        if (imagePath != null) {
-          finalContent = imagePath;
+        if (imageResult != null) {
+          finalContent = imageResult['path'] as String;
           metadata['original_prompt'] = content;
+          // 将生图元数据存入消息元数据
+          metadata['image_gen_metadata'] = imageResult;
         } else {
           finalContent = '图片生成失败';
           finalType = MessageType.words;

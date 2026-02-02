@@ -1,8 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/moments_model.dart';
 import '../database/database.dart';
+import '../utils/storage_utils.dart';
 
 /// 朋友圈数据提供者
 class MomentsProvider extends ChangeNotifier {
@@ -21,11 +25,15 @@ class MomentsProvider extends ChangeNotifier {
 
   // 当前激活（显示操作菜单）的动态ID
   String? _activePostId;
+  bool _isLoadingMore = false;
+  int _offset = 0;
+  static const int _pageSize = 5;
 
   // Getters
   MomentsUser get currentUser => _currentUser;
   List<MomentsPost> get posts => _posts;
   String? get activePostId => _activePostId;
+  bool get isLoadingMore => _isLoadingMore;
 
   MomentsProvider() {
     _database = AppDatabase();
@@ -41,13 +49,62 @@ class MomentsProvider extends ChangeNotifier {
 
   /// 从数据库加载动态
   Future<void> _loadPosts() async {
-    _posts = await _database.getAllMoments();
+    _offset = 0;
+    _posts = await _database.getAllMoments(limit: _pageSize, offset: _offset);
+    _offset = _posts.length;
     notifyListeners();
   }
 
+  /// 加载更多动态
+  Future<void> loadMore() async {
+    if (_isLoadingMore) return;
+    _isLoadingMore = true;
+    notifyListeners();
+
+    try {
+      final morePosts =
+          await _database.getAllMoments(limit: _pageSize, offset: _offset);
+      if (morePosts.isNotEmpty) {
+        _posts.addAll(morePosts);
+        _offset += morePosts.length;
+      }
+    } catch (e) {
+      debugPrint('[MomentsProvider] 加载更多朋友圈失败: $e');
+    } finally {
+      _isLoadingMore = false;
+      notifyListeners();
+    }
+  }
+
   /// 强制刷新数据（供外部调用）
+  /// 刷新时会获取最新的动态，并与当前已加载的动态合并，保留加载进度
   Future<void> refresh() async {
-    await _loadPosts();
+    try {
+      // 获取最新的第一页数据
+      final latestPosts =
+          await _database.getAllMoments(limit: _pageSize, offset: 0);
+
+      final Map<String, MomentsPost> merged = {};
+      // 先放旧的（保留顺序）
+      for (var p in _posts) {
+        merged[p.id] = p;
+      }
+      // 再放新的（覆盖或新增）
+      for (var p in latestPosts) {
+        merged[p.id] = p;
+      }
+
+      _posts = merged.values.toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      // 更新 offset 确保后续 loadMore 正确
+      _offset = _posts.length;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[MomentsProvider] 刷新朋友圈失败: $e');
+      // 如果合并失败，回退到全量加载第一页
+      await _loadPosts();
+    }
   }
 
   /// 加载当前用户信息
@@ -65,7 +122,9 @@ class MomentsProvider extends ChangeNotifier {
           name: settings.name,
           avatarUrl:
               settings.avatarUrl ?? 'https://picsum.photos/200/200?random=1',
+          avatarData: settings.avatarData,
           coverImageUrl: settings.coverImageUrl,
+          coverImageData: settings.coverImageData,
           signature: settings.signature,
         );
       }
@@ -112,7 +171,9 @@ class MomentsProvider extends ChangeNotifier {
       await _database.saveMomentsUserSettings(
         name: _currentUser.name,
         avatarUrl: _currentUser.avatarUrl,
+        avatarData: _currentUser.avatarData,
         coverImageUrl: _currentUser.coverImageUrl,
+        coverImageData: _currentUser.coverImageData,
         signature: _currentUser.signature,
       );
       debugPrint('[MomentsProvider] 保存朋友圈用户设置成功');
@@ -132,7 +193,7 @@ class MomentsProvider extends ChangeNotifier {
   /// 从AI聊天消息创建朋友圈动态
   Future<void> addMomentFromChat(String content, MomentsUser user) async {
     final newPost = MomentsPost(
-      id: 'moment_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'moment_${StorageUtils.getUniqueTimestamp()}',
       user: user,
       content: content,
       mediaItems: [], // AI生成的moment不包含图片
@@ -192,7 +253,7 @@ class MomentsProvider extends ChangeNotifier {
     final post = _posts[postIndex];
     final comments = List<MomentsComment>.from(post.comments);
 
-    final commentId = 'c_${DateTime.now().millisecondsSinceEpoch}';
+    final commentId = 'c_${StorageUtils.getUniqueTimestamp()}';
     final newComment = MomentsComment(
       id: commentId,
       user: _currentUser,
@@ -230,11 +291,32 @@ class MomentsProvider extends ChangeNotifier {
     List<MediaItem>? mediaItems,
     String? location,
   }) async {
+    final List<MediaItem> savedMediaItems = [];
+
+    if (mediaItems != null) {
+      for (int i = 0; i < mediaItems.length; i++) {
+        final item = mediaItems[i];
+        final result = await _saveImageWithData(item.url, 'moment_media_$i');
+        if (result != null) {
+          // 存储相对路径
+          final relPath = await StorageUtils.toRelativePath(result.path);
+          savedMediaItems.add(MediaItem(
+            url: relPath,
+            type: item.type,
+            thumbnailUrl: item.thumbnailUrl,
+          ));
+        } else {
+          savedMediaItems.add(item);
+        }
+      }
+    }
+
     final newPost = MomentsPost(
-      id: 'post_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'post_${StorageUtils.getUniqueTimestamp()}',
       user: _currentUser,
       content: content,
-      mediaItems: mediaItems ?? [],
+      mediaItems: savedMediaItems,
+      mediaData: null, // 优化：不再存储 Base64 列表
       createdAt: DateTime.now(),
       location: location,
     );
@@ -268,17 +350,50 @@ class MomentsProvider extends ChangeNotifier {
   }
 
   /// 更新当前用户封面
-  void updateCurrentUserCover(String coverUrl) {
-    _currentUser = _currentUser.copyWith(coverImageUrl: coverUrl);
-    _saveCurrentUser();
+  Future<void> updateCurrentUserCover(String coverUrl) async {
+    final result = await _saveImageWithData(coverUrl, 'current_user_cover');
+    _currentUser = _currentUser.copyWith(
+      coverImageUrl: result?.path ?? coverUrl,
+      coverImageData: result?.data,
+    );
+    await _saveCurrentUser();
     notifyListeners();
   }
 
   /// 更新当前用户头像
-  void updateCurrentUserAvatar(String avatarUrl) {
-    _currentUser = _currentUser.copyWith(avatarUrl: avatarUrl);
-    _saveCurrentUser();
+  Future<void> updateCurrentUserAvatar(String avatarUrl) async {
+    final result = await _saveImageWithData(avatarUrl, 'current_user_avatar');
+    _currentUser = _currentUser.copyWith(
+      avatarUrl: result?.path ?? avatarUrl,
+      avatarData: result?.data,
+    );
+    await _saveCurrentUser();
     notifyListeners();
+  }
+
+  /// 将图片保存到应用文档目录，并返回路径和二进制数据
+  Future<({String path, Uint8List data})?> _saveImageWithData(
+      String? sourcePath, String id) async {
+    if (sourcePath == null || sourcePath.isEmpty) return null;
+    if (sourcePath.startsWith('http')) return null; // 不处理网络图片
+
+    try {
+      // 确保文件在持久化目录中
+      final persistentPath = await StorageUtils.ensurePersistent(sourcePath, id,
+          subDir: 'moments');
+      final absPath = await StorageUtils.toAbsolutePath(persistentPath);
+      final file = File(absPath);
+
+      if (!await file.exists()) return null;
+
+      // 读取二进制数据用于数据库备份
+      final bytes = await file.readAsBytes();
+
+      return (path: persistentPath, data: bytes);
+    } catch (e) {
+      debugPrint('[MomentsProvider] 处理图片失败: $e');
+      return null;
+    }
   }
 
   /// 更新当前用户昵称

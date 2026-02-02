@@ -10,6 +10,7 @@ import '../core/database/database.dart';
 import '../core/models/world_info_model.dart';
 import '../core/models/text_preset_model.dart';
 import '../core/models/api_preset.dart';
+import '../core/utils/storage_utils.dart';
 
 class ChatSettingsScreen extends StatefulWidget {
   final String chatId;
@@ -794,7 +795,7 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
 
       // 将图片复制到应用文档目录，确保持久化
       final appDocDir = await getApplicationDocumentsDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final timestamp = StorageUtils.getUniqueTimestamp();
       final ext = path.extension(pickedFile.path);
       final newFileName = 'chat_bg_${widget.chatId}_$timestamp$ext';
       final newPath = path.join(appDocDir.path, newFileName);

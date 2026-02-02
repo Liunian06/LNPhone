@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/models/chat_model.dart';
 import '../core/theme/app_theme.dart';
 import '../core/providers/emoji_provider.dart';
+import '../core/utils/storage_utils.dart';
 
 /// 红包气泡
 class RedpacketBubble extends StatelessWidget {
@@ -825,13 +826,22 @@ class EmojiBubble extends StatelessWidget {
           return Container(
             constraints: BoxConstraints(maxWidth: maxWidth * 0.5),
             padding: const EdgeInsets.all(8),
-            child: Image.file(
-              File(emoji.localPath),
-              width: 120,
-              height: 120,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) =>
-                  const SizedBox.shrink(),
+            child: FutureBuilder<String>(
+              future: StorageUtils.ensureFileExists(emoji.localPath,
+                  backupData: emoji.emojiData),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const SizedBox.shrink();
+                final file = File(snapshot.data!);
+                if (!file.existsSync()) return const SizedBox.shrink();
+                return Image.file(
+                  file,
+                  width: 120,
+                  height: 120,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const SizedBox.shrink(),
+                );
+              },
             ),
           );
         }

@@ -17,6 +17,9 @@ import 'core/providers/emoji_provider.dart';
 import 'core/services/background_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/app_log_service.dart';
+import 'core/services/storage_permission_service.dart';
+import 'core/services/file_integrity_service.dart';
+import 'core/services/emoji_backup_migration.dart';
 import 'core/theme/app_theme.dart';
 
 /// 全局数据库实例
@@ -57,34 +60,78 @@ void main() async {
 
   // 延迟初始化服务，避免阻塞应用启动
   // 给予主 Isolate 足够的时间完成数据库迁移和初始化
-  Future.delayed(const Duration(seconds: 3), () {
+  Future.delayed(const Duration(seconds: 2), () {
     _initializeServicesAsync();
   });
 }
 
 /// 异步初始化服务，不阻塞应用启动
 Future<void> _initializeServicesAsync() async {
+  // 1. 请求存储权限（优先级最高，影响文件保活）
   try {
-    // 1. 初始化通知服务
-    debugPrint('Initializing Notification Service...');
+    debugPrint('[Init] 请求存储权限...');
+    final permissionService = StoragePermissionService();
+    final hasPermission = await permissionService.requestStoragePermission();
+
+    if (hasPermission) {
+      debugPrint('[Init] ✓ 存储权限已授予');
+
+      // 权限授予后，立即运行文件完整性检查
+      try {
+        debugPrint('[Init] 开始文件完整性检查...');
+        final integrityService = FileIntegrityService(database);
+        final report = await integrityService.checkAndRestoreAll();
+
+        if (report.hasIssues) {
+          debugPrint('[Init] ⚠ 文件完整性检查发现问题:');
+          debugPrint('[Init] ${report.summary}');
+          if (report.errors.isNotEmpty) {
+            debugPrint('[Init] 错误详情:');
+            for (final error in report.errors) {
+              debugPrint('[Init]   - $error');
+            }
+          }
+        } else {
+          debugPrint('[Init] ✓ 文件完整性检查通过');
+        }
+      } catch (e, stackTrace) {
+        debugPrint('[Init] ❌ 文件完整性检查失败: $e');
+        debugPrint('[Init] Stack trace: $stackTrace');
+      }
+
+      // 表情包备份数据迁移已禁用
+      // 原因：自动迁移会在启动时为所有表情包创建备份，影响启动速度
+      // 如需迁移，请在表情管理界面手动触发
+      debugPrint('[Init] 表情包自动迁移已禁用（可在表情管理界面手动触发）');
+    } else {
+      debugPrint('[Init] ⚠ 存储权限未授予，文件保活能力受限');
+    }
+  } catch (e, stackTrace) {
+    debugPrint('[Init] ❌ 请求存储权限失败: $e');
+    debugPrint('[Init] Stack trace: $stackTrace');
+  }
+
+  // 2. 初始化通知服务
+  try {
+    debugPrint('[Init] 初始化通知服务...');
     await NotificationService().initialize();
-    debugPrint('Notification Service Initialized');
+    debugPrint('[Init] ✓ 通知服务已初始化');
   } catch (e, stackTrace) {
-    debugPrint('Failed to initialize Notification Service: $e');
-    debugPrint('Stack trace: $stackTrace');
+    debugPrint('[Init] ❌ 通知服务初始化失败: $e');
+    debugPrint('[Init] Stack trace: $stackTrace');
   }
 
+  // 3. 初始化后台服务
   try {
-    // 2. 初始化后台服务
-    debugPrint('Initializing Background Service...');
+    debugPrint('[Init] 初始化后台服务...');
     await BackgroundService.initializeService();
-    debugPrint('Background Service Initialized');
+    debugPrint('[Init] ✓ 后台服务已初始化');
   } catch (e, stackTrace) {
-    debugPrint('Failed to initialize Background Service: $e');
-    debugPrint('Stack trace: $stackTrace');
+    debugPrint('[Init] ❌ 后台服务初始化失败: $e');
+    debugPrint('[Init] Stack trace: $stackTrace');
   }
 
-  // 3. 监听后台服务发来的通知请求（IPC 机制）
+  // 4. 监听后台服务发来的通知请求（IPC 机制）
   _setupBackgroundServiceListener();
 }
 

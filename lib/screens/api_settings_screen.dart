@@ -4,6 +4,7 @@ import '../widgets/ios_wallpaper.dart';
 import 'settings_screen.dart'; // For SettingsSection and SettingsTile
 import 'chat_model_settings_screen.dart';
 import 'image_model_settings_screen.dart';
+import 'voice_model_settings_screen.dart';
 
 class ApiSettingsScreen extends StatelessWidget {
   const ApiSettingsScreen({super.key});
@@ -48,6 +49,18 @@ class ApiSettingsScreen extends StatelessWidget {
                             MaterialPageRoute(
                               builder: (context) =>
                                   const ImageModelSettingsScreen(),
+                            ),
+                          ),
+                        ),
+                        SettingsTile(
+                          title: '语音模型',
+                          subtitle: '配置语音合成模型',
+                          icon: CupertinoIcons.mic_fill,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const VoiceModelSettingsScreen(),
                             ),
                           ),
                         ),

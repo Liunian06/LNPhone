@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
@@ -15,6 +16,7 @@ import '../models/memory_model.dart';
 import '../models/wallet_model.dart';
 import 'tables.dart';
 import '../models/emoji_model.dart';
+import '../utils/storage_utils.dart';
 
 part 'database.g.dart';
 
@@ -80,7 +82,7 @@ class AppDatabase extends _$AppDatabase {
   static bool get hasActiveConnection => _instance != null;
 
   @override
-  int get schemaVersion => 31;
+  int get schemaVersion => 36;
 
   // Migration Strategy
   @override
@@ -317,6 +319,67 @@ class AppDatabase extends _$AppDatabase {
             print('[Migration] Error in version 31: $e');
           }
         }
+        if (from < 32) {
+          // 添加头像二进制数据列
+          try {
+            await m.addColumn(contactRoles,
+                contactRoles.avatarData as GeneratedColumn<Object>);
+            await m.addColumn(
+                contactMes, contactMes.avatarData as GeneratedColumn<Object>);
+            await m.addColumn(momentsUserSettings,
+                momentsUserSettings.avatarData as GeneratedColumn<Object>);
+            await m.addColumn(momentsUserSettings,
+                momentsUserSettings.coverImageData as GeneratedColumn<Object>);
+          } catch (e) {
+            print('[Migration] Error in version 32: $e');
+          }
+        }
+        if (from < 33) {
+          // 添加背景图、表情包、参考图二进制数据列
+          try {
+            await m.addColumn(chatSessions,
+                chatSessions.backgroundImageData as GeneratedColumn<Object>);
+            await m.addColumn(
+                emojis, emojis.emojiData as GeneratedColumn<Object>);
+            await m.addColumn(contactRoles,
+                contactRoles.referenceImagesData as GeneratedColumn<Object>);
+            await m.addColumn(contactMes,
+                contactMes.referenceImagesData as GeneratedColumn<Object>);
+            await m.addColumn(momentsPosts,
+                momentsPosts.mediaData as GeneratedColumn<Object>);
+          } catch (e) {
+            print('[Migration] Error in version 33: $e');
+          }
+        }
+        if (from < 34) {
+          // 添加 AppSettings 二进制值列
+          try {
+            await m.addColumn(
+                appSettings, appSettings.blobValue as GeneratedColumn<Object>);
+          } catch (e) {
+            print('[Migration] Error in version 34: $e');
+          }
+        }
+        if (from < 35) {
+          // 添加 ChatMessages 二进制数据列
+          try {
+            await m.addColumn(chatMessages,
+                chatMessages.messageData as GeneratedColumn<Object>);
+          } catch (e) {
+            print('[Migration] Error in version 35: $e');
+          }
+        }
+        if (from < 36) {
+          // 添加 ApiPresets.voiceId 和 ApiPresets.audioChannel 列
+          try {
+            await m.addColumn(
+                apiPresets, apiPresets.voiceId as GeneratedColumn<Object>);
+            await m.addColumn(
+                apiPresets, apiPresets.audioChannel as GeneratedColumn<Object>);
+          } catch (e) {
+            print('[Migration] Error in version 36: $e');
+          }
+        }
       },
     );
   }
@@ -336,35 +399,51 @@ class AppDatabase extends _$AppDatabase {
 
     List<ChatSession> result = [];
     for (final s in sessions) {
-      final messages = await (select(chatMessages)
+      // 优化：默认加载最新的 30 条消息，满足初始显示需求
+      final msgEntities = await (select(chatMessages)
             ..where((t) => t.sessionId.equals(s.id))
             ..orderBy([
               (t) => OrderingTerm(
                     expression: t.timestamp,
-                    mode: OrderingMode.asc,
+                    mode: OrderingMode.desc,
                   ),
-            ]))
+            ])
+            ..limit(30))
           .get();
+
+      final initialMessages = msgEntities
+          .map(
+            (m) => ChatMessage(
+              id: m.id,
+              isMe: m.isMe,
+              sender: m.sender,
+              type: m.type,
+              content: m.content,
+              messageData: m.messageData,
+              timestamp: m.timestamp,
+              metadata: m.metadata,
+              isRead: m.isRead,
+            ),
+          )
+          .toList()
+          .reversed
+          .toList();
+
+      // 优化：单独查询未读数，避免加载所有消息
+      final unreadCountQuery = select(chatMessages)
+        ..where((t) =>
+            t.sessionId.equals(s.id) &
+            t.isMe.equals(false) &
+            t.isRead.equals(false));
+      final unreadCount = (await unreadCountQuery.get()).length;
 
       result.add(
         ChatSession(
           id: s.id,
           roleId: s.roleId,
           meId: s.meId,
-          messages: messages
-              .map(
-                (m) => ChatMessage(
-                  id: m.id,
-                  isMe: m.isMe,
-                  sender: m.sender,
-                  type: m.type,
-                  content: m.content,
-                  timestamp: m.timestamp,
-                  metadata: m.metadata,
-                  isRead: m.isRead,
-                ),
-              )
-              .toList(),
+          messages: initialMessages,
+          unreadCountOverride: unreadCount, // 传入预计算的未读数
           lastUpdated: s.lastUpdated,
           enableExtendedChat: s.enableExtendedChat,
           enableTextToImage: s.enableTextToImage,
@@ -377,6 +456,7 @@ class AppDatabase extends _$AppDatabase {
           apiPresetId: s.apiPresetId,
           imageApiPresetId: s.imageApiPresetId,
           backgroundImage: s.backgroundImage,
+          backgroundImageData: s.backgroundImageData,
         ),
       );
     }
@@ -384,21 +464,23 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// 获取单个会话
-  Future<ChatSession?> getChatSession(String id) async {
+  Future<ChatSession?> getChatSession(String id, {int limit = 30}) async {
     final s = await (select(
       chatSessions,
     )..where((t) => t.id.equals(id)))
         .getSingleOrNull();
     if (s == null) return null;
 
+    // 默认只加载最新的 N 条消息
     final messages = await (select(chatMessages)
           ..where((t) => t.sessionId.equals(s.id))
           ..orderBy([
             (t) => OrderingTerm(
                   expression: t.timestamp,
-                  mode: OrderingMode.asc,
+                  mode: OrderingMode.desc,
                 ),
-          ]))
+          ])
+          ..limit(limit))
         .get();
 
     return ChatSession(
@@ -413,11 +495,14 @@ class AppDatabase extends _$AppDatabase {
               sender: m.sender,
               type: m.type,
               content: m.content,
+              messageData: m.messageData,
               timestamp: m.timestamp,
               metadata: m.metadata,
               isRead: m.isRead,
             ),
           )
+          .toList()
+          .reversed
           .toList(),
       lastUpdated: s.lastUpdated,
       enableExtendedChat: s.enableExtendedChat,
@@ -431,6 +516,7 @@ class AppDatabase extends _$AppDatabase {
       apiPresetId: s.apiPresetId,
       imageApiPresetId: s.imageApiPresetId,
       backgroundImage: s.backgroundImage,
+      backgroundImageData: s.backgroundImageData,
     );
   }
 
@@ -534,12 +620,55 @@ class AppDatabase extends _$AppDatabase {
             sender: m.sender,
             type: m.type,
             content: m.content,
+            messageData: m.messageData,
             timestamp: m.timestamp,
             metadata: m.metadata,
             isRead: m.isRead,
           ),
         )
         .toList();
+  }
+
+  /// 分页获取消息
+  Future<List<ChatMessage>> getMessagesPaged(String sessionId,
+      {int limit = 30, int offset = 0}) async {
+    final query = select(chatMessages)
+      ..where((t) => t.sessionId.equals(sessionId))
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.timestamp, mode: OrderingMode.desc),
+      ])
+      ..limit(limit, offset: offset);
+
+    final entities = await query.get();
+
+    return entities
+        .map(
+          (m) => ChatMessage(
+            id: m.id,
+            isMe: m.isMe,
+            sender: m.sender,
+            type: m.type,
+            content: m.content,
+            messageData: m.messageData,
+            timestamp: m.timestamp,
+            metadata: m.metadata,
+            isRead: m.isRead,
+          ),
+        )
+        .toList()
+        .reversed
+        .toList();
+  }
+
+  /// 获取未读消息数
+  Future<int> getUnreadCount(String sessionId) async {
+    final query = select(chatMessages)
+      ..where((t) =>
+          t.sessionId.equals(sessionId) &
+          t.isMe.equals(false) &
+          t.isRead.equals(false));
+    final result = await query.get();
+    return result.length;
   }
 
   /// 删除指定时间之后的消息 (用于回溯)
@@ -633,20 +762,25 @@ class AppDatabase extends _$AppDatabase {
 
   /// 更新会话的背景图
   Future<void> updateSessionBackgroundImage(
-      String id, String? backgroundImage) {
+      String id, String? backgroundImage, Uint8List? backgroundImageData) {
     return (update(chatSessions)..where((t) => t.id.equals(id))).write(
-      ChatSessionsCompanion(backgroundImage: Value(backgroundImage)),
+      ChatSessionsCompanion(
+        backgroundImage: Value(backgroundImage),
+        backgroundImageData: Value(backgroundImageData),
+      ),
     );
   }
 
   // --- Moments Queries ---
 
   /// 获取所有朋友圈动态，按时间倒序
-  Future<List<MomentsPost>> getAllMoments() async {
+  Future<List<MomentsPost>> getAllMoments(
+      {int limit = 5, int offset = 0}) async {
     final query = select(momentsPosts)
       ..orderBy([
         (t) => OrderingTerm(expression: t.createdAt, mode: OrderingMode.desc),
-      ]);
+      ])
+      ..limit(limit, offset: offset);
 
     final entities = await query.get();
 
@@ -656,6 +790,11 @@ class AppDatabase extends _$AppDatabase {
         user: e.user,
         content: e.content,
         mediaItems: e.mediaItems,
+        mediaData: e.mediaData != null
+            ? (jsonDecode(e.mediaData!) as List)
+                .map((i) => i.toString())
+                .toList()
+            : null,
         createdAt: DateTime.fromMillisecondsSinceEpoch(e.createdAt),
         likes: e.likes, // 这里现在是 List<MomentLike>
         comments: e.comments,
@@ -673,6 +812,9 @@ class AppDatabase extends _$AppDatabase {
       user: e.user,
       content: e.content,
       mediaItems: e.mediaItems,
+      mediaData: e.mediaData != null
+          ? (jsonDecode(e.mediaData!) as List).map((i) => i.toString()).toList()
+          : null,
       createdAt: DateTime.fromMillisecondsSinceEpoch(e.createdAt),
       likes: e.likes,
       comments: e.comments,
@@ -688,6 +830,8 @@ class AppDatabase extends _$AppDatabase {
         user: Value(post.user),
         content: Value(post.content),
         mediaItems: Value(post.mediaItems),
+        mediaData:
+            Value(post.mediaData != null ? jsonEncode(post.mediaData) : null),
         createdAt: Value(post.createdAt.millisecondsSinceEpoch),
         likes: Value(post.likes), // 这里现在是 List<MomentLike>
         comments: Value(post.comments),
@@ -888,7 +1032,7 @@ class AppDatabase extends _$AppDatabase {
       RoleMemoriesCompanion(
         content: Value(content),
         category: Value(category),
-        updatedAt: Value(DateTime.now().millisecondsSinceEpoch),
+        updatedAt: Value(StorageUtils.getUniqueTimestamp()),
       ),
     );
   }
@@ -930,9 +1074,15 @@ class AppDatabase extends _$AppDatabase {
             id: e.id,
             name: e.name,
             avatarPath: e.avatarPath,
+            avatarData: e.avatarData,
             description: e.description,
             appearance: e.appearance,
             referenceImages: e.referenceImages,
+            referenceImagesData: e.referenceImagesData != null
+                ? (json.decode(e.referenceImagesData!) as List<dynamic>)
+                    .map((i) => i.toString())
+                    .toList()
+                : null,
             subscribedGroupIds: e.subscribedGroupIds,
             subscribedEmojiIds: e.subscribedEmojiIds,
           ),
@@ -947,9 +1097,13 @@ class AppDatabase extends _$AppDatabase {
         id: Value(role.id),
         name: Value(role.name),
         avatarPath: Value(role.avatarPath),
+        avatarData: Value(role.avatarData),
         description: Value(role.description),
         appearance: Value(role.appearance),
         referenceImages: Value(role.referenceImages),
+        referenceImagesData: Value(role.referenceImagesData != null
+            ? json.encode(role.referenceImagesData)
+            : null),
         subscribedGroupIds: Value(role.subscribedGroupIds),
         subscribedEmojiIds: Value(role.subscribedEmojiIds),
       ),
@@ -971,9 +1125,15 @@ class AppDatabase extends _$AppDatabase {
       id: e.id,
       name: e.name,
       avatarPath: e.avatarPath,
+      avatarData: e.avatarData,
       description: e.description,
       appearance: e.appearance,
       referenceImages: e.referenceImages,
+      referenceImagesData: e.referenceImagesData != null
+          ? (json.decode(e.referenceImagesData!) as List<dynamic>)
+              .map((i) => i.toString())
+              .toList()
+          : null,
       subscribedGroupIds: e.subscribedGroupIds,
       subscribedEmojiIds: e.subscribedEmojiIds,
     );
@@ -990,9 +1150,15 @@ class AppDatabase extends _$AppDatabase {
             id: e.id,
             name: e.name,
             avatarPath: e.avatarPath,
+            avatarData: e.avatarData,
             info: e.info,
             appearance: e.appearance,
             referenceImages: e.referenceImages,
+            referenceImagesData: e.referenceImagesData != null
+                ? (json.decode(e.referenceImagesData!) as List<dynamic>)
+                    .map((i) => i.toString())
+                    .toList()
+                : null,
           ),
         )
         .toList();
@@ -1005,9 +1171,13 @@ class AppDatabase extends _$AppDatabase {
         id: Value(me.id),
         name: Value(me.name),
         avatarPath: Value(me.avatarPath),
+        avatarData: Value(me.avatarData),
         info: Value(me.info),
         appearance: Value(me.appearance),
         referenceImages: Value(me.referenceImages),
+        referenceImagesData: Value(me.referenceImagesData != null
+            ? json.encode(me.referenceImagesData)
+            : null),
       ),
       mode: InsertMode.insertOrReplace,
     );
@@ -1027,9 +1197,15 @@ class AppDatabase extends _$AppDatabase {
       id: e.id,
       name: e.name,
       avatarPath: e.avatarPath,
+      avatarData: e.avatarData,
       info: e.info,
       appearance: e.appearance,
       referenceImages: e.referenceImages,
+      referenceImagesData: e.referenceImagesData != null
+          ? (json.decode(e.referenceImagesData!) as List<dynamic>)
+              .map((i) => i.toString())
+              .toList()
+          : null,
     );
   }
 
@@ -1053,6 +1229,8 @@ class AppDatabase extends _$AppDatabase {
             isStream: e.isStream,
             enableThinking: e.enableThinking,
             timeout: e.timeout,
+            voiceId: e.voiceId,
+            audioChannel: e.audioChannel,
           ),
         )
         .toList();
@@ -1074,6 +1252,8 @@ class AppDatabase extends _$AppDatabase {
         isStream: Value(preset.isStream),
         enableThinking: Value(preset.enableThinking),
         timeout: Value(preset.timeout),
+        voiceId: Value(preset.voiceId),
+        audioChannel: Value(preset.audioChannel),
       ),
       mode: InsertMode.insertOrReplace,
     );
@@ -1102,6 +1282,8 @@ class AppDatabase extends _$AppDatabase {
       isStream: e.isStream,
       enableThinking: e.enableThinking,
       timeout: e.timeout,
+      voiceId: e.voiceId,
+      audioChannel: e.audioChannel,
     );
   }
 
@@ -1124,6 +1306,7 @@ class AppDatabase extends _$AppDatabase {
       sender: msg.sender,
       type: msg.type,
       content: msg.content,
+      messageData: msg.messageData,
       timestamp: msg.timestamp,
       metadata: msg.metadata,
       isRead: msg.isRead,
@@ -1177,6 +1360,7 @@ class AppDatabase extends _$AppDatabase {
             sender: m.sender,
             type: m.type,
             content: m.content,
+            messageData: m.messageData,
             timestamp: m.timestamp,
             metadata: m.metadata,
             isRead: m.isRead,
@@ -1199,7 +1383,9 @@ class AppDatabase extends _$AppDatabase {
   Future<void> saveMomentsUserSettings({
     required String name,
     String? avatarUrl,
+    Uint8List? avatarData,
     String? coverImageUrl,
+    Uint8List? coverImageData,
     String? signature,
   }) async {
     await into(momentsUserSettings).insert(
@@ -1207,7 +1393,9 @@ class AppDatabase extends _$AppDatabase {
         id: const Value('current_user'),
         name: Value(name),
         avatarUrl: Value(avatarUrl),
+        avatarData: Value(avatarData),
         coverImageUrl: Value(coverImageUrl),
+        coverImageData: Value(coverImageData),
         signature: Value(signature),
       ),
       mode: InsertMode.insertOrReplace,
@@ -1222,18 +1410,25 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// 更新朋友圈用户头像
-  Future<void> updateMomentsUserAvatar(String? avatarUrl) async {
+  Future<void> updateMomentsUserAvatar(
+      String? avatarUrl, Uint8List? avatarData) async {
     await (update(momentsUserSettings)
           ..where((t) => t.id.equals('current_user')))
-        .write(MomentsUserSettingsCompanion(avatarUrl: Value(avatarUrl)));
+        .write(MomentsUserSettingsCompanion(
+      avatarUrl: Value(avatarUrl),
+      avatarData: Value(avatarData),
+    ));
   }
 
   /// 更新朋友圈用户封面
-  Future<void> updateMomentsUserCover(String? coverImageUrl) async {
+  Future<void> updateMomentsUserCover(
+      String? coverImageUrl, Uint8List? coverImageData) async {
     await (update(momentsUserSettings)
           ..where((t) => t.id.equals('current_user')))
-        .write(
-            MomentsUserSettingsCompanion(coverImageUrl: Value(coverImageUrl)));
+        .write(MomentsUserSettingsCompanion(
+      coverImageUrl: Value(coverImageUrl),
+      coverImageData: Value(coverImageData),
+    ));
   }
 
   /// 更新朋友圈用户签名
@@ -1351,6 +1546,26 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// 获取设置值（二进制）
+  Future<Uint8List?> getSettingBlob(String key) async {
+    final e = await (select(appSettings)..where((t) => t.key.equals(key)))
+        .getSingleOrNull();
+    return e?.blobValue;
+  }
+
+  /// 设置值（二进制）
+  Future<void> setSettingBlob(String key, Uint8List value) async {
+    await into(appSettings).insert(
+      AppSettingsCompanion(
+        key: Value(key),
+        value: const Value(''), // 二进制存储时 value 字段留空或存描述
+        blobValue: Value(value),
+        type: const Value('blob'),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+  }
+
   /// 删除设置
   Future<void> deleteSetting(String key) async {
     await (delete(appSettings)..where((t) => t.key.equals(key))).go();
@@ -1450,6 +1665,7 @@ class AppDatabase extends _$AppDatabase {
             rawContent: e.rawContent,
             groupId: e.groupId,
             localPath: e.localPath,
+            emojiData: e.emojiData,
             type: e.type,
             roleId: e.roleId,
             createdAt: e.createdAt,
@@ -1522,6 +1738,94 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deleteEmojiGroup(String id) {
     return (delete(emojiGroups)..where((t) => t.id.equals(id))).go();
+  }
+
+  /// 迁移所有 Blob 数据到文件系统
+  Future<void> migrateBlobsToFiles() async {
+    print('[Database] 开始执行 Blob 到文件的迁移任务...');
+    await StorageUtils.init();
+
+    // 1. 迁移聊天消息图片
+    final msgEntities = await (select(chatMessages)
+          ..where((t) => t.messageData.isNotNull()))
+        .get();
+    for (final m in msgEntities) {
+      if (m.messageData != null) {
+        final fileName = 'msg_${StorageUtils.getUniqueTimestamp()}.jpg';
+        final relPath = await StorageUtils.saveBlobToFile(
+            m.messageData, 'chat_images', fileName);
+        if (relPath != null) {
+          await (update(chatMessages)..where((t) => t.id.equals(m.id))).write(
+            ChatMessagesCompanion(
+              content: Value(relPath),
+              messageData: const Value(null),
+            ),
+          );
+        }
+      }
+    }
+
+    // 2. 迁移表情包
+    final emojiEntities =
+        await (select(emojis)..where((t) => t.emojiData.isNotNull())).get();
+    for (final e in emojiEntities) {
+      if (e.emojiData != null) {
+        final fileName =
+            'emoji_${StorageUtils.getUniqueTimestamp()}${p.extension(e.localPath).isEmpty ? ".jpg" : p.extension(e.localPath)}';
+        final relPath =
+            await StorageUtils.saveBlobToFile(e.emojiData, 'emojis', fileName);
+        if (relPath != null) {
+          await (update(emojis)..where((t) => t.id.equals(e.id))).write(
+            EmojisCompanion(
+              localPath: Value(relPath),
+              emojiData: const Value(null),
+            ),
+          );
+        }
+      }
+    }
+
+    // 3. 迁移头像和背景图 (ContactRoles)
+    final roleEntities = await (select(contactRoles)
+          ..where((t) => t.avatarData.isNotNull()))
+        .get();
+    for (final r in roleEntities) {
+      if (r.avatarData != null) {
+        final fileName = 'avatar_${StorageUtils.getUniqueTimestamp()}.jpg';
+        final relPath = await StorageUtils.saveBlobToFile(
+            r.avatarData, 'avatars', fileName);
+        if (relPath != null) {
+          await (update(contactRoles)..where((t) => t.id.equals(r.id))).write(
+            ContactRolesCompanion(
+              avatarPath: Value(relPath),
+              avatarData: const Value(null),
+            ),
+          );
+        }
+      }
+    }
+
+    // 4. 迁移用户头像 (ContactMes)
+    final meEntities = await (select(contactMes)
+          ..where((t) => t.avatarData.isNotNull()))
+        .get();
+    for (final m in meEntities) {
+      if (m.avatarData != null) {
+        final fileName = 'me_avatar_${StorageUtils.getUniqueTimestamp()}.jpg';
+        final relPath = await StorageUtils.saveBlobToFile(
+            m.avatarData, 'avatars', fileName);
+        if (relPath != null) {
+          await (update(contactMes)..where((t) => t.id.equals(m.id))).write(
+            ContactMesCompanion(
+              avatarPath: Value(relPath),
+              avatarData: const Value(null),
+            ),
+          );
+        }
+      }
+    }
+
+    print('[Database] Blob 迁移任务完成');
   }
 }
 

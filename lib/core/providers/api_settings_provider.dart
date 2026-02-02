@@ -22,6 +22,8 @@ class ApiSettingsProvider extends ChangeNotifier {
       _presets.where((p) => p.type == ApiPresetType.chat).toList();
   List<ApiPreset> get imagePresets =>
       _presets.where((p) => p.type == ApiPresetType.image).toList();
+  List<ApiPreset> get voicePresets =>
+      _presets.where((p) => p.type == ApiPresetType.voice).toList();
 
   String? get activePresetId => _activePresetId;
   String? get activeImagePresetId => _activeImagePresetId;
@@ -86,7 +88,7 @@ class ApiSettingsProvider extends ChangeNotifier {
 
       // 加载活动预设 ID（从数据库读取）
       _activePresetId = await _db.getSetting('active_preset_id');
-      _activeImagePresetId = await _db.getSetting('active_image_preset_id');
+      _activeImagePresetId = await _db.getSetting('active_image_api_preset_id');
 
       // 验证 activePresetId 是否仍然有效
       if (_activePresetId != null) {
@@ -192,9 +194,9 @@ class ApiSettingsProvider extends ChangeNotifier {
   /// 保存活动生图预设ID到数据库
   Future<void> _saveActiveImagePresetId() async {
     if (_activeImagePresetId != null) {
-      await _db.setSetting('active_image_preset_id', _activeImagePresetId!);
+      await _db.setSetting('active_image_api_preset_id', _activeImagePresetId!);
     } else {
-      await _db.deleteSetting('active_image_preset_id');
+      await _db.deleteSetting('active_image_api_preset_id');
     }
   }
 
@@ -395,9 +397,11 @@ class ApiSettingsProvider extends ChangeNotifier {
         return await _testGeminiImageGeneration(preset, prompt);
       } else if (preset.provider == ApiProvider.openaicompatible) {
         return await _testOpenAICompatibleImageGeneration(preset, prompt);
+      } else if (preset.provider == ApiProvider.groklike) {
+        return await _testGroklikeImageGeneration(preset, prompt);
       } else {
         throw Exception(
-            'Only Volcengine, Gemini and OpenAI Compatible are supported for image generation test');
+            'Only Volcengine, Gemini, OpenAI Compatible and Groklike are supported for image generation test');
       }
     } finally {
       _isLoading = false;
@@ -603,6 +607,212 @@ class ApiSettingsProvider extends ChangeNotifier {
         // 解析失败，直接抛出原始响应体
       }
       throw Exception('Image generation failed: ${response.body}');
+    }
+  }
+
+  /// 测试类Grok接口生图（使用 chat/completions 端点，返回 Markdown 格式图片链接）
+  Future<Uint8List> _testGroklikeImageGeneration(
+      ApiPreset preset, String prompt) async {
+    var baseUrl = preset.baseUrl.trim();
+    if (baseUrl.isEmpty) {
+      baseUrl = 'https://api.x.ai/v1';
+    }
+    final cleanBaseUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+
+    final response = await http.post(
+      Uri.parse('$cleanBaseUrl/chat/completions'),
+      headers: {
+        'Authorization': 'Bearer ${preset.apiKey}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'model': preset.model,
+        'messages': [
+          {'role': 'user', 'content': prompt}
+        ],
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+
+      // 从 choices[0].message.content 中提取 Markdown 格式的图片链接
+      if (data['choices'] != null && (data['choices'] as List).isNotEmpty) {
+        final content = data['choices'][0]['message']['content'] as String?;
+        if (content != null) {
+          // 匹配 Markdown 图片链接: ![...](url)
+          final urlRegex = RegExp(r'!\[.*?\]\((https?:\/\/[^\s\)]+)\)');
+          final match = urlRegex.firstMatch(content);
+          if (match != null) {
+            final url = match.group(1);
+            if (url != null) {
+              final imageResponse = await http.get(Uri.parse(url));
+              if (imageResponse.statusCode == 200) {
+                return imageResponse.bodyBytes;
+              }
+              throw Exception('Failed to download image from URL: $url');
+            }
+          }
+
+          // 尝试匹配 base64 格式的 Markdown 图片
+          final base64Regex =
+              RegExp(r'!\[.*?\]\(data:image\/.*?;base64,(.*?)\)');
+          final base64Match = base64Regex.firstMatch(content);
+          if (base64Match != null) {
+            final b64Data = base64Match.group(1);
+            if (b64Data != null) {
+              return base64Decode(b64Data);
+            }
+          }
+        }
+      }
+
+      throw Exception(
+          'Groklike image generation response format error: ${response.body}');
+    } else {
+      throw Exception('Groklike image generation failed: ${response.body}');
+    }
+  }
+
+  Future<Uint8List> testVoiceGeneration(ApiPreset preset, String text) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      if (preset.provider == ApiProvider.minimax) {
+        return await _testMinimaxVoiceGeneration(preset, text);
+      } else {
+        throw Exception('Only Minimax is supported for voice generation test');
+      }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<Uint8List> _testMinimaxVoiceGeneration(
+      ApiPreset preset, String text) async {
+    var baseUrl = preset.baseUrl.trim();
+    if (baseUrl.isEmpty) {
+      baseUrl = 'https://api.minimaxi.com/v1/t2a_v2';
+    }
+    // Ensure no trailing slash
+    final cleanBaseUrl = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+
+    final payload = {
+      "model": preset.model,
+      "text": text,
+      "stream": false,
+      "voice_setting": {
+        "voice_id": preset.voiceId ?? "male-qn-qingse",
+        "speed": 1,
+        "vol": 1,
+        "pitch": 0,
+        "emotion": "happy"
+      },
+      "audio_setting": {
+        "sample_rate": 32000,
+        "bitrate": 128000,
+        "format": "mp3",
+        "channel": preset.audioChannel ?? 1
+      },
+      "pronunciation_dict": {
+        "tone": ["处理/(chu3)(li3)", "危险/dangerous"]
+      },
+      "subtitle_enable": false,
+      "continuous_sound": false
+    };
+
+    final response = await http.post(
+      Uri.parse(cleanBaseUrl),
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ${preset.apiKey}"
+      },
+      body: jsonEncode(payload),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      if (data['base_resp'] != null && data['base_resp']['status_code'] == 0) {
+        if (data['data'] != null && data['data']['audio'] != null) {
+          final hexAudio = data['data']['audio'];
+          return _hexToBytes(hexAudio);
+        }
+      }
+      throw Exception('Voice generation failed: ${response.body}');
+    } else {
+      throw Exception('Voice generation failed: ${response.body}');
+    }
+  }
+
+  Uint8List _hexToBytes(String hex) {
+    var bytes = <int>[];
+    for (var i = 0; i < hex.length; i += 2) {
+      var byte = int.parse(hex.substring(i, i + 2), radix: 16);
+      bytes.add(byte);
+    }
+    return Uint8List.fromList(bytes);
+  }
+
+  Future<List<Map<String, String>>> fetchMinimaxVoices(ApiPreset preset) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      var baseUrl = preset.baseUrl.trim();
+      if (baseUrl.isEmpty || baseUrl.contains('t2a_v2')) {
+        baseUrl = 'https://api.minimaxi.com/v1/get_voice';
+      } else {
+        // 如果用户填了自定义 URL，尝试替换路径
+        baseUrl = baseUrl.replaceAll(RegExp(r't2a_v2$'), 'get_voice');
+      }
+
+      final response = await http.post(
+        Uri.parse(baseUrl),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer ${preset.apiKey}"
+        },
+        body: jsonEncode({"voice_type": "all"}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        if (data['base_resp'] != null &&
+            data['base_resp']['status_code'] == 0) {
+          List<Map<String, String>> allVoices = [];
+
+          void addVoices(List<dynamic>? list, String category) {
+            if (list == null) return;
+            for (var item in list) {
+              allVoices.add({
+                'id': item['voice_id'].toString(),
+                'name': item['voice_name']?.toString() ??
+                    item['voice_id'].toString(),
+                'category': category,
+                'desc': (item['description'] as List?)?.join(' ') ?? '',
+              });
+            }
+          }
+
+          addVoices(data['system_voice'], '系统音色');
+          addVoices(data['voice_cloning'], '复刻音色');
+          addVoices(data['voice_generation'], '生成音色');
+
+          return allVoices;
+        }
+        throw Exception('Fetch voices failed: ${response.body}');
+      } else {
+        throw Exception('Fetch voices failed: ${response.body}');
+      }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 }

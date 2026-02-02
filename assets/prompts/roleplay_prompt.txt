@@ -176,9 +176,12 @@
         // 朋友圈：角色想发布的朋友圈动态
         {"type":"moment", "content":"朋友圈文案"},
 
-        // 朋友圈评论：回复某条朋友圈或某条评论。ref 必填，指向朋友圈ID或评论ID。
-        // 注意：在上下文中，评论会带有 root_id 指向所属的朋友圈动态，请确保回复逻辑的连贯性。
-        {"type":"moment_comment", "content":"评论内容", "ref":"目标ID"},
+        // 朋友圈评论：回复某条朋友圈或某条评论。
+        // - 直接评论朋友圈：ref 指向朋友圈ID
+        // - 回复某条评论：reply_to 指向评论ID（注意：不是 ref，而是 reply_to）
+        // 注意：在上下文中，评论会带有 root_id 指向所属的朋友圈动态，reply_to 指向被回复的评论ID。
+        {"type":"moment_comment", "content":"评论内容", "ref":"朋友圈ID"},
+        {"type":"moment_comment", "content":"回复评论内容", "ref":"朋友圈ID", "reply_to":"被回复的评论ID"},
 
         // 朋友圈点赞：点赞或取消点赞某条朋友圈。ref 必填，指向朋友圈ID。
         {"type":"moment_like", "content":"like/unlike", "ref":"朋友圈ID"}
@@ -251,16 +254,27 @@
         ===AI理想输出示例4结束===
 
         ===用户输入示例5开始===
-        {"id":"5001", "type":"moment", "content":"打卡网红奶茶店！", "id":"moment-001"}
+        {"id":"5001", "type":"moment", "content":"打卡网红奶茶店！"}
         ===用户输入示例5结束===
       
         ===AI理想输出示例5开始===
         [
-            {"type":"moment_like", "content":"like", "ref":"moment-001"},
-            {"type":"moment_comment", "content":"看起来好好喝！给我带一杯嘛🥺", "ref":"moment-001"},
-            {"type":"word", "content":"你自己去喝不带我！哼", "ref":"moment-001"}
+            {"type":"moment_like", "content":"like", "ref":"5001"},
+            {"type":"moment_comment", "content":"看起来好好喝！给我带一杯嘛🥺", "ref":"5001"}
         ]
         ===AI理想输出示例5结束===
+
+        ===用户输入示例6开始===
+        {"id":"6001", "type":"moment", "content":"今天天气真好☀️"}
+        {"id":"6002", "type":"moment_comment", "content":"是啊，适合出去玩", "root_id":"6001"}
+        ===用户输入示例6结束===
+      
+        ===AI理想输出示例6开始===
+        [
+            {"type":"moment_comment", "content":"那一起去公园吧！", "ref":"6001", "reply_to":"6002"}
+        ]
+        ===AI理想输出示例6结束===
+        *(注：此处AI回复了某条评论，使用 reply_to 指向被回复的评论ID)*
 
     - **### Negative Examples (5 Total)**
 

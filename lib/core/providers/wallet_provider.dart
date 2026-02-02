@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../database/database.dart';
 import '../models/wallet_model.dart';
+import '../utils/storage_utils.dart';
 
 /// 钱包状态管理Provider
 class WalletProvider extends ChangeNotifier {
@@ -98,7 +99,7 @@ class WalletProvider extends ChangeNotifier {
             : TransactionDirection.expense,
         amount: difference.abs(),
         description: '手动调整余额',
-        timestamp: DateTime.now().millisecondsSinceEpoch,
+        timestamp: StorageUtils.getUniqueTimestamp(),
       );
 
       await _db.insertWalletTransaction(transaction);
@@ -120,6 +121,11 @@ class WalletProvider extends ChangeNotifier {
   }) async {
     if (amount <= 0) return;
 
+    // 确保数据已加载
+    if (!_isLoaded) {
+      await _loadWalletData();
+    }
+
     final newBalance = (_balance + amount).clamp(0.0, Wallet.maxBalance);
 
     final transaction = WalletTransaction(
@@ -131,7 +137,7 @@ class WalletProvider extends ChangeNotifier {
       relatedContactName: relatedContactName,
       relatedSessionId: relatedSessionId,
       relatedMessageId: relatedMessageId,
-      timestamp: DateTime.now().millisecondsSinceEpoch,
+      timestamp: StorageUtils.getUniqueTimestamp(),
     );
 
     await _db.insertWalletTransaction(transaction);
@@ -151,6 +157,11 @@ class WalletProvider extends ChangeNotifier {
   }) async {
     if (amount <= 0) return;
 
+    // 确保数据已加载
+    if (!_isLoaded) {
+      await _loadWalletData();
+    }
+
     // 如果余额不足，仍然允许扣款（模拟场景）
     final newBalance = (_balance - amount).clamp(0.0, Wallet.maxBalance);
 
@@ -163,7 +174,7 @@ class WalletProvider extends ChangeNotifier {
       relatedContactName: relatedContactName,
       relatedSessionId: relatedSessionId,
       relatedMessageId: relatedMessageId,
-      timestamp: DateTime.now().millisecondsSinceEpoch,
+      timestamp: StorageUtils.getUniqueTimestamp(),
     );
 
     await _db.insertWalletTransaction(transaction);
@@ -257,8 +268,6 @@ class WalletProvider extends ChangeNotifier {
 
   /// 生成唯一ID
   String _generateId() {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final random = Random().nextInt(999999);
-    return '$timestamp-$random';
+    return StorageUtils.getUniqueTimestamp().toString();
   }
 }

@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/contact_provider.dart';
+import '../../core/utils/storage_utils.dart';
 
 class EditMeScreen extends StatefulWidget {
   final String meId;
@@ -21,17 +23,64 @@ class _EditMeScreenState extends State<EditMeScreen> {
   late TextEditingController _appearanceController;
   String? _avatarPath;
   List<String> _referenceImages = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _initData();
+  }
+
+  Future<void> _initData() async {
     final provider = context.read<ContactProvider>();
     final me = provider.meList.firstWhere((m) => m.id == widget.meId);
     _nameController = TextEditingController(text: me.name);
     _infoController = TextEditingController(text: me.info);
     _appearanceController = TextEditingController(text: me.appearance);
-    _avatarPath = me.avatarPath;
-    _referenceImages = List.from(me.referenceImages);
+
+    // 确保头像文件存在，如果不存在则从备份数据恢复
+    if (me.avatarPath != null && me.avatarPath!.isNotEmpty) {
+      try {
+        _avatarPath = await StorageUtils.ensureFileExists(
+          me.avatarPath!,
+          backupData: me.avatarData,
+        );
+      } catch (e) {
+        debugPrint('[EditMeScreen] 恢复头像失败: $e');
+        _avatarPath = me.avatarPath;
+      }
+    } else {
+      _avatarPath = me.avatarPath;
+    }
+
+    // 确保参考图文件存在，如果不存在则从备份数据恢复
+    final restoredImages = <String>[];
+    for (var i = 0; i < me.referenceImages.length; i++) {
+      final imagePath = me.referenceImages[i];
+      String? backupData;
+      if (me.referenceImagesData != null &&
+          i < me.referenceImagesData!.length) {
+        backupData = me.referenceImagesData![i];
+      }
+
+      try {
+        final restoredPath = await StorageUtils.ensureFileExists(
+          imagePath,
+          backupData: backupData != null ? base64Decode(backupData) : null,
+        );
+        restoredImages.add(restoredPath);
+      } catch (e) {
+        debugPrint('[EditMeScreen] 恢复参考图失败: $e');
+        restoredImages.add(imagePath);
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _referenceImages = restoredImages;
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _pickImage() async {
@@ -139,413 +188,445 @@ class _EditMeScreenState extends State<EditMeScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // 头像卡片
-            Container(
-              decoration: BoxDecoration(
-                color: cardBgColor,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
-              child: Column(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
                 children: [
-                  Text(
-                    '头像',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: textColor,
-                      fontWeight: FontWeight.w600,
+                  // 头像卡片
+                  Container(
+                    decoration: BoxDecoration(
+                      color: cardBgColor,
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  GestureDetector(
-                    onTap: _pickImage,
-                    child: Stack(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 32, horizontal: 24),
+                    child: Column(
                       children: [
-                        Container(
-                          width: 100,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: avatarPlaceholderBgColor,
-                            image: _avatarPath != null
-                                ? DecorationImage(
-                                    image: FileImage(File(_avatarPath!)),
-                                    fit: BoxFit.cover,
-                                  )
-                                : null,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black
-                                    .withOpacity(isDark ? 0.2 : 0.05),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
+                        Text(
+                          '头像',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: textColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        GestureDetector(
+                          onTap: _pickImage,
+                          child: Stack(
+                            children: [
+                              Container(
+                                width: 100,
+                                height: 100,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: avatarPlaceholderBgColor,
+                                  image: _avatarPath != null
+                                      ? DecorationImage(
+                                          image: FileImage(File(_avatarPath!)),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black
+                                          .withOpacity(isDark ? 0.2 : 0.05),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: _avatarPath == null
+                                    ? Center(
+                                        child: Text(
+                                          'M',
+                                          style: TextStyle(
+                                            fontSize: 40,
+                                            color: isDark
+                                                ? Colors.grey[600]
+                                                : const Color(0xFFB0B0B0),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: cardBgColor,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black
+                                            .withOpacity(isDark ? 0.3 : 0.1),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    Icons.camera_alt,
+                                    size: 16,
+                                    color: isDark
+                                        ? Colors.grey[400]
+                                        : Colors.black54,
+                                  ),
+                                ),
                               ),
                             ],
-                          ),
-                          child: _avatarPath == null
-                              ? Center(
-                                  child: Text(
-                                    'M',
-                                    style: TextStyle(
-                                      fontSize: 40,
-                                      color: isDark
-                                          ? Colors.grey[600]
-                                          : const Color(0xFFB0B0B0),
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                )
-                              : null,
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: cardBgColor,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black
-                                      .withOpacity(isDark ? 0.3 : 0.1),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              Icons.camera_alt,
-                              size: 16,
-                              color: isDark ? Colors.grey[400] : Colors.black54,
-                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            // 人设名称卡片
-            Container(
-              decoration: BoxDecoration(
-                color: cardBgColor,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '人设名称',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: textColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
                   const SizedBox(height: 12),
+                  // 人设名称卡片
                   Container(
                     decoration: BoxDecoration(
-                      color: inputBgColor,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isDark
-                            ? const Color(0xFF48484A)
-                            : Colors.transparent,
-                        width: 1,
-                      ),
+                      color: cardBgColor,
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    child: TextFormField(
-                      controller: _nameController,
-                      decoration: InputDecoration(
-                        hintText: '输入人设名称',
-                        hintStyle: TextStyle(color: hintColor),
-                        border: InputBorder.none,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 12),
-                        filled: false,
-                        isDense: true,
-                      ),
-                      style: TextStyle(fontSize: 16, color: textColor),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '请输入人设名称';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            // 人设信息卡片
-            Container(
-              decoration: BoxDecoration(
-                color: cardBgColor,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '人设信息',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: textColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: inputBgColor,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isDark
-                            ? const Color(0xFF48484A)
-                            : Colors.transparent,
-                        width: 1,
-                      ),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    child: TextFormField(
-                      controller: _infoController,
-                      decoration: InputDecoration(
-                        hintText: '输入人设信息',
-                        hintStyle: TextStyle(color: hintColor),
-                        border: InputBorder.none,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 12),
-                        filled: false,
-                        isDense: true,
-                      ),
-                      style: TextStyle(fontSize: 16, color: textColor),
-                      maxLines: 5,
-                      minLines: 3,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '请输入人设信息';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            // 外貌描述卡片
-            Container(
-              decoration: BoxDecoration(
-                color: cardBgColor,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '外貌描述 (可选)',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: textColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: inputBgColor,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isDark
-                            ? const Color(0xFF48484A)
-                            : Colors.transparent,
-                        width: 1,
-                      ),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    child: TextFormField(
-                      controller: _appearanceController,
-                      decoration: InputDecoration(
-                        hintText: '输入外貌描述，用于辅助生图',
-                        hintStyle: TextStyle(color: hintColor),
-                        border: InputBorder.none,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 12),
-                        filled: false,
-                        isDense: true,
-                      ),
-                      style: TextStyle(fontSize: 16, color: textColor),
-                      maxLines: 5,
-                      minLines: 3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            // 参考图卡片
-            Container(
-              decoration: BoxDecoration(
-                color: cardBgColor,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '参考图 (可选)',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: textColor,
-                          fontWeight: FontWeight.w600,
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '人设名称',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: textColor,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      Text(
-                        '${_referenceImages.length}/8',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: hintColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 4,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                    ),
-                    itemCount: _referenceImages.length + 1,
-                    itemBuilder: (context, index) {
-                      if (index == _referenceImages.length) {
-                        return GestureDetector(
-                          onTap: _pickReferenceImage,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: inputBgColor,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              Icons.add,
-                              color: hintColor,
-                              size: 32,
+                        const SizedBox(height: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: inputBgColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark
+                                  ? const Color(0xFF48484A)
+                                  : Colors.transparent,
+                              width: 1,
                             ),
                           ),
-                        );
-                      }
-                      return Stack(
-                        children: [
-                          Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(8),
-                              image: DecorationImage(
-                                image: FileImage(File(_referenceImages[index])),
-                                fit: BoxFit.cover,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
+                          child: TextFormField(
+                            controller: _nameController,
+                            decoration: InputDecoration(
+                              hintText: '输入人设名称',
+                              hintStyle: TextStyle(color: hintColor),
+                              border: InputBorder.none,
+                              contentPadding:
+                                  const EdgeInsets.symmetric(vertical: 12),
+                              filled: false,
+                              isDense: true,
+                            ),
+                            style: TextStyle(fontSize: 16, color: textColor),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return '请输入人设名称';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // 人设信息卡片
+                  Container(
+                    decoration: BoxDecoration(
+                      color: cardBgColor,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '人设信息',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: textColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: inputBgColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark
+                                  ? const Color(0xFF48484A)
+                                  : Colors.transparent,
+                              width: 1,
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
+                          child: TextFormField(
+                            controller: _infoController,
+                            decoration: InputDecoration(
+                              hintText: '输入人设信息',
+                              hintStyle: TextStyle(color: hintColor),
+                              border: InputBorder.none,
+                              contentPadding:
+                                  const EdgeInsets.symmetric(vertical: 12),
+                              filled: false,
+                              isDense: true,
+                            ),
+                            style: TextStyle(fontSize: 16, color: textColor),
+                            maxLines: 5,
+                            minLines: 3,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return '请输入人设信息';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // 外貌描述卡片
+                  Container(
+                    decoration: BoxDecoration(
+                      color: cardBgColor,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '外貌描述 (可选)',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: textColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: inputBgColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark
+                                  ? const Color(0xFF48484A)
+                                  : Colors.transparent,
+                              width: 1,
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
+                          child: TextFormField(
+                            controller: _appearanceController,
+                            decoration: InputDecoration(
+                              hintText: '输入外貌描述，用于辅助生图',
+                              hintStyle: TextStyle(color: hintColor),
+                              border: InputBorder.none,
+                              contentPadding:
+                                  const EdgeInsets.symmetric(vertical: 12),
+                              filled: false,
+                              isDense: true,
+                            ),
+                            style: TextStyle(fontSize: 16, color: textColor),
+                            maxLines: 5,
+                            minLines: 3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // 参考图卡片
+                  Container(
+                    decoration: BoxDecoration(
+                      color: cardBgColor,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '参考图 (可选)',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: textColor,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ),
-                          Positioned(
-                            top: 4,
-                            right: 4,
-                            child: GestureDetector(
-                              onTap: () => _removeReferenceImage(index),
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: const BoxDecoration(
-                                  color: Colors.black54,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.close,
-                                  color: Colors.white,
-                                  size: 14,
-                                ),
+                            Text(
+                              '${_referenceImages.length}/8',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: hintColor,
                               ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 4,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
                           ),
-                        ],
-                      );
-                    },
+                          itemCount: _referenceImages.length + 1,
+                          itemBuilder: (context, index) {
+                            if (index == _referenceImages.length) {
+                              return GestureDetector(
+                                onTap: _pickReferenceImage,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: inputBgColor,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.add,
+                                    color: hintColor,
+                                    size: 32,
+                                  ),
+                                ),
+                              );
+                            }
+                            final imagePath = _referenceImages[index];
+                            final file = File(imagePath);
+                            return Stack(
+                              children: [
+                                Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(8),
+                                    color: inputBgColor,
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: file.existsSync()
+                                        ? Image.file(
+                                            file,
+                                            fit: BoxFit.cover,
+                                            width: double.infinity,
+                                            height: double.infinity,
+                                            errorBuilder:
+                                                (context, error, stackTrace) {
+                                              return Center(
+                                                child: Icon(
+                                                  Icons.broken_image,
+                                                  color: hintColor,
+                                                  size: 24,
+                                                ),
+                                              );
+                                            },
+                                          )
+                                        : Center(
+                                            child: Icon(
+                                              Icons.broken_image,
+                                              color: hintColor,
+                                              size: 24,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 4,
+                                  right: 4,
+                                  child: GestureDetector(
+                                    onTap: () => _removeReferenceImage(index),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.black54,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.close,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  // 保存按钮
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        if (_formKey.currentState!.validate()) {
+                          try {
+                            await context.read<ContactProvider>().updateMe(
+                                  widget.meId,
+                                  _nameController.text,
+                                  _avatarPath,
+                                  _infoController.text,
+                                  appearance: _appearanceController.text,
+                                  referenceImages: _referenceImages,
+                                );
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('保存失败: $e')),
+                              );
+                            }
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF07C160),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        '保存',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w500),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 32),
-            // 保存按钮
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: ElevatedButton(
-                onPressed: () async {
-                  if (_formKey.currentState!.validate()) {
-                    try {
-                      await context.read<ContactProvider>().updateMe(
-                            widget.meId,
-                            _nameController.text,
-                            _avatarPath,
-                            _infoController.text,
-                            appearance: _appearanceController.text,
-                            referenceImages: _referenceImages,
-                          );
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('保存失败: $e')),
-                        );
-                      }
-                    }
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF07C160),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  '保存',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

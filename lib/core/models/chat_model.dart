@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 /// 消息类型枚举
 enum MessageType {
   // 基础消息类型
@@ -28,6 +31,10 @@ enum MessageType {
   moment, // 朋友圈
   momentComment, // 朋友圈评论
   momentLike, // 朋友圈点赞/取消点赞
+  // 沉浸模式专用类型
+  scene, // 场景描述（用于生成/切换背景图）
+  narration, // 旁白（环境描写、心理活动、微表情）
+  options, // 互动选项（建议用户的行动）
 }
 
 /// 聊天消息模型
@@ -40,6 +47,7 @@ class ChatMessage {
   final String content;
   final int timestamp;
   final Map<String, dynamic>? metadata; // 存储消息类型特定的额外属性
+  final Uint8List? messageData; // 消息二进制数据（如图片）
   final bool isRead;
 
   ChatMessage({
@@ -48,6 +56,7 @@ class ChatMessage {
     this.sender,
     required this.type,
     required this.content,
+    this.messageData,
     required this.timestamp,
     this.metadata,
     this.isRead = true,
@@ -60,6 +69,7 @@ class ChatMessage {
       if (sender != null) 'sender': sender,
       'type': type.index,
       'content': content,
+      'messageData': messageData != null ? base64Encode(messageData!) : null,
       'timestamp': timestamp,
       if (metadata != null) 'metadata': metadata,
       'isRead': isRead,
@@ -73,6 +83,9 @@ class ChatMessage {
       sender: json['sender'],
       type: MessageType.values[json['type']],
       content: json['content'],
+      messageData: json['messageData'] != null
+          ? base64Decode(json['messageData'])
+          : null,
       timestamp: json['timestamp'],
       metadata: json['metadata'] != null
           ? Map<String, dynamic>.from(json['metadata'])
@@ -119,7 +132,12 @@ class ChatMessage {
       case MessageType.rejectRedpacket:
       case MessageType.acceptTransfer:
       case MessageType.rejectTransfer:
-        return ''; // 这些类型不在聊天界面显示
+      case MessageType.scene:
+        return ''; // 这些类型不在聊天界面显示（场景用于控制背景）
+      case MessageType.narration:
+        return content; // 旁白直接显示内容
+      case MessageType.options:
+        return '[选项]';
     }
   }
 }
@@ -141,6 +159,8 @@ class ChatSession {
   final String? apiPresetId; // 独立的 API 预设 ID
   final String? imageApiPresetId; // 独立的生图 API 预设 ID
   final String? backgroundImage; // 聊天背景图路径
+  final Uint8List? backgroundImageData; // 聊天背景图二进制数据
+  final int? unreadCountOverride; // 预计算的未读数
 
   ChatSession({
     required this.id,
@@ -148,6 +168,7 @@ class ChatSession {
     required this.meId,
     required this.messages,
     required this.lastUpdated,
+    this.unreadCountOverride,
     this.enableExtendedChat = true, // 默认开启
     this.enableTextToImage = false, // 默认关闭
     this.enableEmoji = true, // 默认开启
@@ -159,6 +180,7 @@ class ChatSession {
     this.apiPresetId,
     this.imageApiPresetId,
     this.backgroundImage,
+    this.backgroundImageData,
   });
 
   Map<String, dynamic> toJson() {
@@ -179,6 +201,9 @@ class ChatSession {
       'apiPresetId': apiPresetId,
       'imageApiPresetId': imageApiPresetId,
       'backgroundImage': backgroundImage,
+      'backgroundImageData': backgroundImageData != null
+          ? base64Encode(backgroundImageData!)
+          : null,
     };
   }
 
@@ -207,6 +232,9 @@ class ChatSession {
       apiPresetId: json['apiPresetId'],
       imageApiPresetId: json['imageApiPresetId'],
       backgroundImage: json['backgroundImage'],
+      backgroundImageData: json['backgroundImageData'] != null
+          ? base64Decode(json['backgroundImageData'])
+          : null,
     );
   }
 
@@ -237,6 +265,7 @@ class ChatSession {
 
   /// 获取未读消息数量（只计算来自对方的未读消息）
   int get unreadCount {
+    if (unreadCountOverride != null) return unreadCountOverride!;
     return messages.where((m) => !m.isMe && !m.isRead).length;
   }
 }

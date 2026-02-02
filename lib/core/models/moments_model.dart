@@ -1,16 +1,23 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 /// 朋友圈用户模型
 class MomentsUser {
   final String id;
   final String name;
   final String avatarUrl;
+  final Uint8List? avatarData; // 头像二进制数据
   final String? coverImageUrl; // 个人封面图
+  final Uint8List? coverImageData; // 封面图二进制数据
   final String? signature; // 个人签名
 
   MomentsUser({
     required this.id,
     required this.name,
     required this.avatarUrl,
+    this.avatarData,
     this.coverImageUrl,
+    this.coverImageData,
     this.signature,
   });
 
@@ -19,7 +26,12 @@ class MomentsUser {
       id: json['id'],
       name: json['name'],
       avatarUrl: json['avatarUrl'],
+      avatarData:
+          json['avatarData'] != null ? base64Decode(json['avatarData']) : null,
       coverImageUrl: json['coverImageUrl'],
+      coverImageData: json['coverImageData'] != null
+          ? base64Decode(json['coverImageData'])
+          : null,
       signature: json['signature'],
     );
   }
@@ -29,7 +41,10 @@ class MomentsUser {
       'id': id,
       'name': name,
       'avatarUrl': avatarUrl,
+      'avatarData': avatarData != null ? base64Encode(avatarData!) : null,
       'coverImageUrl': coverImageUrl,
+      'coverImageData':
+          coverImageData != null ? base64Encode(coverImageData!) : null,
       'signature': signature,
     };
   }
@@ -39,14 +54,18 @@ class MomentsUser {
     String? id,
     String? name,
     String? avatarUrl,
+    Uint8List? avatarData,
     String? coverImageUrl,
+    Uint8List? coverImageData,
     String? signature,
   }) {
     return MomentsUser(
       id: id ?? this.id,
       name: name ?? this.name,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      avatarData: avatarData ?? this.avatarData,
       coverImageUrl: coverImageUrl ?? this.coverImageUrl,
+      coverImageData: coverImageData ?? this.coverImageData,
       signature: signature ?? this.signature,
     );
   }
@@ -154,6 +173,7 @@ class MomentsPost {
   final MomentsUser user;
   final String? content; // 文字内容
   final List<MediaItem> mediaItems; // 图片/视频
+  final List<String>? mediaData; // 媒体文件二进制数据 (Base64 列表)
   final DateTime createdAt;
   final List<MomentLike> likes; // 点赞列表
   final List<MomentsComment> comments; // 评论列表
@@ -164,6 +184,7 @@ class MomentsPost {
     required this.user,
     this.content,
     this.mediaItems = const [],
+    this.mediaData,
     required this.createdAt,
     this.likes = const [],
     this.comments = const [],
@@ -179,6 +200,8 @@ class MomentsPost {
               ?.map((item) => MediaItem.fromJson(item))
               .toList() ??
           [],
+      mediaData:
+          (json['mediaData'] as List?)?.map((e) => e.toString()).toList(),
       createdAt: DateTime.parse(json['createdAt']),
       likes: (json['likes'] as List?)?.map((l) {
             // 兼容旧数据：如果旧数据是 MomentsUser，则转换为 MomentLike
@@ -205,6 +228,7 @@ class MomentsPost {
       'user': user.toJson(),
       'content': content,
       'mediaItems': mediaItems.map((item) => item.toJson()).toList(),
+      'mediaData': mediaData,
       'createdAt': createdAt.toIso8601String(),
       'likes': likes.map((l) => l.toJson()).toList(),
       'comments': comments.map((comment) => comment.toJson()).toList(),
@@ -218,6 +242,7 @@ class MomentsPost {
     MomentsUser? user,
     String? content,
     List<MediaItem>? mediaItems,
+    List<String>? mediaData,
     DateTime? createdAt,
     List<MomentLike>? likes,
     List<MomentsComment>? comments,
@@ -228,6 +253,7 @@ class MomentsPost {
       user: user ?? this.user,
       content: content ?? this.content,
       mediaItems: mediaItems ?? this.mediaItems,
+      mediaData: mediaData ?? this.mediaData,
       createdAt: createdAt ?? this.createdAt,
       likes: likes ?? this.likes,
       comments: comments ?? this.comments,

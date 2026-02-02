@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +14,7 @@ import '../database/database.dart';
 import '../models/api_preset.dart';
 import '../models/moments_model.dart';
 import '../models/chat_model.dart';
+import '../utils/storage_utils.dart';
 
 /// 系统状态Provider
 /// 注意：所有设置现在存储在数据库中
@@ -212,10 +214,14 @@ class SystemStateProvider extends ChangeNotifier {
   }
 
   // 设置自定义桌面壁纸
-  void setCustomWallpaper(String path) {
-    _customWallpaperPath = path;
+  Future<void> setCustomWallpaper(String path) async {
+    final result = await _saveImageWithData(path, 'wallpaper_home');
+    _customWallpaperPath = result?.path ?? path;
+    if (result != null) {
+      await _db.setSettingBlob('custom_wallpaper_data', result.data);
+    }
     _currentWallpaperIndex = 0; // 设置自定义壁纸时，将索引重置为 0，避免处于随机风景模式
-    _saveSettings();
+    await _saveSettings();
     notifyListeners();
   }
 
@@ -250,10 +256,14 @@ class SystemStateProvider extends ChangeNotifier {
   }
 
   // 设置自定义锁屏壁纸
-  void setCustomLockScreenWallpaper(String path) {
-    _customLockScreenWallpaperPath = path;
+  Future<void> setCustomLockScreenWallpaper(String path) async {
+    final result = await _saveImageWithData(path, 'wallpaper_lock');
+    _customLockScreenWallpaperPath = result?.path ?? path;
+    if (result != null) {
+      await _db.setSettingBlob('custom_lockscreen_wallpaper_data', result.data);
+    }
     _lockScreenWallpaperIndex = 0; // 设置自定义壁纸时，将索引重置为 0
-    _saveSettings();
+    await _saveSettings();
     notifyListeners();
   }
 
@@ -265,9 +275,14 @@ class SystemStateProvider extends ChangeNotifier {
   }
 
   // 设置自定义应用图标
-  void setCustomAppIcon(String appId, String imagePath) {
-    _customAppIcons[appId] = imagePath;
-    _saveSettings();
+  Future<void> setCustomAppIcon(String appId, String imagePath) async {
+    final result = await _saveImageWithData(imagePath, 'icon_$appId');
+    final finalPath = result?.path ?? imagePath;
+    _customAppIcons[appId] = finalPath;
+    if (result != null) {
+      await _db.setSettingBlob('custom_app_icon_data_$appId', result.data);
+    }
+    await _saveSettings();
     notifyListeners();
   }
 
@@ -1071,7 +1086,7 @@ class SystemStateProvider extends ChangeNotifier {
         // 优先尝试从Base64数据恢复文件
         final base64Data = wallpaper['data'] as String?;
         if (base64Data != null) {
-          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final timestamp = StorageUtils.getUniqueTimestamp();
           _customWallpaperPath = await _base64ToFile(
             base64Data,
             'wallpaper_$timestamp.jpg',
@@ -1091,7 +1106,7 @@ class SystemStateProvider extends ChangeNotifier {
         // 优先尝试从Base64数据恢复文件
         final base64Data = wallpaper['data'] as String?;
         if (base64Data != null) {
-          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final timestamp = StorageUtils.getUniqueTimestamp();
           _customLockScreenWallpaperPath = await _base64ToFile(
             base64Data,
             'lockscreen_$timestamp.jpg',
@@ -1116,7 +1131,7 @@ class SystemStateProvider extends ChangeNotifier {
           for (final entry in iconsData.entries) {
             final appId = entry.key;
             final base64Data = entry.value;
-            final timestamp = DateTime.now().millisecondsSinceEpoch;
+            final timestamp = StorageUtils.getUniqueTimestamp();
             final newPath = await _base64ToFile(
               base64Data,
               'icon_${appId}_$timestamp.png',
@@ -1572,8 +1587,12 @@ class SystemStateProvider extends ChangeNotifier {
           }
 
           if (newBgPath != null && newBgPath != session.backgroundImage) {
-            await db.updateSessionBackgroundImage(session.id, newBgPath);
-            debugPrint('已更新会话 ${session.id} 的背景图路径');
+            final bgFile = File(newBgPath);
+            final bgData =
+                await bgFile.exists() ? await bgFile.readAsBytes() : null;
+            await db.updateSessionBackgroundImage(
+                session.id, newBgPath, bgData);
+            debugPrint('已更新会话 ${session.id} 的背景图路径和二进制数据');
           }
         }
       }
@@ -1947,7 +1966,7 @@ class SystemStateProvider extends ChangeNotifier {
             );
 
         if (response.statusCode == 200) {
-          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final timestamp = StorageUtils.getUniqueTimestamp();
           final fileName = 'wallpaper_$timestamp.jpg';
           final filePath = path.join(wallpaperDir.path, fileName);
           final file = File(filePath);
@@ -2022,7 +2041,7 @@ class SystemStateProvider extends ChangeNotifier {
           );
 
       if (response.statusCode == 200) {
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final timestamp = StorageUtils.getUniqueTimestamp();
         final fileName = 'wallpaper_$timestamp.jpg';
         final filePath = path.join(wallpaperDir.path, fileName);
         final file = File(filePath);
@@ -2099,6 +2118,36 @@ class SystemStateProvider extends ChangeNotifier {
       debugPrint('壁纸池已清空');
     } catch (e) {
       debugPrint('清理壁纸池失败: $e');
+    }
+  }
+
+  /// 将图片保存到应用文档目录，并返回路径和二进制数据
+  Future<({String path, Uint8List data})?> _saveImageWithData(
+      String? sourcePath, String id) async {
+    if (sourcePath == null || sourcePath.isEmpty) return null;
+    if (sourcePath.startsWith('http')) return null;
+
+    try {
+      final sourceFile = File(sourcePath);
+      if (!await sourceFile.exists()) return null;
+
+      final bytes = await sourceFile.readAsBytes();
+      final appDir = await getApplicationDocumentsDirectory();
+      String finalPath = sourcePath;
+
+      if (!sourcePath.startsWith(appDir.path)) {
+        final ext = path.extension(sourcePath);
+        final fileName = 'sys_${id}_${StorageUtils.getUniqueTimestamp()}$ext';
+        final savedImage =
+            await sourceFile.copy(path.join(appDir.path, fileName));
+        finalPath = savedImage.path;
+        debugPrint('[SystemState] 图片已从临时路径物理移动到持久化目录: $finalPath');
+      }
+
+      return (path: finalPath, data: bytes);
+    } catch (e) {
+      debugPrint('[SystemState] 处理图片失败: $e');
+      return null;
     }
   }
 

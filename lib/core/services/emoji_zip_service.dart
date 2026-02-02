@@ -4,6 +4,7 @@ import 'package:archive/archive_io.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../models/emoji_model.dart';
+import '../utils/storage_utils.dart';
 
 class EmojiZipService {
   static const String _metadataFileName = 'emojis_metadata.json';
@@ -15,7 +16,7 @@ class EmojiZipService {
   Future<String> exportEmojis(List<EmojiModel> emojis) async {
     final archive = Archive();
     final tempDir = await getTemporaryDirectory();
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final timestamp = StorageUtils.getUniqueTimestamp();
     final zipPath = path.join(tempDir.path, 'emojis_export_$timestamp.zip');
 
     // 1. 准备元数据
@@ -36,7 +37,9 @@ class EmojiZipService {
 
     // 2. 添加图片文件
     for (final emoji in emojis) {
-      final sourceFile = File(emoji.localPath);
+      // 将相对路径转换为绝对路径
+      final absPath = await StorageUtils.toAbsolutePath(emoji.localPath);
+      final sourceFile = File(absPath);
       if (await sourceFile.exists()) {
         final bytes = await sourceFile.readAsBytes();
         final fileName = path.basename(emoji.localPath);
@@ -71,7 +74,7 @@ class EmojiZipService {
 
     final tempDir = await getTemporaryDirectory();
     final importTempDir = Directory(path.join(
-        tempDir.path, 'emoji_import_${DateTime.now().millisecondsSinceEpoch}'));
+        tempDir.path, 'emoji_import_${StorageUtils.getUniqueTimestamp()}'));
     await importTempDir.create(recursive: true);
 
     List<Map<String, dynamic>>? metadata;

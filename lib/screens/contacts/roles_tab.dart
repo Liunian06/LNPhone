@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/providers/contact_provider.dart';
 import '../../core/models/contact_model.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/storage_utils.dart';
 import 'add_role_screen.dart';
 import 'edit_role_screen.dart';
 
@@ -110,23 +111,96 @@ class RolesTab extends StatelessWidget {
                 horizontal: 16.0,
                 vertical: 10.0,
               ),
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(4),
-                  color: context.isDarkMode
-                      ? Colors.grey[700]
-                      : const Color(0xFFF0F0F0),
-                  image: role.avatarPath != null
-                      ? DecorationImage(
-                          image: FileImage(File(role.avatarPath!)),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
-                ),
-                child: role.avatarPath == null
-                    ? Center(
+              child: role.avatarPath != null && role.avatarPath!.isNotEmpty
+                  ? FutureBuilder<String>(
+                      future: StorageUtils.ensureFileExists(
+                        role.avatarPath!,
+                        backupData: role.avatarData,
+                      ),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(4),
+                              color: context.isDarkMode
+                                  ? Colors.grey[700]
+                                  : const Color(0xFFF0F0F0),
+                            ),
+                            child: Center(
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    context.secondaryTextColor,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+
+                        final avatarPath = snapshot.data ?? role.avatarPath!;
+                        final file = File(avatarPath);
+
+                        return Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(4),
+                            color: context.isDarkMode
+                                ? Colors.grey[700]
+                                : const Color(0xFFF0F0F0),
+                          ),
+                          child: file.existsSync()
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: Image.file(
+                                    file,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Center(
+                                        child: Text(
+                                          role.name.isNotEmpty
+                                              ? role.name[0]
+                                              : 'U',
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            color: context.secondaryTextColor,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                )
+                              : Center(
+                                  child: Text(
+                                    role.name.isNotEmpty ? role.name[0] : 'U',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      color: context.secondaryTextColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                        );
+                      },
+                    )
+                  : Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(4),
+                        color: context.isDarkMode
+                            ? Colors.grey[700]
+                            : const Color(0xFFF0F0F0),
+                      ),
+                      child: Center(
                         child: Text(
                           role.name.isNotEmpty ? role.name[0] : 'U',
                           style: TextStyle(
@@ -135,9 +209,8 @@ class RolesTab extends StatelessWidget {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                      )
-                    : null,
-              ),
+                      ),
+                    ),
             ),
             // 内容区域
             Expanded(

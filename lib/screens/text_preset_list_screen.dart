@@ -5,6 +5,7 @@ import '../core/providers/chat_provider.dart';
 import '../core/providers/prompt_settings_provider.dart';
 import '../core/models/text_preset_model.dart';
 import '../widgets/ios_wallpaper.dart';
+import '../core/utils/storage_utils.dart';
 
 /// 预设列表页面 - ChatProvider 重构版
 class TextPresetListScreen extends StatefulWidget {
@@ -692,7 +693,7 @@ class _TextPresetEditScreenState extends State<TextPresetEditScreen> {
 
     setState(() => _isSaving = true);
 
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = StorageUtils.getUniqueTimestamp();
     final preset = TextPreset(
       id: widget.preset?.id ?? now.toString(),
       name: name,

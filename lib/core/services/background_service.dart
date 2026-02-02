@@ -14,6 +14,7 @@ import '../models/prompt_config.dart';
 import '../services/llm_service.dart';
 import '../services/app_log_service.dart';
 import 'package:drift/drift.dart' as drift;
+import '../utils/storage_utils.dart';
 
 // 超时异常类
 class TimeoutException implements Exception {
@@ -166,7 +167,7 @@ class BackgroundService {
 
       // 3. 获取上次活跃时间（从数据库读取）
       final lastActiveTime = await db.getSettingInt(_lastActiveTimeKey) ?? 0;
-      final currentTime = DateTime.now().millisecondsSinceEpoch;
+      final currentTime = StorageUtils.getUniqueTimestamp();
       final inactiveTime = currentTime - lastActiveTime;
       debugPrint('[BG] 上次活跃时间: $lastActiveTime');
       debugPrint('[BG] 当前时间: $currentTime');
@@ -376,7 +377,7 @@ class BackgroundService {
         contextLength: promptConfig.contextLength,
       );
 
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final timestamp = StorageUtils.getUniqueTimestamp();
       // 记录后台 API 调用开始
       await AppLogService.logApiCallStart(
         provider: apiPreset.provider.name,
@@ -460,7 +461,7 @@ class BackgroundService {
               content: drift.Value(msg.content),
               isMe: drift.Value(false),
               type: drift.Value(msg.type),
-              timestamp: drift.Value(DateTime.now().millisecondsSinceEpoch),
+              timestamp: drift.Value(StorageUtils.getUniqueTimestamp()),
               metadata: drift.Value(msg.metadata),
               isRead: drift.Value(false),
             ),
@@ -474,23 +475,24 @@ class BackgroundService {
             await _showNotificationDirectly(
               title: role.name,
               message: msg.content,
-              id: DateTime.now().millisecondsSinceEpoch % 100000,
+              id: StorageUtils.getUniqueTimestamp() % 100000,
             );
           }
 
           // 如果是朋友圈消息，添加到朋友圈
           if (msg.type == MessageType.moment) {
             debugPrint('[BG] 添加朋友圈动态');
+            final now = StorageUtils.getUniqueTimestamp();
             await db.insertMoment(
               MomentsPost(
-                id: DateTime.now().millisecondsSinceEpoch.toString(),
+                id: now.toString(),
                 user: MomentsUser(
                   id: role.id,
                   name: role.name,
                   avatarUrl: role.avatarPath ?? '',
                 ),
                 content: msg.content,
-                createdAt: DateTime.now(),
+                createdAt: DateTime.fromMillisecondsSinceEpoch(now),
                 mediaItems: [],
                 likes: [],
                 comments: [],
@@ -533,7 +535,7 @@ class BackgroundService {
     final db = AppDatabase();
     await db.setSettingInt(
       _lastActiveTimeKey,
-      DateTime.now().millisecondsSinceEpoch,
+      StorageUtils.getUniqueTimestamp(),
     );
   }
 
@@ -574,17 +576,36 @@ class BackgroundService {
               AndroidFlutterLocalNotificationsPlugin>();
 
       if (androidImpl != null) {
+        // Android 16+ 需要使用更高的 importance 和额外配置
         const AndroidNotificationChannel channel = AndroidNotificationChannel(
           'ai_reply_channel',
           'AI回复通知',
           description: 'AI角色回复消息的通知',
-          importance: Importance.high,
+          importance: Importance.max, // 使用 max 确保 Android 16 上能弹出
           playSound: true,
           enableVibration: true,
+          showBadge: true,
+          enableLights: true,
         );
 
         await androidImpl.createNotificationChannel(channel);
         debugPrint('[BG] ✓ 后台通知频道已创建');
+
+        // Android 13+ 请求通知权限
+        final notificationGranted =
+            await androidImpl.requestNotificationsPermission();
+        debugPrint('[BG] 通知权限状态: $notificationGranted');
+
+        // Android 16+ 请求全屏 Intent 权限（用于弹出式通知）
+        // 注意：这个权限在 Android 16 上是必需的
+        try {
+          final fullScreenGranted =
+              await androidImpl.requestFullScreenIntentPermission();
+          debugPrint('[BG] 全屏 Intent 权限状态: $fullScreenGranted');
+        } catch (e) {
+          // 低版本 Android 可能不支持此方法
+          debugPrint('[BG] 全屏 Intent 权限请求不适用: $e');
+        }
       }
 
       debugPrint('[BG] ✓ 后台通知插件初始化完成');
@@ -610,6 +631,7 @@ class BackgroundService {
         return;
       }
 
+      // Android 16+ 需要额外的配置才能弹出通知
       final AndroidNotificationDetails androidDetails =
           AndroidNotificationDetails(
         'ai_reply_channel',
@@ -623,10 +645,19 @@ class BackgroundService {
         styleInformation: BigTextStyleInformation(
           message,
           contentTitle: title,
+          htmlFormatContent: false,
+          htmlFormatContentTitle: false,
         ),
         category: AndroidNotificationCategory.message,
         visibility: NotificationVisibility.public,
         autoCancel: true,
+        // Android 16+ 必需：设置 ticker 和 fullScreenIntent
+        ticker: '$title: $message',
+        fullScreenIntent: true, // 请求全屏 Intent 以确保通知弹出
+        ongoing: false,
+        showProgress: false,
+        channelShowBadge: true,
+        enableLights: true,
       );
 
       final NotificationDetails details = NotificationDetails(

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/models/moments_model.dart';
@@ -10,7 +11,9 @@ import '../core/providers/prompt_settings_provider.dart';
 import '../core/providers/regex_settings_provider.dart';
 import '../core/providers/memory_provider.dart';
 import '../core/providers/emoji_provider.dart';
+import '../core/providers/wallet_provider.dart';
 import '../core/utils/time_formatter.dart';
+import '../core/utils/storage_utils.dart';
 
 /// 朋友圈动态项
 class MomentsPostItem extends StatefulWidget {
@@ -161,13 +164,43 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
         },
       );
     } else {
-      return Image.file(
-        File(avatarUrl),
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            color: Colors.grey[300],
-            child: const Icon(Icons.person, size: 24),
+      final momentsProvider = context.read<MomentsProvider>();
+      final contactProvider = context.read<ContactProvider>();
+      final currentUser = momentsProvider.currentUser;
+
+      // 尝试获取备份数据
+      Uint8List? backupData;
+      if (avatarUrl == currentUser.avatarUrl) {
+        backupData = currentUser.avatarData;
+      } else {
+        // 尝试从 ContactProvider 中查找匹配该路径的角色的备份数据
+        final role = contactProvider.roles
+            .where((r) => r.avatarPath == avatarUrl)
+            .firstOrNull;
+        backupData = role?.avatarData;
+      }
+
+      return FutureBuilder<String>(
+        future:
+            StorageUtils.ensureFileExists(avatarUrl, backupData: backupData),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const SizedBox.shrink();
+          final file = File(snapshot.data!);
+          if (!file.existsSync()) {
+            return Container(
+              color: Colors.grey[300],
+              child: const Icon(Icons.person, size: 24),
+            );
+          }
+          return Image.file(
+            file,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                color: Colors.grey[300],
+                child: const Icon(Icons.person, size: 24),
+              );
+            },
           );
         },
       );
@@ -951,13 +984,28 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
         },
       );
     } else {
-      return Image.file(
-        File(url),
-        fit: fit,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            color: Colors.grey[300],
-            child: const Icon(Icons.image, size: 50),
+      // 动态中的图片目前没有在 MomentsPost 中直接存储 Blob 备份（mediaData 字段已优化为不再存储 Base64 列表）
+      // 但我们可以保留 ensureFileExists 的调用，以便未来扩展
+      return FutureBuilder<String>(
+        future: StorageUtils.ensureFileExists(url),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const SizedBox.shrink();
+          final file = File(snapshot.data!);
+          if (!file.existsSync()) {
+            return Container(
+              color: Colors.grey[300],
+              child: const Icon(Icons.image, size: 50),
+            );
+          }
+          return Image.file(
+            file,
+            fit: fit,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                color: Colors.grey[300],
+                child: const Icon(Icons.image, size: 50),
+              );
+            },
           );
         },
       );
@@ -974,6 +1022,7 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
     final momentsProvider = context.read<MomentsProvider>();
     final memoryProvider = context.read<MemoryProvider>();
     final emojiProvider = context.read<EmojiProvider>();
+    final walletProvider = context.read<WalletProvider>();
 
     // 找到与该动态发布者相关的聊天会话
     // 如果是用户发的动态，则触发所有相关角色的感知（这里简化为触发当前活跃角色的感知）
@@ -1032,6 +1081,7 @@ class _MomentsPostItemState extends State<MomentsPostItem> {
             );
           },
           regexProvider: regexProvider,
+          walletProvider: walletProvider,
         );
       });
     }

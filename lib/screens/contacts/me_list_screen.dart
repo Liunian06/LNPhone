@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/contact_provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/storage_utils.dart';
 import 'edit_me_screen.dart';
 import 'add_me_screen.dart';
 
@@ -135,25 +136,104 @@ class MeListScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             // 头像
-                            Container(
-                              width: 56,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: context.isDarkMode
-                                    ? Colors.grey[700]
-                                    : const Color(0xFFF0F0F0),
-                                image: me.avatarPath != null
-                                    ? DecorationImage(
-                                        image: FileImage(
-                                          File(me.avatarPath!),
+                            me.avatarPath != null && me.avatarPath!.isNotEmpty
+                                ? FutureBuilder<String>(
+                                    future: StorageUtils.ensureFileExists(
+                                      me.avatarPath!,
+                                      backupData: me.avatarData,
+                                    ),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.connectionState ==
+                                          ConnectionState.waiting) {
+                                        return Container(
+                                          width: 56,
+                                          height: 56,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: context.isDarkMode
+                                                ? Colors.grey[700]
+                                                : const Color(0xFFF0F0F0),
+                                          ),
+                                          child: Center(
+                                            child: SizedBox(
+                                              width: 20,
+                                              height: 20,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<
+                                                        Color>(
+                                                  context.secondaryTextColor,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      }
+
+                                      final avatarPath =
+                                          snapshot.data ?? me.avatarPath!;
+                                      final file = File(avatarPath);
+
+                                      return Container(
+                                        width: 56,
+                                        height: 56,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: context.isDarkMode
+                                              ? Colors.grey[700]
+                                              : const Color(0xFFF0F0F0),
                                         ),
-                                        fit: BoxFit.cover,
-                                      )
-                                    : null,
-                              ),
-                              child: me.avatarPath == null
-                                  ? Center(
+                                        child: file.existsSync()
+                                            ? ClipOval(
+                                                child: Image.file(
+                                                  file,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error,
+                                                      stackTrace) {
+                                                    return Center(
+                                                      child: Text(
+                                                        me.name.isNotEmpty
+                                                            ? me.name[0]
+                                                            : 'M',
+                                                        style: TextStyle(
+                                                          fontSize: 24,
+                                                          color: context
+                                                              .secondaryTextColor,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
+                                              )
+                                            : Center(
+                                                child: Text(
+                                                  me.name.isNotEmpty
+                                                      ? me.name[0]
+                                                      : 'M',
+                                                  style: TextStyle(
+                                                    fontSize: 24,
+                                                    color: context
+                                                        .secondaryTextColor,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ),
+                                      );
+                                    },
+                                  )
+                                : Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: context.isDarkMode
+                                          ? Colors.grey[700]
+                                          : const Color(0xFFF0F0F0),
+                                    ),
+                                    child: Center(
                                       child: Text(
                                         me.name.isNotEmpty ? me.name[0] : 'M',
                                         style: TextStyle(
@@ -162,9 +242,8 @@ class MeListScreen extends StatelessWidget {
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
-                                    )
-                                  : null,
-                            ),
+                                    ),
+                                  ),
                             const SizedBox(width: 12),
                             // 信息
                             Expanded(

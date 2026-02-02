@@ -4,6 +4,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import '../core/models/api_preset.dart';
 import '../core/providers/api_settings_provider.dart';
+import '../core/utils/storage_utils.dart';
+import '../core/database/database.dart';
 import '../widgets/ios_wallpaper.dart';
 import 'settings_screen.dart'; // For SettingsSection and SettingsTile
 
@@ -64,6 +66,9 @@ class ImageModelSettingsScreen extends StatelessWidget {
                               );
                             }).toList(),
                           ),
+                        const SizedBox(height: 20),
+                        // 强制唯一输出设置
+                        _ForceUniqueOutputSection(),
                       ],
                     );
                   },
@@ -203,7 +208,7 @@ class ImageModelSettingsScreen extends StatelessWidget {
     ApiPreset preset,
   ) async {
     final newPreset = preset.copyWith(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: StorageUtils.getUniqueTimestamp().toString(),
       name: '${preset.name} copy',
     );
 
@@ -264,9 +269,117 @@ class ImageModelSettingsScreen extends StatelessWidget {
         return 'Gemini';
       case ApiProvider.openaicompatible:
         return 'OpenAI Compatible';
+      case ApiProvider.groklike:
+        return '类Grok接口';
       default:
         return 'Unknown';
     }
+  }
+}
+
+/// 强制唯一输出设置区块
+class _ForceUniqueOutputSection extends StatefulWidget {
+  @override
+  State<_ForceUniqueOutputSection> createState() =>
+      _ForceUniqueOutputSectionState();
+}
+
+class _ForceUniqueOutputSectionState extends State<_ForceUniqueOutputSection> {
+  bool _forceUniqueOutput = true;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSetting();
+  }
+
+  Future<void> _loadSetting() async {
+    final db = AppDatabase();
+    final value = await db.getSettingBool('image_force_unique_output');
+    if (mounted) {
+      setState(() {
+        _forceUniqueOutput = value ?? true;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _saveSetting(bool value) async {
+    final db = AppDatabase();
+    await db.setSettingBool('image_force_unique_output', value);
+    if (mounted) {
+      setState(() {
+        _forceUniqueOutput = value;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
+
+    if (_isLoading) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 8, bottom: 8),
+          child: Text(
+            '输出设置',
+            style: TextStyle(
+              color: textColor.withValues(alpha: 0.6),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '强制唯一输出',
+                        style: TextStyle(color: textColor, fontSize: 16),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '开启后仅输出第一张图片，关闭后输出所有图片',
+                        style: TextStyle(
+                          color: textColor.withValues(alpha: 0.6),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                CupertinoSwitch(
+                  value: _forceUniqueOutput,
+                  onChanged: _saveSetting,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -548,6 +661,13 @@ class _ImagePresetEditScreenState extends State<ImagePresetEditScreen> {
                       },
                       child: const Text('OpenAI Compatible'),
                     ),
+                    CupertinoActionSheetAction(
+                      onPressed: () {
+                        _updateProvider(ApiProvider.groklike);
+                        Navigator.pop(context);
+                      },
+                      child: const Text('类Grok接口'),
+                    ),
                   ],
                   cancelButton: CupertinoActionSheetAction(
                     onPressed: () => Navigator.pop(context),
@@ -593,6 +713,8 @@ class _ImagePresetEditScreenState extends State<ImagePresetEditScreen> {
         return 'Gemini';
       case ApiProvider.openaicompatible:
         return 'OpenAI Compatible';
+      case ApiProvider.groklike:
+        return '类Grok接口';
       default:
         return 'Unknown';
     }
@@ -606,6 +728,8 @@ class _ImagePresetEditScreenState extends State<ImagePresetEditScreen> {
         return 'gemini-3-pro-image-preview';
       case ApiProvider.openaicompatible:
         return 'dall-e-3';
+      case ApiProvider.groklike:
+        return 'grok-2-image';
       default:
         return '';
     }
@@ -619,6 +743,8 @@ class _ImagePresetEditScreenState extends State<ImagePresetEditScreen> {
         return 'https://generativelanguage.googleapis.com';
       case ApiProvider.openaicompatible:
         return 'https://api.openai.com/v1';
+      case ApiProvider.groklike:
+        return 'https://api.x.ai/v1';
       default:
         return 'https://api.example.com';
     }
@@ -783,7 +909,7 @@ class _ImagePresetEditScreenState extends State<ImagePresetEditScreen> {
 
     final provider = context.read<ApiSettingsProvider>();
     final newPreset = ApiPreset(
-      id: widget.preset?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: widget.preset?.id ?? StorageUtils.getUniqueTimestamp().toString(),
       name: _nameController.text,
       type: ApiPresetType.image, // Explicitly set type to image
       provider: _provider,

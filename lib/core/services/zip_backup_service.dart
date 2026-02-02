@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
+import '../utils/storage_utils.dart';
 
 class ZipBackupService {
   static const String _settingsFileName = 'settings.json';
@@ -17,7 +18,7 @@ class ZipBackupService {
   }) async {
     final encoder = ZipFileEncoder();
     final tempDir = await getTemporaryDirectory();
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final timestamp = StorageUtils.getUniqueTimestamp();
     final zipPath = path.join(tempDir.path, 'backup_$timestamp.zip');
 
     try {
@@ -106,7 +107,7 @@ class ZipBackupService {
         } else if (file.name.startsWith('$_imagesDirName/')) {
           final fileName = path.basename(file.name);
           // 避免文件名冲突，添加时间戳
-          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final timestamp = StorageUtils.getUniqueTimestamp();
           final ext = path.extension(fileName);
           final nameWithoutExt = path.basenameWithoutExtension(fileName);
           final newFileName = '${nameWithoutExt}_$timestamp$ext';

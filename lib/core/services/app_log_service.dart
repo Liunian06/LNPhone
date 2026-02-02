@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
-import '../database/database.dart';
 
 /// 软件日志级别
 enum LogLevel {
@@ -55,7 +55,6 @@ class AppLogService {
   static const String _oldLogFileName = 'app_logs.jsonl';
   static const int _maxLogSizeMB = 10; // 单个日志文件最大大小 10MB
   static const int _defaultKeepDays = 3; // 默认保留3天日志
-  static const String _keepDaysKey = 'log_keep_days';
 
   // 使用队列实现高并发写入
   static final List<String> _pendingLogs = [];
@@ -76,12 +75,20 @@ class AppLogService {
   }
 
   /// 获取当天的日志文件路径
+  /// 增加 Isolate 标识，防止多 Isolate 同时写入同一个文件导致冲突
   static Future<String> _getTodayLogFilePath() async {
     final dir = await _getLogDirectory();
     final now = DateTime.now();
     final dateStr =
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-    return '${dir.path}/app_log_$dateStr.jsonl';
+
+    // 获取当前 Isolate 名称，用于区分日志文件
+    // 主 Isolate 通常没有名字或叫 'main'，后台 Isolate 通常有特定名字
+    final isolateName =
+        Isolate.current.debugName?.replaceAll(' ', '_') ?? 'unknown';
+    final suffix = isolateName.contains('background') ? 'bg' : 'main';
+
+    return '${dir.path}/app_log_${dateStr}_$suffix.jsonl';
   }
 
   /// 获取旧日志文件路径（用于迁移/删除）
@@ -250,20 +257,23 @@ class AppLogService {
   }
 
   /// 清理过期日志
+  /// 移除对 AppDatabase 的依赖，防止初始化死锁
   static Future<void> _cleanExpiredLogs() async {
     try {
       final logDir = await _getLogDirectory();
-      final db = AppDatabase();
-      final keepDays = await db.getSettingInt(_keepDaysKey) ?? _defaultKeepDays;
+      // 默认保留 3 天，不再从数据库读取以保证稳定性
+      const keepDays = _defaultKeepDays;
       final now = DateTime.now();
       final threshold = now.subtract(Duration(days: keepDays));
+
+      if (!await logDir.exists()) return;
 
       final List<FileSystemEntity> files = logDir.listSync();
       for (var file in files) {
         if (file is File && file.path.endsWith('.jsonl')) {
           final fileName = file.path.split(Platform.pathSeparator).last;
-          // 匹配 app_log_YYYY-MM-DD.jsonl
-          final match = RegExp(r'app_log_(\d{4}-\d{2}-\d{2})\.jsonl')
+          // 匹配 app_log_YYYY-MM-DD_suffix.jsonl
+          final match = RegExp(r'app_log_(\d{4}-\d{2}-\d{2})_.*\.jsonl')
               .firstMatch(fileName);
           if (match != null) {
             final dateStr = match.group(1);

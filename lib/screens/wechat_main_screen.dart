@@ -9,7 +9,8 @@ import 'contacts/me_tab.dart';
 
 /// 微信主界面，包含4个底栏标签：微信、通讯录、发现、我
 class WeChatMainScreen extends StatefulWidget {
-  const WeChatMainScreen({super.key});
+  final int initialIndex;
+  const WeChatMainScreen({super.key, this.initialIndex = 0});
 
   @override
   State<WeChatMainScreen> createState() => _WeChatMainScreenState();
@@ -29,6 +30,7 @@ class _WeChatMainScreenState extends State<WeChatMainScreen> {
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: _currentIndex);
   }
 

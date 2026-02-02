@@ -123,6 +123,12 @@ class $ChatSessionsTable extends ChatSessions
   late final GeneratedColumn<String> backgroundImage = GeneratedColumn<String>(
       'background_image', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _backgroundImageDataMeta =
+      const VerificationMeta('backgroundImageData');
+  @override
+  late final GeneratedColumn<Uint8List> backgroundImageData =
+      GeneratedColumn<Uint8List>('background_image_data', aliasedName, true,
+          type: DriftSqlType.blob, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -139,7 +145,8 @@ class $ChatSessionsTable extends ChatSessions
         textPresetIds,
         apiPresetId,
         imageApiPresetId,
-        backgroundImage
+        backgroundImage,
+        backgroundImageData
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -229,6 +236,12 @@ class $ChatSessionsTable extends ChatSessions
           backgroundImage.isAcceptableOrUnknown(
               data['background_image']!, _backgroundImageMeta));
     }
+    if (data.containsKey('background_image_data')) {
+      context.handle(
+          _backgroundImageDataMeta,
+          backgroundImageData.isAcceptableOrUnknown(
+              data['background_image_data']!, _backgroundImageDataMeta));
+    }
     return context;
   }
 
@@ -271,6 +284,8 @@ class $ChatSessionsTable extends ChatSessions
           DriftSqlType.string, data['${effectivePrefix}image_api_preset_id']),
       backgroundImage: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}background_image']),
+      backgroundImageData: attachedDatabase.typeMapping.read(
+          DriftSqlType.blob, data['${effectivePrefix}background_image_data']),
     );
   }
 
@@ -302,6 +317,7 @@ class ChatSessionEntity extends DataClass
   final String? apiPresetId;
   final String? imageApiPresetId;
   final String? backgroundImage;
+  final Uint8List? backgroundImageData;
   const ChatSessionEntity(
       {required this.id,
       required this.roleId,
@@ -317,7 +333,8 @@ class ChatSessionEntity extends DataClass
       required this.textPresetIds,
       this.apiPresetId,
       this.imageApiPresetId,
-      this.backgroundImage});
+      this.backgroundImage,
+      this.backgroundImageData});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -351,6 +368,9 @@ class ChatSessionEntity extends DataClass
     if (!nullToAbsent || backgroundImage != null) {
       map['background_image'] = Variable<String>(backgroundImage);
     }
+    if (!nullToAbsent || backgroundImageData != null) {
+      map['background_image_data'] = Variable<Uint8List>(backgroundImageData);
+    }
     return map;
   }
 
@@ -379,6 +399,9 @@ class ChatSessionEntity extends DataClass
       backgroundImage: backgroundImage == null && nullToAbsent
           ? const Value.absent()
           : Value(backgroundImage),
+      backgroundImageData: backgroundImageData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(backgroundImageData),
     );
   }
 
@@ -402,6 +425,8 @@ class ChatSessionEntity extends DataClass
       apiPresetId: serializer.fromJson<String?>(json['apiPresetId']),
       imageApiPresetId: serializer.fromJson<String?>(json['imageApiPresetId']),
       backgroundImage: serializer.fromJson<String?>(json['backgroundImage']),
+      backgroundImageData:
+          serializer.fromJson<Uint8List?>(json['backgroundImageData']),
     );
   }
   @override
@@ -424,6 +449,7 @@ class ChatSessionEntity extends DataClass
       'apiPresetId': serializer.toJson<String?>(apiPresetId),
       'imageApiPresetId': serializer.toJson<String?>(imageApiPresetId),
       'backgroundImage': serializer.toJson<String?>(backgroundImage),
+      'backgroundImageData': serializer.toJson<Uint8List?>(backgroundImageData),
     };
   }
 
@@ -442,7 +468,8 @@ class ChatSessionEntity extends DataClass
           List<String>? textPresetIds,
           Value<String?> apiPresetId = const Value.absent(),
           Value<String?> imageApiPresetId = const Value.absent(),
-          Value<String?> backgroundImage = const Value.absent()}) =>
+          Value<String?> backgroundImage = const Value.absent(),
+          Value<Uint8List?> backgroundImageData = const Value.absent()}) =>
       ChatSessionEntity(
         id: id ?? this.id,
         roleId: roleId ?? this.roleId,
@@ -465,6 +492,9 @@ class ChatSessionEntity extends DataClass
         backgroundImage: backgroundImage.present
             ? backgroundImage.value
             : this.backgroundImage,
+        backgroundImageData: backgroundImageData.present
+            ? backgroundImageData.value
+            : this.backgroundImageData,
       );
   ChatSessionEntity copyWithCompanion(ChatSessionsCompanion data) {
     return ChatSessionEntity(
@@ -502,6 +532,9 @@ class ChatSessionEntity extends DataClass
       backgroundImage: data.backgroundImage.present
           ? data.backgroundImage.value
           : this.backgroundImage,
+      backgroundImageData: data.backgroundImageData.present
+          ? data.backgroundImageData.value
+          : this.backgroundImageData,
     );
   }
 
@@ -522,7 +555,8 @@ class ChatSessionEntity extends DataClass
           ..write('textPresetIds: $textPresetIds, ')
           ..write('apiPresetId: $apiPresetId, ')
           ..write('imageApiPresetId: $imageApiPresetId, ')
-          ..write('backgroundImage: $backgroundImage')
+          ..write('backgroundImage: $backgroundImage, ')
+          ..write('backgroundImageData: $backgroundImageData')
           ..write(')'))
         .toString();
   }
@@ -543,7 +577,8 @@ class ChatSessionEntity extends DataClass
       textPresetIds,
       apiPresetId,
       imageApiPresetId,
-      backgroundImage);
+      backgroundImage,
+      $driftBlobEquality.hash(backgroundImageData));
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -563,7 +598,9 @@ class ChatSessionEntity extends DataClass
           other.textPresetIds == this.textPresetIds &&
           other.apiPresetId == this.apiPresetId &&
           other.imageApiPresetId == this.imageApiPresetId &&
-          other.backgroundImage == this.backgroundImage);
+          other.backgroundImage == this.backgroundImage &&
+          $driftBlobEquality.equals(
+              other.backgroundImageData, this.backgroundImageData));
 }
 
 class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
@@ -582,6 +619,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
   final Value<String?> apiPresetId;
   final Value<String?> imageApiPresetId;
   final Value<String?> backgroundImage;
+  final Value<Uint8List?> backgroundImageData;
   final Value<int> rowid;
   const ChatSessionsCompanion({
     this.id = const Value.absent(),
@@ -599,6 +637,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     this.apiPresetId = const Value.absent(),
     this.imageApiPresetId = const Value.absent(),
     this.backgroundImage = const Value.absent(),
+    this.backgroundImageData = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ChatSessionsCompanion.insert({
@@ -617,6 +656,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     this.apiPresetId = const Value.absent(),
     this.imageApiPresetId = const Value.absent(),
     this.backgroundImage = const Value.absent(),
+    this.backgroundImageData = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         roleId = Value(roleId),
@@ -638,6 +678,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     Expression<String>? apiPresetId,
     Expression<String>? imageApiPresetId,
     Expression<String>? backgroundImage,
+    Expression<Uint8List>? backgroundImageData,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -658,6 +699,8 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       if (apiPresetId != null) 'api_preset_id': apiPresetId,
       if (imageApiPresetId != null) 'image_api_preset_id': imageApiPresetId,
       if (backgroundImage != null) 'background_image': backgroundImage,
+      if (backgroundImageData != null)
+        'background_image_data': backgroundImageData,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -678,6 +721,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       Value<String?>? apiPresetId,
       Value<String?>? imageApiPresetId,
       Value<String?>? backgroundImage,
+      Value<Uint8List?>? backgroundImageData,
       Value<int>? rowid}) {
     return ChatSessionsCompanion(
       id: id ?? this.id,
@@ -696,6 +740,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
       apiPresetId: apiPresetId ?? this.apiPresetId,
       imageApiPresetId: imageApiPresetId ?? this.imageApiPresetId,
       backgroundImage: backgroundImage ?? this.backgroundImage,
+      backgroundImageData: backgroundImageData ?? this.backgroundImageData,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -752,6 +797,10 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
     if (backgroundImage.present) {
       map['background_image'] = Variable<String>(backgroundImage.value);
     }
+    if (backgroundImageData.present) {
+      map['background_image_data'] =
+          Variable<Uint8List>(backgroundImageData.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -776,6 +825,7 @@ class ChatSessionsCompanion extends UpdateCompanion<ChatSessionEntity> {
           ..write('apiPresetId: $apiPresetId, ')
           ..write('imageApiPresetId: $imageApiPresetId, ')
           ..write('backgroundImage: $backgroundImage, ')
+          ..write('backgroundImageData: $backgroundImageData, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -826,6 +876,12 @@ class $ChatMessagesTable extends ChatMessages
   late final GeneratedColumn<String> content = GeneratedColumn<String>(
       'content', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _messageDataMeta =
+      const VerificationMeta('messageData');
+  @override
+  late final GeneratedColumn<Uint8List> messageData =
+      GeneratedColumn<Uint8List>('message_data', aliasedName, true,
+          type: DriftSqlType.blob, requiredDuringInsert: false);
   static const VerificationMeta _timestampMeta =
       const VerificationMeta('timestamp');
   @override
@@ -848,8 +904,18 @@ class $ChatMessagesTable extends ChatMessages
           GeneratedColumn.constraintIsAlways('CHECK ("is_read" IN (0, 1))'),
       defaultValue: const Constant(true));
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, sessionId, isMe, sender, type, content, timestamp, metadata, isRead];
+  List<GeneratedColumn> get $columns => [
+        id,
+        sessionId,
+        isMe,
+        sender,
+        type,
+        content,
+        messageData,
+        timestamp,
+        metadata,
+        isRead
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -887,6 +953,12 @@ class $ChatMessagesTable extends ChatMessages
     } else if (isInserting) {
       context.missing(_contentMeta);
     }
+    if (data.containsKey('message_data')) {
+      context.handle(
+          _messageDataMeta,
+          messageData.isAcceptableOrUnknown(
+              data['message_data']!, _messageDataMeta));
+    }
     if (data.containsKey('timestamp')) {
       context.handle(_timestampMeta,
           timestamp.isAcceptableOrUnknown(data['timestamp']!, _timestampMeta));
@@ -919,6 +991,8 @@ class $ChatMessagesTable extends ChatMessages
           .read(DriftSqlType.int, data['${effectivePrefix}type'])!),
       content: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}content'])!,
+      messageData: attachedDatabase.typeMapping
+          .read(DriftSqlType.blob, data['${effectivePrefix}message_data']),
       timestamp: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}timestamp'])!,
       metadata: $ChatMessagesTable.$convertermetadatan.fromSql(attachedDatabase
@@ -950,6 +1024,7 @@ class ChatMessageEntity extends DataClass
   final String? sender;
   final MessageType type;
   final String content;
+  final Uint8List? messageData;
   final int timestamp;
   final Map<String, dynamic>? metadata;
   final bool isRead;
@@ -960,6 +1035,7 @@ class ChatMessageEntity extends DataClass
       this.sender,
       required this.type,
       required this.content,
+      this.messageData,
       required this.timestamp,
       this.metadata,
       required this.isRead});
@@ -977,6 +1053,9 @@ class ChatMessageEntity extends DataClass
           Variable<int>($ChatMessagesTable.$convertertype.toSql(type));
     }
     map['content'] = Variable<String>(content);
+    if (!nullToAbsent || messageData != null) {
+      map['message_data'] = Variable<Uint8List>(messageData);
+    }
     map['timestamp'] = Variable<int>(timestamp);
     if (!nullToAbsent || metadata != null) {
       map['metadata'] = Variable<String>(
@@ -995,6 +1074,9 @@ class ChatMessageEntity extends DataClass
           sender == null && nullToAbsent ? const Value.absent() : Value(sender),
       type: Value(type),
       content: Value(content),
+      messageData: messageData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(messageData),
       timestamp: Value(timestamp),
       metadata: metadata == null && nullToAbsent
           ? const Value.absent()
@@ -1013,6 +1095,7 @@ class ChatMessageEntity extends DataClass
       sender: serializer.fromJson<String?>(json['sender']),
       type: serializer.fromJson<MessageType>(json['type']),
       content: serializer.fromJson<String>(json['content']),
+      messageData: serializer.fromJson<Uint8List?>(json['messageData']),
       timestamp: serializer.fromJson<int>(json['timestamp']),
       metadata: serializer.fromJson<Map<String, dynamic>?>(json['metadata']),
       isRead: serializer.fromJson<bool>(json['isRead']),
@@ -1028,6 +1111,7 @@ class ChatMessageEntity extends DataClass
       'sender': serializer.toJson<String?>(sender),
       'type': serializer.toJson<MessageType>(type),
       'content': serializer.toJson<String>(content),
+      'messageData': serializer.toJson<Uint8List?>(messageData),
       'timestamp': serializer.toJson<int>(timestamp),
       'metadata': serializer.toJson<Map<String, dynamic>?>(metadata),
       'isRead': serializer.toJson<bool>(isRead),
@@ -1041,6 +1125,7 @@ class ChatMessageEntity extends DataClass
           Value<String?> sender = const Value.absent(),
           MessageType? type,
           String? content,
+          Value<Uint8List?> messageData = const Value.absent(),
           int? timestamp,
           Value<Map<String, dynamic>?> metadata = const Value.absent(),
           bool? isRead}) =>
@@ -1051,6 +1136,7 @@ class ChatMessageEntity extends DataClass
         sender: sender.present ? sender.value : this.sender,
         type: type ?? this.type,
         content: content ?? this.content,
+        messageData: messageData.present ? messageData.value : this.messageData,
         timestamp: timestamp ?? this.timestamp,
         metadata: metadata.present ? metadata.value : this.metadata,
         isRead: isRead ?? this.isRead,
@@ -1063,6 +1149,8 @@ class ChatMessageEntity extends DataClass
       sender: data.sender.present ? data.sender.value : this.sender,
       type: data.type.present ? data.type.value : this.type,
       content: data.content.present ? data.content.value : this.content,
+      messageData:
+          data.messageData.present ? data.messageData.value : this.messageData,
       timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
       metadata: data.metadata.present ? data.metadata.value : this.metadata,
       isRead: data.isRead.present ? data.isRead.value : this.isRead,
@@ -1078,6 +1166,7 @@ class ChatMessageEntity extends DataClass
           ..write('sender: $sender, ')
           ..write('type: $type, ')
           ..write('content: $content, ')
+          ..write('messageData: $messageData, ')
           ..write('timestamp: $timestamp, ')
           ..write('metadata: $metadata, ')
           ..write('isRead: $isRead')
@@ -1086,8 +1175,8 @@ class ChatMessageEntity extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, sessionId, isMe, sender, type, content, timestamp, metadata, isRead);
+  int get hashCode => Object.hash(id, sessionId, isMe, sender, type, content,
+      $driftBlobEquality.hash(messageData), timestamp, metadata, isRead);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1098,6 +1187,7 @@ class ChatMessageEntity extends DataClass
           other.sender == this.sender &&
           other.type == this.type &&
           other.content == this.content &&
+          $driftBlobEquality.equals(other.messageData, this.messageData) &&
           other.timestamp == this.timestamp &&
           other.metadata == this.metadata &&
           other.isRead == this.isRead);
@@ -1110,6 +1200,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
   final Value<String?> sender;
   final Value<MessageType> type;
   final Value<String> content;
+  final Value<Uint8List?> messageData;
   final Value<int> timestamp;
   final Value<Map<String, dynamic>?> metadata;
   final Value<bool> isRead;
@@ -1121,6 +1212,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
     this.sender = const Value.absent(),
     this.type = const Value.absent(),
     this.content = const Value.absent(),
+    this.messageData = const Value.absent(),
     this.timestamp = const Value.absent(),
     this.metadata = const Value.absent(),
     this.isRead = const Value.absent(),
@@ -1133,6 +1225,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
     this.sender = const Value.absent(),
     required MessageType type,
     required String content,
+    this.messageData = const Value.absent(),
     required int timestamp,
     this.metadata = const Value.absent(),
     this.isRead = const Value.absent(),
@@ -1150,6 +1243,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
     Expression<String>? sender,
     Expression<int>? type,
     Expression<String>? content,
+    Expression<Uint8List>? messageData,
     Expression<int>? timestamp,
     Expression<String>? metadata,
     Expression<bool>? isRead,
@@ -1162,6 +1256,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
       if (sender != null) 'sender': sender,
       if (type != null) 'type': type,
       if (content != null) 'content': content,
+      if (messageData != null) 'message_data': messageData,
       if (timestamp != null) 'timestamp': timestamp,
       if (metadata != null) 'metadata': metadata,
       if (isRead != null) 'is_read': isRead,
@@ -1176,6 +1271,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
       Value<String?>? sender,
       Value<MessageType>? type,
       Value<String>? content,
+      Value<Uint8List?>? messageData,
       Value<int>? timestamp,
       Value<Map<String, dynamic>?>? metadata,
       Value<bool>? isRead,
@@ -1187,6 +1283,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
       sender: sender ?? this.sender,
       type: type ?? this.type,
       content: content ?? this.content,
+      messageData: messageData ?? this.messageData,
       timestamp: timestamp ?? this.timestamp,
       metadata: metadata ?? this.metadata,
       isRead: isRead ?? this.isRead,
@@ -1216,6 +1313,9 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
     if (content.present) {
       map['content'] = Variable<String>(content.value);
     }
+    if (messageData.present) {
+      map['message_data'] = Variable<Uint8List>(messageData.value);
+    }
     if (timestamp.present) {
       map['timestamp'] = Variable<int>(timestamp.value);
     }
@@ -1241,6 +1341,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageEntity> {
           ..write('sender: $sender, ')
           ..write('type: $type, ')
           ..write('content: $content, ')
+          ..write('messageData: $messageData, ')
           ..write('timestamp: $timestamp, ')
           ..write('metadata: $metadata, ')
           ..write('isRead: $isRead, ')
@@ -1278,6 +1379,12 @@ class $MomentsPostsTable extends MomentsPosts
               type: DriftSqlType.string, requiredDuringInsert: true)
           .withConverter<List<MediaItem>>(
               $MomentsPostsTable.$convertermediaItems);
+  static const VerificationMeta _mediaDataMeta =
+      const VerificationMeta('mediaData');
+  @override
+  late final GeneratedColumn<String> mediaData = GeneratedColumn<String>(
+      'media_data', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -1302,8 +1409,17 @@ class $MomentsPostsTable extends MomentsPosts
       'location', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, user, content, mediaItems, createdAt, likes, comments, location];
+  List<GeneratedColumn> get $columns => [
+        id,
+        user,
+        content,
+        mediaItems,
+        mediaData,
+        createdAt,
+        likes,
+        comments,
+        location
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1322,6 +1438,10 @@ class $MomentsPostsTable extends MomentsPosts
     if (data.containsKey('content')) {
       context.handle(_contentMeta,
           content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+    }
+    if (data.containsKey('media_data')) {
+      context.handle(_mediaDataMeta,
+          mediaData.isAcceptableOrUnknown(data['media_data']!, _mediaDataMeta));
     }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
@@ -1352,6 +1472,8 @@ class $MomentsPostsTable extends MomentsPosts
       mediaItems: $MomentsPostsTable.$convertermediaItems.fromSql(
           attachedDatabase.typeMapping.read(
               DriftSqlType.string, data['${effectivePrefix}media_items'])!),
+      mediaData: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}media_data']),
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}created_at'])!,
       likes: $MomentsPostsTable.$converterlikes.fromSql(attachedDatabase
@@ -1386,6 +1508,7 @@ class MomentsPostEntity extends DataClass
   final MomentsUser user;
   final String? content;
   final List<MediaItem> mediaItems;
+  final String? mediaData;
   final int createdAt;
   final List<MomentLike> likes;
   final List<MomentsComment> comments;
@@ -1395,6 +1518,7 @@ class MomentsPostEntity extends DataClass
       required this.user,
       this.content,
       required this.mediaItems,
+      this.mediaData,
       required this.createdAt,
       required this.likes,
       required this.comments,
@@ -1413,6 +1537,9 @@ class MomentsPostEntity extends DataClass
     {
       map['media_items'] = Variable<String>(
           $MomentsPostsTable.$convertermediaItems.toSql(mediaItems));
+    }
+    if (!nullToAbsent || mediaData != null) {
+      map['media_data'] = Variable<String>(mediaData);
     }
     map['created_at'] = Variable<int>(createdAt);
     {
@@ -1437,6 +1564,9 @@ class MomentsPostEntity extends DataClass
           ? const Value.absent()
           : Value(content),
       mediaItems: Value(mediaItems),
+      mediaData: mediaData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mediaData),
       createdAt: Value(createdAt),
       likes: Value(likes),
       comments: Value(comments),
@@ -1454,6 +1584,7 @@ class MomentsPostEntity extends DataClass
       user: serializer.fromJson<MomentsUser>(json['user']),
       content: serializer.fromJson<String?>(json['content']),
       mediaItems: serializer.fromJson<List<MediaItem>>(json['mediaItems']),
+      mediaData: serializer.fromJson<String?>(json['mediaData']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       likes: serializer.fromJson<List<MomentLike>>(json['likes']),
       comments: serializer.fromJson<List<MomentsComment>>(json['comments']),
@@ -1468,6 +1599,7 @@ class MomentsPostEntity extends DataClass
       'user': serializer.toJson<MomentsUser>(user),
       'content': serializer.toJson<String?>(content),
       'mediaItems': serializer.toJson<List<MediaItem>>(mediaItems),
+      'mediaData': serializer.toJson<String?>(mediaData),
       'createdAt': serializer.toJson<int>(createdAt),
       'likes': serializer.toJson<List<MomentLike>>(likes),
       'comments': serializer.toJson<List<MomentsComment>>(comments),
@@ -1480,6 +1612,7 @@ class MomentsPostEntity extends DataClass
           MomentsUser? user,
           Value<String?> content = const Value.absent(),
           List<MediaItem>? mediaItems,
+          Value<String?> mediaData = const Value.absent(),
           int? createdAt,
           List<MomentLike>? likes,
           List<MomentsComment>? comments,
@@ -1489,6 +1622,7 @@ class MomentsPostEntity extends DataClass
         user: user ?? this.user,
         content: content.present ? content.value : this.content,
         mediaItems: mediaItems ?? this.mediaItems,
+        mediaData: mediaData.present ? mediaData.value : this.mediaData,
         createdAt: createdAt ?? this.createdAt,
         likes: likes ?? this.likes,
         comments: comments ?? this.comments,
@@ -1501,6 +1635,7 @@ class MomentsPostEntity extends DataClass
       content: data.content.present ? data.content.value : this.content,
       mediaItems:
           data.mediaItems.present ? data.mediaItems.value : this.mediaItems,
+      mediaData: data.mediaData.present ? data.mediaData.value : this.mediaData,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       likes: data.likes.present ? data.likes.value : this.likes,
       comments: data.comments.present ? data.comments.value : this.comments,
@@ -1515,6 +1650,7 @@ class MomentsPostEntity extends DataClass
           ..write('user: $user, ')
           ..write('content: $content, ')
           ..write('mediaItems: $mediaItems, ')
+          ..write('mediaData: $mediaData, ')
           ..write('createdAt: $createdAt, ')
           ..write('likes: $likes, ')
           ..write('comments: $comments, ')
@@ -1524,8 +1660,8 @@ class MomentsPostEntity extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, user, content, mediaItems, createdAt, likes, comments, location);
+  int get hashCode => Object.hash(id, user, content, mediaItems, mediaData,
+      createdAt, likes, comments, location);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1534,6 +1670,7 @@ class MomentsPostEntity extends DataClass
           other.user == this.user &&
           other.content == this.content &&
           other.mediaItems == this.mediaItems &&
+          other.mediaData == this.mediaData &&
           other.createdAt == this.createdAt &&
           other.likes == this.likes &&
           other.comments == this.comments &&
@@ -1545,6 +1682,7 @@ class MomentsPostsCompanion extends UpdateCompanion<MomentsPostEntity> {
   final Value<MomentsUser> user;
   final Value<String?> content;
   final Value<List<MediaItem>> mediaItems;
+  final Value<String?> mediaData;
   final Value<int> createdAt;
   final Value<List<MomentLike>> likes;
   final Value<List<MomentsComment>> comments;
@@ -1555,6 +1693,7 @@ class MomentsPostsCompanion extends UpdateCompanion<MomentsPostEntity> {
     this.user = const Value.absent(),
     this.content = const Value.absent(),
     this.mediaItems = const Value.absent(),
+    this.mediaData = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.likes = const Value.absent(),
     this.comments = const Value.absent(),
@@ -1566,6 +1705,7 @@ class MomentsPostsCompanion extends UpdateCompanion<MomentsPostEntity> {
     required MomentsUser user,
     this.content = const Value.absent(),
     required List<MediaItem> mediaItems,
+    this.mediaData = const Value.absent(),
     required int createdAt,
     required List<MomentLike> likes,
     required List<MomentsComment> comments,
@@ -1582,6 +1722,7 @@ class MomentsPostsCompanion extends UpdateCompanion<MomentsPostEntity> {
     Expression<String>? user,
     Expression<String>? content,
     Expression<String>? mediaItems,
+    Expression<String>? mediaData,
     Expression<int>? createdAt,
     Expression<String>? likes,
     Expression<String>? comments,
@@ -1593,6 +1734,7 @@ class MomentsPostsCompanion extends UpdateCompanion<MomentsPostEntity> {
       if (user != null) 'user': user,
       if (content != null) 'content': content,
       if (mediaItems != null) 'media_items': mediaItems,
+      if (mediaData != null) 'media_data': mediaData,
       if (createdAt != null) 'created_at': createdAt,
       if (likes != null) 'likes': likes,
       if (comments != null) 'comments': comments,
@@ -1606,6 +1748,7 @@ class MomentsPostsCompanion extends UpdateCompanion<MomentsPostEntity> {
       Value<MomentsUser>? user,
       Value<String?>? content,
       Value<List<MediaItem>>? mediaItems,
+      Value<String?>? mediaData,
       Value<int>? createdAt,
       Value<List<MomentLike>>? likes,
       Value<List<MomentsComment>>? comments,
@@ -1616,6 +1759,7 @@ class MomentsPostsCompanion extends UpdateCompanion<MomentsPostEntity> {
       user: user ?? this.user,
       content: content ?? this.content,
       mediaItems: mediaItems ?? this.mediaItems,
+      mediaData: mediaData ?? this.mediaData,
       createdAt: createdAt ?? this.createdAt,
       likes: likes ?? this.likes,
       comments: comments ?? this.comments,
@@ -1640,6 +1784,9 @@ class MomentsPostsCompanion extends UpdateCompanion<MomentsPostEntity> {
     if (mediaItems.present) {
       map['media_items'] = Variable<String>(
           $MomentsPostsTable.$convertermediaItems.toSql(mediaItems.value));
+    }
+    if (mediaData.present) {
+      map['media_data'] = Variable<String>(mediaData.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
@@ -1668,6 +1815,7 @@ class MomentsPostsCompanion extends UpdateCompanion<MomentsPostEntity> {
           ..write('user: $user, ')
           ..write('content: $content, ')
           ..write('mediaItems: $mediaItems, ')
+          ..write('mediaData: $mediaData, ')
           ..write('createdAt: $createdAt, ')
           ..write('likes: $likes, ')
           ..write('comments: $comments, ')
@@ -2789,6 +2937,12 @@ class $ContactRolesTable extends ContactRoles
   late final GeneratedColumn<String> avatarPath = GeneratedColumn<String>(
       'avatar_path', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _avatarDataMeta =
+      const VerificationMeta('avatarData');
+  @override
+  late final GeneratedColumn<Uint8List> avatarData = GeneratedColumn<Uint8List>(
+      'avatar_data', aliasedName, true,
+      type: DriftSqlType.blob, requiredDuringInsert: false);
   static const VerificationMeta _descriptionMeta =
       const VerificationMeta('description');
   @override
@@ -2810,6 +2964,12 @@ class $ContactRolesTable extends ContactRoles
               defaultValue: const Constant('[]'))
           .withConverter<List<String>>(
               $ContactRolesTable.$converterreferenceImages);
+  static const VerificationMeta _referenceImagesDataMeta =
+      const VerificationMeta('referenceImagesData');
+  @override
+  late final GeneratedColumn<String> referenceImagesData =
+      GeneratedColumn<String>('reference_images_data', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   late final GeneratedColumnWithTypeConverter<List<String>, String>
       subscribedGroupIds = GeneratedColumn<String>(
@@ -2833,9 +2993,11 @@ class $ContactRolesTable extends ContactRoles
         id,
         name,
         avatarPath,
+        avatarData,
         description,
         appearance,
         referenceImages,
+        referenceImagesData,
         subscribedGroupIds,
         subscribedEmojiIds
       ];
@@ -2866,6 +3028,12 @@ class $ContactRolesTable extends ContactRoles
           avatarPath.isAcceptableOrUnknown(
               data['avatar_path']!, _avatarPathMeta));
     }
+    if (data.containsKey('avatar_data')) {
+      context.handle(
+          _avatarDataMeta,
+          avatarData.isAcceptableOrUnknown(
+              data['avatar_data']!, _avatarDataMeta));
+    }
     if (data.containsKey('description')) {
       context.handle(
           _descriptionMeta,
@@ -2879,6 +3047,12 @@ class $ContactRolesTable extends ContactRoles
           _appearanceMeta,
           appearance.isAcceptableOrUnknown(
               data['appearance']!, _appearanceMeta));
+    }
+    if (data.containsKey('reference_images_data')) {
+      context.handle(
+          _referenceImagesDataMeta,
+          referenceImagesData.isAcceptableOrUnknown(
+              data['reference_images_data']!, _referenceImagesDataMeta));
     }
     return context;
   }
@@ -2895,6 +3069,8 @@ class $ContactRolesTable extends ContactRoles
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       avatarPath: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}avatar_path']),
+      avatarData: attachedDatabase.typeMapping
+          .read(DriftSqlType.blob, data['${effectivePrefix}avatar_data']),
       description: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}description'])!,
       appearance: attachedDatabase.typeMapping
@@ -2902,6 +3078,8 @@ class $ContactRolesTable extends ContactRoles
       referenceImages: $ContactRolesTable.$converterreferenceImages.fromSql(
           attachedDatabase.typeMapping.read(DriftSqlType.string,
               data['${effectivePrefix}reference_images'])!),
+      referenceImagesData: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}reference_images_data']),
       subscribedGroupIds: $ContactRolesTable.$convertersubscribedGroupIds
           .fromSql(attachedDatabase.typeMapping.read(DriftSqlType.string,
               data['${effectivePrefix}subscribed_group_ids'])!),
@@ -2929,18 +3107,22 @@ class ContactRoleEntity extends DataClass
   final String id;
   final String name;
   final String? avatarPath;
+  final Uint8List? avatarData;
   final String description;
   final String? appearance;
   final List<String> referenceImages;
+  final String? referenceImagesData;
   final List<String> subscribedGroupIds;
   final List<String> subscribedEmojiIds;
   const ContactRoleEntity(
       {required this.id,
       required this.name,
       this.avatarPath,
+      this.avatarData,
       required this.description,
       this.appearance,
       required this.referenceImages,
+      this.referenceImagesData,
       required this.subscribedGroupIds,
       required this.subscribedEmojiIds});
   @override
@@ -2951,6 +3133,9 @@ class ContactRoleEntity extends DataClass
     if (!nullToAbsent || avatarPath != null) {
       map['avatar_path'] = Variable<String>(avatarPath);
     }
+    if (!nullToAbsent || avatarData != null) {
+      map['avatar_data'] = Variable<Uint8List>(avatarData);
+    }
     map['description'] = Variable<String>(description);
     if (!nullToAbsent || appearance != null) {
       map['appearance'] = Variable<String>(appearance);
@@ -2958,6 +3143,9 @@ class ContactRoleEntity extends DataClass
     {
       map['reference_images'] = Variable<String>(
           $ContactRolesTable.$converterreferenceImages.toSql(referenceImages));
+    }
+    if (!nullToAbsent || referenceImagesData != null) {
+      map['reference_images_data'] = Variable<String>(referenceImagesData);
     }
     {
       map['subscribed_group_ids'] = Variable<String>($ContactRolesTable
@@ -2979,11 +3167,17 @@ class ContactRoleEntity extends DataClass
       avatarPath: avatarPath == null && nullToAbsent
           ? const Value.absent()
           : Value(avatarPath),
+      avatarData: avatarData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avatarData),
       description: Value(description),
       appearance: appearance == null && nullToAbsent
           ? const Value.absent()
           : Value(appearance),
       referenceImages: Value(referenceImages),
+      referenceImagesData: referenceImagesData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(referenceImagesData),
       subscribedGroupIds: Value(subscribedGroupIds),
       subscribedEmojiIds: Value(subscribedEmojiIds),
     );
@@ -2996,10 +3190,13 @@ class ContactRoleEntity extends DataClass
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       avatarPath: serializer.fromJson<String?>(json['avatarPath']),
+      avatarData: serializer.fromJson<Uint8List?>(json['avatarData']),
       description: serializer.fromJson<String>(json['description']),
       appearance: serializer.fromJson<String?>(json['appearance']),
       referenceImages:
           serializer.fromJson<List<String>>(json['referenceImages']),
+      referenceImagesData:
+          serializer.fromJson<String?>(json['referenceImagesData']),
       subscribedGroupIds:
           serializer.fromJson<List<String>>(json['subscribedGroupIds']),
       subscribedEmojiIds:
@@ -3013,9 +3210,11 @@ class ContactRoleEntity extends DataClass
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'avatarPath': serializer.toJson<String?>(avatarPath),
+      'avatarData': serializer.toJson<Uint8List?>(avatarData),
       'description': serializer.toJson<String>(description),
       'appearance': serializer.toJson<String?>(appearance),
       'referenceImages': serializer.toJson<List<String>>(referenceImages),
+      'referenceImagesData': serializer.toJson<String?>(referenceImagesData),
       'subscribedGroupIds': serializer.toJson<List<String>>(subscribedGroupIds),
       'subscribedEmojiIds': serializer.toJson<List<String>>(subscribedEmojiIds),
     };
@@ -3025,18 +3224,24 @@ class ContactRoleEntity extends DataClass
           {String? id,
           String? name,
           Value<String?> avatarPath = const Value.absent(),
+          Value<Uint8List?> avatarData = const Value.absent(),
           String? description,
           Value<String?> appearance = const Value.absent(),
           List<String>? referenceImages,
+          Value<String?> referenceImagesData = const Value.absent(),
           List<String>? subscribedGroupIds,
           List<String>? subscribedEmojiIds}) =>
       ContactRoleEntity(
         id: id ?? this.id,
         name: name ?? this.name,
         avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
+        avatarData: avatarData.present ? avatarData.value : this.avatarData,
         description: description ?? this.description,
         appearance: appearance.present ? appearance.value : this.appearance,
         referenceImages: referenceImages ?? this.referenceImages,
+        referenceImagesData: referenceImagesData.present
+            ? referenceImagesData.value
+            : this.referenceImagesData,
         subscribedGroupIds: subscribedGroupIds ?? this.subscribedGroupIds,
         subscribedEmojiIds: subscribedEmojiIds ?? this.subscribedEmojiIds,
       );
@@ -3046,6 +3251,8 @@ class ContactRoleEntity extends DataClass
       name: data.name.present ? data.name.value : this.name,
       avatarPath:
           data.avatarPath.present ? data.avatarPath.value : this.avatarPath,
+      avatarData:
+          data.avatarData.present ? data.avatarData.value : this.avatarData,
       description:
           data.description.present ? data.description.value : this.description,
       appearance:
@@ -3053,6 +3260,9 @@ class ContactRoleEntity extends DataClass
       referenceImages: data.referenceImages.present
           ? data.referenceImages.value
           : this.referenceImages,
+      referenceImagesData: data.referenceImagesData.present
+          ? data.referenceImagesData.value
+          : this.referenceImagesData,
       subscribedGroupIds: data.subscribedGroupIds.present
           ? data.subscribedGroupIds.value
           : this.subscribedGroupIds,
@@ -3068,9 +3278,11 @@ class ContactRoleEntity extends DataClass
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('avatarPath: $avatarPath, ')
+          ..write('avatarData: $avatarData, ')
           ..write('description: $description, ')
           ..write('appearance: $appearance, ')
           ..write('referenceImages: $referenceImages, ')
+          ..write('referenceImagesData: $referenceImagesData, ')
           ..write('subscribedGroupIds: $subscribedGroupIds, ')
           ..write('subscribedEmojiIds: $subscribedEmojiIds')
           ..write(')'))
@@ -3078,8 +3290,17 @@ class ContactRoleEntity extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(id, name, avatarPath, description, appearance,
-      referenceImages, subscribedGroupIds, subscribedEmojiIds);
+  int get hashCode => Object.hash(
+      id,
+      name,
+      avatarPath,
+      $driftBlobEquality.hash(avatarData),
+      description,
+      appearance,
+      referenceImages,
+      referenceImagesData,
+      subscribedGroupIds,
+      subscribedEmojiIds);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3087,9 +3308,11 @@ class ContactRoleEntity extends DataClass
           other.id == this.id &&
           other.name == this.name &&
           other.avatarPath == this.avatarPath &&
+          $driftBlobEquality.equals(other.avatarData, this.avatarData) &&
           other.description == this.description &&
           other.appearance == this.appearance &&
           other.referenceImages == this.referenceImages &&
+          other.referenceImagesData == this.referenceImagesData &&
           other.subscribedGroupIds == this.subscribedGroupIds &&
           other.subscribedEmojiIds == this.subscribedEmojiIds);
 }
@@ -3098,9 +3321,11 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
   final Value<String> id;
   final Value<String> name;
   final Value<String?> avatarPath;
+  final Value<Uint8List?> avatarData;
   final Value<String> description;
   final Value<String?> appearance;
   final Value<List<String>> referenceImages;
+  final Value<String?> referenceImagesData;
   final Value<List<String>> subscribedGroupIds;
   final Value<List<String>> subscribedEmojiIds;
   final Value<int> rowid;
@@ -3108,9 +3333,11 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.avatarPath = const Value.absent(),
+    this.avatarData = const Value.absent(),
     this.description = const Value.absent(),
     this.appearance = const Value.absent(),
     this.referenceImages = const Value.absent(),
+    this.referenceImagesData = const Value.absent(),
     this.subscribedGroupIds = const Value.absent(),
     this.subscribedEmojiIds = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -3119,9 +3346,11 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
     required String id,
     required String name,
     this.avatarPath = const Value.absent(),
+    this.avatarData = const Value.absent(),
     required String description,
     this.appearance = const Value.absent(),
     this.referenceImages = const Value.absent(),
+    this.referenceImagesData = const Value.absent(),
     this.subscribedGroupIds = const Value.absent(),
     this.subscribedEmojiIds = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -3132,9 +3361,11 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? avatarPath,
+    Expression<Uint8List>? avatarData,
     Expression<String>? description,
     Expression<String>? appearance,
     Expression<String>? referenceImages,
+    Expression<String>? referenceImagesData,
     Expression<String>? subscribedGroupIds,
     Expression<String>? subscribedEmojiIds,
     Expression<int>? rowid,
@@ -3143,9 +3374,12 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (avatarPath != null) 'avatar_path': avatarPath,
+      if (avatarData != null) 'avatar_data': avatarData,
       if (description != null) 'description': description,
       if (appearance != null) 'appearance': appearance,
       if (referenceImages != null) 'reference_images': referenceImages,
+      if (referenceImagesData != null)
+        'reference_images_data': referenceImagesData,
       if (subscribedGroupIds != null)
         'subscribed_group_ids': subscribedGroupIds,
       if (subscribedEmojiIds != null)
@@ -3158,9 +3392,11 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
       {Value<String>? id,
       Value<String>? name,
       Value<String?>? avatarPath,
+      Value<Uint8List?>? avatarData,
       Value<String>? description,
       Value<String?>? appearance,
       Value<List<String>>? referenceImages,
+      Value<String?>? referenceImagesData,
       Value<List<String>>? subscribedGroupIds,
       Value<List<String>>? subscribedEmojiIds,
       Value<int>? rowid}) {
@@ -3168,9 +3404,11 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
       id: id ?? this.id,
       name: name ?? this.name,
       avatarPath: avatarPath ?? this.avatarPath,
+      avatarData: avatarData ?? this.avatarData,
       description: description ?? this.description,
       appearance: appearance ?? this.appearance,
       referenceImages: referenceImages ?? this.referenceImages,
+      referenceImagesData: referenceImagesData ?? this.referenceImagesData,
       subscribedGroupIds: subscribedGroupIds ?? this.subscribedGroupIds,
       subscribedEmojiIds: subscribedEmojiIds ?? this.subscribedEmojiIds,
       rowid: rowid ?? this.rowid,
@@ -3189,6 +3427,9 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
     if (avatarPath.present) {
       map['avatar_path'] = Variable<String>(avatarPath.value);
     }
+    if (avatarData.present) {
+      map['avatar_data'] = Variable<Uint8List>(avatarData.value);
+    }
     if (description.present) {
       map['description'] = Variable<String>(description.value);
     }
@@ -3199,6 +3440,10 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
       map['reference_images'] = Variable<String>($ContactRolesTable
           .$converterreferenceImages
           .toSql(referenceImages.value));
+    }
+    if (referenceImagesData.present) {
+      map['reference_images_data'] =
+          Variable<String>(referenceImagesData.value);
     }
     if (subscribedGroupIds.present) {
       map['subscribed_group_ids'] = Variable<String>($ContactRolesTable
@@ -3222,9 +3467,11 @@ class ContactRolesCompanion extends UpdateCompanion<ContactRoleEntity> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('avatarPath: $avatarPath, ')
+          ..write('avatarData: $avatarData, ')
           ..write('description: $description, ')
           ..write('appearance: $appearance, ')
           ..write('referenceImages: $referenceImages, ')
+          ..write('referenceImagesData: $referenceImagesData, ')
           ..write('subscribedGroupIds: $subscribedGroupIds, ')
           ..write('subscribedEmojiIds: $subscribedEmojiIds, ')
           ..write('rowid: $rowid')
@@ -3255,6 +3502,12 @@ class $ContactMesTable extends ContactMes
   late final GeneratedColumn<String> avatarPath = GeneratedColumn<String>(
       'avatar_path', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _avatarDataMeta =
+      const VerificationMeta('avatarData');
+  @override
+  late final GeneratedColumn<Uint8List> avatarData = GeneratedColumn<Uint8List>(
+      'avatar_data', aliasedName, true,
+      type: DriftSqlType.blob, requiredDuringInsert: false);
   static const VerificationMeta _infoMeta = const VerificationMeta('info');
   @override
   late final GeneratedColumn<String> info = GeneratedColumn<String>(
@@ -3275,9 +3528,23 @@ class $ContactMesTable extends ContactMes
               defaultValue: const Constant('[]'))
           .withConverter<List<String>>(
               $ContactMesTable.$converterreferenceImages);
+  static const VerificationMeta _referenceImagesDataMeta =
+      const VerificationMeta('referenceImagesData');
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, name, avatarPath, info, appearance, referenceImages];
+  late final GeneratedColumn<String> referenceImagesData =
+      GeneratedColumn<String>('reference_images_data', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        name,
+        avatarPath,
+        avatarData,
+        info,
+        appearance,
+        referenceImages,
+        referenceImagesData
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -3305,6 +3572,12 @@ class $ContactMesTable extends ContactMes
           avatarPath.isAcceptableOrUnknown(
               data['avatar_path']!, _avatarPathMeta));
     }
+    if (data.containsKey('avatar_data')) {
+      context.handle(
+          _avatarDataMeta,
+          avatarData.isAcceptableOrUnknown(
+              data['avatar_data']!, _avatarDataMeta));
+    }
     if (data.containsKey('info')) {
       context.handle(
           _infoMeta, info.isAcceptableOrUnknown(data['info']!, _infoMeta));
@@ -3316,6 +3589,12 @@ class $ContactMesTable extends ContactMes
           _appearanceMeta,
           appearance.isAcceptableOrUnknown(
               data['appearance']!, _appearanceMeta));
+    }
+    if (data.containsKey('reference_images_data')) {
+      context.handle(
+          _referenceImagesDataMeta,
+          referenceImagesData.isAcceptableOrUnknown(
+              data['reference_images_data']!, _referenceImagesDataMeta));
     }
     return context;
   }
@@ -3332,6 +3611,8 @@ class $ContactMesTable extends ContactMes
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       avatarPath: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}avatar_path']),
+      avatarData: attachedDatabase.typeMapping
+          .read(DriftSqlType.blob, data['${effectivePrefix}avatar_data']),
       info: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}info'])!,
       appearance: attachedDatabase.typeMapping
@@ -3339,6 +3620,8 @@ class $ContactMesTable extends ContactMes
       referenceImages: $ContactMesTable.$converterreferenceImages.fromSql(
           attachedDatabase.typeMapping.read(DriftSqlType.string,
               data['${effectivePrefix}reference_images'])!),
+      referenceImagesData: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}reference_images_data']),
     );
   }
 
@@ -3355,16 +3638,20 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
   final String id;
   final String name;
   final String? avatarPath;
+  final Uint8List? avatarData;
   final String info;
   final String? appearance;
   final List<String> referenceImages;
+  final String? referenceImagesData;
   const ContactMeEntity(
       {required this.id,
       required this.name,
       this.avatarPath,
+      this.avatarData,
       required this.info,
       this.appearance,
-      required this.referenceImages});
+      required this.referenceImages,
+      this.referenceImagesData});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3373,6 +3660,9 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
     if (!nullToAbsent || avatarPath != null) {
       map['avatar_path'] = Variable<String>(avatarPath);
     }
+    if (!nullToAbsent || avatarData != null) {
+      map['avatar_data'] = Variable<Uint8List>(avatarData);
+    }
     map['info'] = Variable<String>(info);
     if (!nullToAbsent || appearance != null) {
       map['appearance'] = Variable<String>(appearance);
@@ -3380,6 +3670,9 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
     {
       map['reference_images'] = Variable<String>(
           $ContactMesTable.$converterreferenceImages.toSql(referenceImages));
+    }
+    if (!nullToAbsent || referenceImagesData != null) {
+      map['reference_images_data'] = Variable<String>(referenceImagesData);
     }
     return map;
   }
@@ -3391,11 +3684,17 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
       avatarPath: avatarPath == null && nullToAbsent
           ? const Value.absent()
           : Value(avatarPath),
+      avatarData: avatarData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avatarData),
       info: Value(info),
       appearance: appearance == null && nullToAbsent
           ? const Value.absent()
           : Value(appearance),
       referenceImages: Value(referenceImages),
+      referenceImagesData: referenceImagesData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(referenceImagesData),
     );
   }
 
@@ -3406,10 +3705,13 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       avatarPath: serializer.fromJson<String?>(json['avatarPath']),
+      avatarData: serializer.fromJson<Uint8List?>(json['avatarData']),
       info: serializer.fromJson<String>(json['info']),
       appearance: serializer.fromJson<String?>(json['appearance']),
       referenceImages:
           serializer.fromJson<List<String>>(json['referenceImages']),
+      referenceImagesData:
+          serializer.fromJson<String?>(json['referenceImagesData']),
     );
   }
   @override
@@ -3419,9 +3721,11 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'avatarPath': serializer.toJson<String?>(avatarPath),
+      'avatarData': serializer.toJson<Uint8List?>(avatarData),
       'info': serializer.toJson<String>(info),
       'appearance': serializer.toJson<String?>(appearance),
       'referenceImages': serializer.toJson<List<String>>(referenceImages),
+      'referenceImagesData': serializer.toJson<String?>(referenceImagesData),
     };
   }
 
@@ -3429,16 +3733,22 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
           {String? id,
           String? name,
           Value<String?> avatarPath = const Value.absent(),
+          Value<Uint8List?> avatarData = const Value.absent(),
           String? info,
           Value<String?> appearance = const Value.absent(),
-          List<String>? referenceImages}) =>
+          List<String>? referenceImages,
+          Value<String?> referenceImagesData = const Value.absent()}) =>
       ContactMeEntity(
         id: id ?? this.id,
         name: name ?? this.name,
         avatarPath: avatarPath.present ? avatarPath.value : this.avatarPath,
+        avatarData: avatarData.present ? avatarData.value : this.avatarData,
         info: info ?? this.info,
         appearance: appearance.present ? appearance.value : this.appearance,
         referenceImages: referenceImages ?? this.referenceImages,
+        referenceImagesData: referenceImagesData.present
+            ? referenceImagesData.value
+            : this.referenceImagesData,
       );
   ContactMeEntity copyWithCompanion(ContactMesCompanion data) {
     return ContactMeEntity(
@@ -3446,12 +3756,17 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
       name: data.name.present ? data.name.value : this.name,
       avatarPath:
           data.avatarPath.present ? data.avatarPath.value : this.avatarPath,
+      avatarData:
+          data.avatarData.present ? data.avatarData.value : this.avatarData,
       info: data.info.present ? data.info.value : this.info,
       appearance:
           data.appearance.present ? data.appearance.value : this.appearance,
       referenceImages: data.referenceImages.present
           ? data.referenceImages.value
           : this.referenceImages,
+      referenceImagesData: data.referenceImagesData.present
+          ? data.referenceImagesData.value
+          : this.referenceImagesData,
     );
   }
 
@@ -3461,16 +3776,25 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('avatarPath: $avatarPath, ')
+          ..write('avatarData: $avatarData, ')
           ..write('info: $info, ')
           ..write('appearance: $appearance, ')
-          ..write('referenceImages: $referenceImages')
+          ..write('referenceImages: $referenceImages, ')
+          ..write('referenceImagesData: $referenceImagesData')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, name, avatarPath, info, appearance, referenceImages);
+  int get hashCode => Object.hash(
+      id,
+      name,
+      avatarPath,
+      $driftBlobEquality.hash(avatarData),
+      info,
+      appearance,
+      referenceImages,
+      referenceImagesData);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3478,35 +3802,43 @@ class ContactMeEntity extends DataClass implements Insertable<ContactMeEntity> {
           other.id == this.id &&
           other.name == this.name &&
           other.avatarPath == this.avatarPath &&
+          $driftBlobEquality.equals(other.avatarData, this.avatarData) &&
           other.info == this.info &&
           other.appearance == this.appearance &&
-          other.referenceImages == this.referenceImages);
+          other.referenceImages == this.referenceImages &&
+          other.referenceImagesData == this.referenceImagesData);
 }
 
 class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
   final Value<String> id;
   final Value<String> name;
   final Value<String?> avatarPath;
+  final Value<Uint8List?> avatarData;
   final Value<String> info;
   final Value<String?> appearance;
   final Value<List<String>> referenceImages;
+  final Value<String?> referenceImagesData;
   final Value<int> rowid;
   const ContactMesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.avatarPath = const Value.absent(),
+    this.avatarData = const Value.absent(),
     this.info = const Value.absent(),
     this.appearance = const Value.absent(),
     this.referenceImages = const Value.absent(),
+    this.referenceImagesData = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ContactMesCompanion.insert({
     required String id,
     required String name,
     this.avatarPath = const Value.absent(),
+    this.avatarData = const Value.absent(),
     required String info,
     this.appearance = const Value.absent(),
     this.referenceImages = const Value.absent(),
+    this.referenceImagesData = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name),
@@ -3515,18 +3847,23 @@ class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? avatarPath,
+    Expression<Uint8List>? avatarData,
     Expression<String>? info,
     Expression<String>? appearance,
     Expression<String>? referenceImages,
+    Expression<String>? referenceImagesData,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (avatarPath != null) 'avatar_path': avatarPath,
+      if (avatarData != null) 'avatar_data': avatarData,
       if (info != null) 'info': info,
       if (appearance != null) 'appearance': appearance,
       if (referenceImages != null) 'reference_images': referenceImages,
+      if (referenceImagesData != null)
+        'reference_images_data': referenceImagesData,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3535,17 +3872,21 @@ class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
       {Value<String>? id,
       Value<String>? name,
       Value<String?>? avatarPath,
+      Value<Uint8List?>? avatarData,
       Value<String>? info,
       Value<String?>? appearance,
       Value<List<String>>? referenceImages,
+      Value<String?>? referenceImagesData,
       Value<int>? rowid}) {
     return ContactMesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       avatarPath: avatarPath ?? this.avatarPath,
+      avatarData: avatarData ?? this.avatarData,
       info: info ?? this.info,
       appearance: appearance ?? this.appearance,
       referenceImages: referenceImages ?? this.referenceImages,
+      referenceImagesData: referenceImagesData ?? this.referenceImagesData,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3562,6 +3903,9 @@ class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
     if (avatarPath.present) {
       map['avatar_path'] = Variable<String>(avatarPath.value);
     }
+    if (avatarData.present) {
+      map['avatar_data'] = Variable<Uint8List>(avatarData.value);
+    }
     if (info.present) {
       map['info'] = Variable<String>(info.value);
     }
@@ -3572,6 +3916,10 @@ class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
       map['reference_images'] = Variable<String>($ContactMesTable
           .$converterreferenceImages
           .toSql(referenceImages.value));
+    }
+    if (referenceImagesData.present) {
+      map['reference_images_data'] =
+          Variable<String>(referenceImagesData.value);
     }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
@@ -3585,9 +3933,11 @@ class ContactMesCompanion extends UpdateCompanion<ContactMeEntity> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('avatarPath: $avatarPath, ')
+          ..write('avatarData: $avatarData, ')
           ..write('info: $info, ')
           ..write('appearance: $appearance, ')
           ..write('referenceImages: $referenceImages, ')
+          ..write('referenceImagesData: $referenceImagesData, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3681,6 +4031,18 @@ class $ApiPresetsTable extends ApiPresets
       type: DriftSqlType.int,
       requiredDuringInsert: false,
       defaultValue: const Constant(120));
+  static const VerificationMeta _voiceIdMeta =
+      const VerificationMeta('voiceId');
+  @override
+  late final GeneratedColumn<String> voiceId = GeneratedColumn<String>(
+      'voice_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _audioChannelMeta =
+      const VerificationMeta('audioChannel');
+  @override
+  late final GeneratedColumn<int> audioChannel = GeneratedColumn<int>(
+      'audio_channel', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -3694,7 +4056,9 @@ class $ApiPresetsTable extends ApiPresets
         topP,
         isStream,
         enableThinking,
-        timeout
+        timeout,
+        voiceId,
+        audioChannel
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3759,6 +4123,16 @@ class $ApiPresetsTable extends ApiPresets
       context.handle(_timeoutMeta,
           timeout.isAcceptableOrUnknown(data['timeout']!, _timeoutMeta));
     }
+    if (data.containsKey('voice_id')) {
+      context.handle(_voiceIdMeta,
+          voiceId.isAcceptableOrUnknown(data['voice_id']!, _voiceIdMeta));
+    }
+    if (data.containsKey('audio_channel')) {
+      context.handle(
+          _audioChannelMeta,
+          audioChannel.isAcceptableOrUnknown(
+              data['audio_channel']!, _audioChannelMeta));
+    }
     return context;
   }
 
@@ -3793,6 +4167,10 @@ class $ApiPresetsTable extends ApiPresets
           .read(DriftSqlType.bool, data['${effectivePrefix}enable_thinking'])!,
       timeout: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}timeout'])!,
+      voiceId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}voice_id']),
+      audioChannel: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}audio_channel']),
     );
   }
 
@@ -3820,6 +4198,8 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
   final bool isStream;
   final bool enableThinking;
   final int timeout;
+  final String? voiceId;
+  final int? audioChannel;
   const ApiPresetEntity(
       {required this.id,
       required this.name,
@@ -3832,7 +4212,9 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       required this.topP,
       required this.isStream,
       required this.enableThinking,
-      required this.timeout});
+      required this.timeout,
+      this.voiceId,
+      this.audioChannel});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3853,6 +4235,12 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
     map['is_stream'] = Variable<bool>(isStream);
     map['enable_thinking'] = Variable<bool>(enableThinking);
     map['timeout'] = Variable<int>(timeout);
+    if (!nullToAbsent || voiceId != null) {
+      map['voice_id'] = Variable<String>(voiceId);
+    }
+    if (!nullToAbsent || audioChannel != null) {
+      map['audio_channel'] = Variable<int>(audioChannel);
+    }
     return map;
   }
 
@@ -3870,6 +4258,12 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       isStream: Value(isStream),
       enableThinking: Value(enableThinking),
       timeout: Value(timeout),
+      voiceId: voiceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voiceId),
+      audioChannel: audioChannel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioChannel),
     );
   }
 
@@ -3889,6 +4283,8 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       isStream: serializer.fromJson<bool>(json['isStream']),
       enableThinking: serializer.fromJson<bool>(json['enableThinking']),
       timeout: serializer.fromJson<int>(json['timeout']),
+      voiceId: serializer.fromJson<String?>(json['voiceId']),
+      audioChannel: serializer.fromJson<int?>(json['audioChannel']),
     );
   }
   @override
@@ -3907,6 +4303,8 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       'isStream': serializer.toJson<bool>(isStream),
       'enableThinking': serializer.toJson<bool>(enableThinking),
       'timeout': serializer.toJson<int>(timeout),
+      'voiceId': serializer.toJson<String?>(voiceId),
+      'audioChannel': serializer.toJson<int?>(audioChannel),
     };
   }
 
@@ -3922,7 +4320,9 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
           double? topP,
           bool? isStream,
           bool? enableThinking,
-          int? timeout}) =>
+          int? timeout,
+          Value<String?> voiceId = const Value.absent(),
+          Value<int?> audioChannel = const Value.absent()}) =>
       ApiPresetEntity(
         id: id ?? this.id,
         name: name ?? this.name,
@@ -3936,6 +4336,9 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
         isStream: isStream ?? this.isStream,
         enableThinking: enableThinking ?? this.enableThinking,
         timeout: timeout ?? this.timeout,
+        voiceId: voiceId.present ? voiceId.value : this.voiceId,
+        audioChannel:
+            audioChannel.present ? audioChannel.value : this.audioChannel,
       );
   ApiPresetEntity copyWithCompanion(ApiPresetsCompanion data) {
     return ApiPresetEntity(
@@ -3954,6 +4357,10 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
           ? data.enableThinking.value
           : this.enableThinking,
       timeout: data.timeout.present ? data.timeout.value : this.timeout,
+      voiceId: data.voiceId.present ? data.voiceId.value : this.voiceId,
+      audioChannel: data.audioChannel.present
+          ? data.audioChannel.value
+          : this.audioChannel,
     );
   }
 
@@ -3971,14 +4378,29 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
           ..write('topP: $topP, ')
           ..write('isStream: $isStream, ')
           ..write('enableThinking: $enableThinking, ')
-          ..write('timeout: $timeout')
+          ..write('timeout: $timeout, ')
+          ..write('voiceId: $voiceId, ')
+          ..write('audioChannel: $audioChannel')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, type, provider, baseUrl, apiKey,
-      model, temperature, topP, isStream, enableThinking, timeout);
+  int get hashCode => Object.hash(
+      id,
+      name,
+      type,
+      provider,
+      baseUrl,
+      apiKey,
+      model,
+      temperature,
+      topP,
+      isStream,
+      enableThinking,
+      timeout,
+      voiceId,
+      audioChannel);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3994,7 +4416,9 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
           other.topP == this.topP &&
           other.isStream == this.isStream &&
           other.enableThinking == this.enableThinking &&
-          other.timeout == this.timeout);
+          other.timeout == this.timeout &&
+          other.voiceId == this.voiceId &&
+          other.audioChannel == this.audioChannel);
 }
 
 class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
@@ -4010,6 +4434,8 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
   final Value<bool> isStream;
   final Value<bool> enableThinking;
   final Value<int> timeout;
+  final Value<String?> voiceId;
+  final Value<int?> audioChannel;
   final Value<int> rowid;
   const ApiPresetsCompanion({
     this.id = const Value.absent(),
@@ -4024,6 +4450,8 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     this.isStream = const Value.absent(),
     this.enableThinking = const Value.absent(),
     this.timeout = const Value.absent(),
+    this.voiceId = const Value.absent(),
+    this.audioChannel = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ApiPresetsCompanion.insert({
@@ -4039,6 +4467,8 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     this.isStream = const Value.absent(),
     this.enableThinking = const Value.absent(),
     this.timeout = const Value.absent(),
+    this.voiceId = const Value.absent(),
+    this.audioChannel = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name),
@@ -4059,6 +4489,8 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     Expression<bool>? isStream,
     Expression<bool>? enableThinking,
     Expression<int>? timeout,
+    Expression<String>? voiceId,
+    Expression<int>? audioChannel,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4074,6 +4506,8 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
       if (isStream != null) 'is_stream': isStream,
       if (enableThinking != null) 'enable_thinking': enableThinking,
       if (timeout != null) 'timeout': timeout,
+      if (voiceId != null) 'voice_id': voiceId,
+      if (audioChannel != null) 'audio_channel': audioChannel,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4091,6 +4525,8 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
       Value<bool>? isStream,
       Value<bool>? enableThinking,
       Value<int>? timeout,
+      Value<String?>? voiceId,
+      Value<int?>? audioChannel,
       Value<int>? rowid}) {
     return ApiPresetsCompanion(
       id: id ?? this.id,
@@ -4105,6 +4541,8 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
       isStream: isStream ?? this.isStream,
       enableThinking: enableThinking ?? this.enableThinking,
       timeout: timeout ?? this.timeout,
+      voiceId: voiceId ?? this.voiceId,
+      audioChannel: audioChannel ?? this.audioChannel,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4150,6 +4588,12 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     if (timeout.present) {
       map['timeout'] = Variable<int>(timeout.value);
     }
+    if (voiceId.present) {
+      map['voice_id'] = Variable<String>(voiceId.value);
+    }
+    if (audioChannel.present) {
+      map['audio_channel'] = Variable<int>(audioChannel.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -4171,6 +4615,8 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
           ..write('isStream: $isStream, ')
           ..write('enableThinking: $enableThinking, ')
           ..write('timeout: $timeout, ')
+          ..write('voiceId: $voiceId, ')
+          ..write('audioChannel: $audioChannel, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4201,12 +4647,24 @@ class $MomentsUserSettingsTable extends MomentsUserSettings
   late final GeneratedColumn<String> avatarUrl = GeneratedColumn<String>(
       'avatar_url', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _avatarDataMeta =
+      const VerificationMeta('avatarData');
+  @override
+  late final GeneratedColumn<Uint8List> avatarData = GeneratedColumn<Uint8List>(
+      'avatar_data', aliasedName, true,
+      type: DriftSqlType.blob, requiredDuringInsert: false);
   static const VerificationMeta _coverImageUrlMeta =
       const VerificationMeta('coverImageUrl');
   @override
   late final GeneratedColumn<String> coverImageUrl = GeneratedColumn<String>(
       'cover_image_url', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _coverImageDataMeta =
+      const VerificationMeta('coverImageData');
+  @override
+  late final GeneratedColumn<Uint8List> coverImageData =
+      GeneratedColumn<Uint8List>('cover_image_data', aliasedName, true,
+          type: DriftSqlType.blob, requiredDuringInsert: false);
   static const VerificationMeta _signatureMeta =
       const VerificationMeta('signature');
   @override
@@ -4214,8 +4672,15 @@ class $MomentsUserSettingsTable extends MomentsUserSettings
       'signature', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, name, avatarUrl, coverImageUrl, signature];
+  List<GeneratedColumn> get $columns => [
+        id,
+        name,
+        avatarUrl,
+        avatarData,
+        coverImageUrl,
+        coverImageData,
+        signature
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4240,11 +4705,23 @@ class $MomentsUserSettingsTable extends MomentsUserSettings
       context.handle(_avatarUrlMeta,
           avatarUrl.isAcceptableOrUnknown(data['avatar_url']!, _avatarUrlMeta));
     }
+    if (data.containsKey('avatar_data')) {
+      context.handle(
+          _avatarDataMeta,
+          avatarData.isAcceptableOrUnknown(
+              data['avatar_data']!, _avatarDataMeta));
+    }
     if (data.containsKey('cover_image_url')) {
       context.handle(
           _coverImageUrlMeta,
           coverImageUrl.isAcceptableOrUnknown(
               data['cover_image_url']!, _coverImageUrlMeta));
+    }
+    if (data.containsKey('cover_image_data')) {
+      context.handle(
+          _coverImageDataMeta,
+          coverImageData.isAcceptableOrUnknown(
+              data['cover_image_data']!, _coverImageDataMeta));
     }
     if (data.containsKey('signature')) {
       context.handle(_signatureMeta,
@@ -4266,8 +4743,12 @@ class $MomentsUserSettingsTable extends MomentsUserSettings
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       avatarUrl: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}avatar_url']),
+      avatarData: attachedDatabase.typeMapping
+          .read(DriftSqlType.blob, data['${effectivePrefix}avatar_data']),
       coverImageUrl: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}cover_image_url']),
+      coverImageData: attachedDatabase.typeMapping
+          .read(DriftSqlType.blob, data['${effectivePrefix}cover_image_data']),
       signature: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}signature']),
     );
@@ -4284,13 +4765,17 @@ class MomentsUserSettingsEntity extends DataClass
   final String id;
   final String name;
   final String? avatarUrl;
+  final Uint8List? avatarData;
   final String? coverImageUrl;
+  final Uint8List? coverImageData;
   final String? signature;
   const MomentsUserSettingsEntity(
       {required this.id,
       required this.name,
       this.avatarUrl,
+      this.avatarData,
       this.coverImageUrl,
+      this.coverImageData,
       this.signature});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4300,8 +4785,14 @@ class MomentsUserSettingsEntity extends DataClass
     if (!nullToAbsent || avatarUrl != null) {
       map['avatar_url'] = Variable<String>(avatarUrl);
     }
+    if (!nullToAbsent || avatarData != null) {
+      map['avatar_data'] = Variable<Uint8List>(avatarData);
+    }
     if (!nullToAbsent || coverImageUrl != null) {
       map['cover_image_url'] = Variable<String>(coverImageUrl);
+    }
+    if (!nullToAbsent || coverImageData != null) {
+      map['cover_image_data'] = Variable<Uint8List>(coverImageData);
     }
     if (!nullToAbsent || signature != null) {
       map['signature'] = Variable<String>(signature);
@@ -4316,9 +4807,15 @@ class MomentsUserSettingsEntity extends DataClass
       avatarUrl: avatarUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(avatarUrl),
+      avatarData: avatarData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avatarData),
       coverImageUrl: coverImageUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(coverImageUrl),
+      coverImageData: coverImageData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverImageData),
       signature: signature == null && nullToAbsent
           ? const Value.absent()
           : Value(signature),
@@ -4332,7 +4829,9 @@ class MomentsUserSettingsEntity extends DataClass
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       avatarUrl: serializer.fromJson<String?>(json['avatarUrl']),
+      avatarData: serializer.fromJson<Uint8List?>(json['avatarData']),
       coverImageUrl: serializer.fromJson<String?>(json['coverImageUrl']),
+      coverImageData: serializer.fromJson<Uint8List?>(json['coverImageData']),
       signature: serializer.fromJson<String?>(json['signature']),
     );
   }
@@ -4343,7 +4842,9 @@ class MomentsUserSettingsEntity extends DataClass
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'avatarUrl': serializer.toJson<String?>(avatarUrl),
+      'avatarData': serializer.toJson<Uint8List?>(avatarData),
       'coverImageUrl': serializer.toJson<String?>(coverImageUrl),
+      'coverImageData': serializer.toJson<Uint8List?>(coverImageData),
       'signature': serializer.toJson<String?>(signature),
     };
   }
@@ -4352,14 +4853,19 @@ class MomentsUserSettingsEntity extends DataClass
           {String? id,
           String? name,
           Value<String?> avatarUrl = const Value.absent(),
+          Value<Uint8List?> avatarData = const Value.absent(),
           Value<String?> coverImageUrl = const Value.absent(),
+          Value<Uint8List?> coverImageData = const Value.absent(),
           Value<String?> signature = const Value.absent()}) =>
       MomentsUserSettingsEntity(
         id: id ?? this.id,
         name: name ?? this.name,
         avatarUrl: avatarUrl.present ? avatarUrl.value : this.avatarUrl,
+        avatarData: avatarData.present ? avatarData.value : this.avatarData,
         coverImageUrl:
             coverImageUrl.present ? coverImageUrl.value : this.coverImageUrl,
+        coverImageData:
+            coverImageData.present ? coverImageData.value : this.coverImageData,
         signature: signature.present ? signature.value : this.signature,
       );
   MomentsUserSettingsEntity copyWithCompanion(
@@ -4368,9 +4874,14 @@ class MomentsUserSettingsEntity extends DataClass
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       avatarUrl: data.avatarUrl.present ? data.avatarUrl.value : this.avatarUrl,
+      avatarData:
+          data.avatarData.present ? data.avatarData.value : this.avatarData,
       coverImageUrl: data.coverImageUrl.present
           ? data.coverImageUrl.value
           : this.coverImageUrl,
+      coverImageData: data.coverImageData.present
+          ? data.coverImageData.value
+          : this.coverImageData,
       signature: data.signature.present ? data.signature.value : this.signature,
     );
   }
@@ -4381,15 +4892,23 @@ class MomentsUserSettingsEntity extends DataClass
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('avatarUrl: $avatarUrl, ')
+          ..write('avatarData: $avatarData, ')
           ..write('coverImageUrl: $coverImageUrl, ')
+          ..write('coverImageData: $coverImageData, ')
           ..write('signature: $signature')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, name, avatarUrl, coverImageUrl, signature);
+  int get hashCode => Object.hash(
+      id,
+      name,
+      avatarUrl,
+      $driftBlobEquality.hash(avatarData),
+      coverImageUrl,
+      $driftBlobEquality.hash(coverImageData),
+      signature);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4397,7 +4916,10 @@ class MomentsUserSettingsEntity extends DataClass
           other.id == this.id &&
           other.name == this.name &&
           other.avatarUrl == this.avatarUrl &&
+          $driftBlobEquality.equals(other.avatarData, this.avatarData) &&
           other.coverImageUrl == this.coverImageUrl &&
+          $driftBlobEquality.equals(
+              other.coverImageData, this.coverImageData) &&
           other.signature == this.signature);
 }
 
@@ -4406,14 +4928,18 @@ class MomentsUserSettingsCompanion
   final Value<String> id;
   final Value<String> name;
   final Value<String?> avatarUrl;
+  final Value<Uint8List?> avatarData;
   final Value<String?> coverImageUrl;
+  final Value<Uint8List?> coverImageData;
   final Value<String?> signature;
   final Value<int> rowid;
   const MomentsUserSettingsCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.avatarUrl = const Value.absent(),
+    this.avatarData = const Value.absent(),
     this.coverImageUrl = const Value.absent(),
+    this.coverImageData = const Value.absent(),
     this.signature = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -4421,7 +4947,9 @@ class MomentsUserSettingsCompanion
     required String id,
     this.name = const Value.absent(),
     this.avatarUrl = const Value.absent(),
+    this.avatarData = const Value.absent(),
     this.coverImageUrl = const Value.absent(),
+    this.coverImageData = const Value.absent(),
     this.signature = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id);
@@ -4429,7 +4957,9 @@ class MomentsUserSettingsCompanion
     Expression<String>? id,
     Expression<String>? name,
     Expression<String>? avatarUrl,
+    Expression<Uint8List>? avatarData,
     Expression<String>? coverImageUrl,
+    Expression<Uint8List>? coverImageData,
     Expression<String>? signature,
     Expression<int>? rowid,
   }) {
@@ -4437,7 +4967,9 @@ class MomentsUserSettingsCompanion
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (avatarUrl != null) 'avatar_url': avatarUrl,
+      if (avatarData != null) 'avatar_data': avatarData,
       if (coverImageUrl != null) 'cover_image_url': coverImageUrl,
+      if (coverImageData != null) 'cover_image_data': coverImageData,
       if (signature != null) 'signature': signature,
       if (rowid != null) 'rowid': rowid,
     });
@@ -4447,14 +4979,18 @@ class MomentsUserSettingsCompanion
       {Value<String>? id,
       Value<String>? name,
       Value<String?>? avatarUrl,
+      Value<Uint8List?>? avatarData,
       Value<String?>? coverImageUrl,
+      Value<Uint8List?>? coverImageData,
       Value<String?>? signature,
       Value<int>? rowid}) {
     return MomentsUserSettingsCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      avatarData: avatarData ?? this.avatarData,
       coverImageUrl: coverImageUrl ?? this.coverImageUrl,
+      coverImageData: coverImageData ?? this.coverImageData,
       signature: signature ?? this.signature,
       rowid: rowid ?? this.rowid,
     );
@@ -4472,8 +5008,14 @@ class MomentsUserSettingsCompanion
     if (avatarUrl.present) {
       map['avatar_url'] = Variable<String>(avatarUrl.value);
     }
+    if (avatarData.present) {
+      map['avatar_data'] = Variable<Uint8List>(avatarData.value);
+    }
     if (coverImageUrl.present) {
       map['cover_image_url'] = Variable<String>(coverImageUrl.value);
+    }
+    if (coverImageData.present) {
+      map['cover_image_data'] = Variable<Uint8List>(coverImageData.value);
     }
     if (signature.present) {
       map['signature'] = Variable<String>(signature.value);
@@ -4490,7 +5032,9 @@ class MomentsUserSettingsCompanion
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('avatarUrl: $avatarUrl, ')
+          ..write('avatarData: $avatarData, ')
           ..write('coverImageUrl: $coverImageUrl, ')
+          ..write('coverImageData: $coverImageData, ')
           ..write('signature: $signature, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -4514,6 +5058,12 @@ class $AppSettingsTable extends AppSettings
   late final GeneratedColumn<String> value = GeneratedColumn<String>(
       'value', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _blobValueMeta =
+      const VerificationMeta('blobValue');
+  @override
+  late final GeneratedColumn<Uint8List> blobValue = GeneratedColumn<Uint8List>(
+      'blob_value', aliasedName, true,
+      type: DriftSqlType.blob, requiredDuringInsert: false);
   static const VerificationMeta _typeMeta = const VerificationMeta('type');
   @override
   late final GeneratedColumn<String> type = GeneratedColumn<String>(
@@ -4522,7 +5072,7 @@ class $AppSettingsTable extends AppSettings
       requiredDuringInsert: false,
       defaultValue: const Constant('string'));
   @override
-  List<GeneratedColumn> get $columns => [key, value, type];
+  List<GeneratedColumn> get $columns => [key, value, blobValue, type];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4545,6 +5095,10 @@ class $AppSettingsTable extends AppSettings
     } else if (isInserting) {
       context.missing(_valueMeta);
     }
+    if (data.containsKey('blob_value')) {
+      context.handle(_blobValueMeta,
+          blobValue.isAcceptableOrUnknown(data['blob_value']!, _blobValueMeta));
+    }
     if (data.containsKey('type')) {
       context.handle(
           _typeMeta, type.isAcceptableOrUnknown(data['type']!, _typeMeta));
@@ -4562,6 +5116,8 @@ class $AppSettingsTable extends AppSettings
           .read(DriftSqlType.string, data['${effectivePrefix}key'])!,
       value: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}value'])!,
+      blobValue: attachedDatabase.typeMapping
+          .read(DriftSqlType.blob, data['${effectivePrefix}blob_value']),
       type: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}type'])!,
     );
@@ -4577,14 +5133,21 @@ class AppSettingEntity extends DataClass
     implements Insertable<AppSettingEntity> {
   final String key;
   final String value;
+  final Uint8List? blobValue;
   final String type;
   const AppSettingEntity(
-      {required this.key, required this.value, required this.type});
+      {required this.key,
+      required this.value,
+      this.blobValue,
+      required this.type});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['key'] = Variable<String>(key);
     map['value'] = Variable<String>(value);
+    if (!nullToAbsent || blobValue != null) {
+      map['blob_value'] = Variable<Uint8List>(blobValue);
+    }
     map['type'] = Variable<String>(type);
     return map;
   }
@@ -4593,6 +5156,9 @@ class AppSettingEntity extends DataClass
     return AppSettingsCompanion(
       key: Value(key),
       value: Value(value),
+      blobValue: blobValue == null && nullToAbsent
+          ? const Value.absent()
+          : Value(blobValue),
       type: Value(type),
     );
   }
@@ -4603,6 +5169,7 @@ class AppSettingEntity extends DataClass
     return AppSettingEntity(
       key: serializer.fromJson<String>(json['key']),
       value: serializer.fromJson<String>(json['value']),
+      blobValue: serializer.fromJson<Uint8List?>(json['blobValue']),
       type: serializer.fromJson<String>(json['type']),
     );
   }
@@ -4612,20 +5179,27 @@ class AppSettingEntity extends DataClass
     return <String, dynamic>{
       'key': serializer.toJson<String>(key),
       'value': serializer.toJson<String>(value),
+      'blobValue': serializer.toJson<Uint8List?>(blobValue),
       'type': serializer.toJson<String>(type),
     };
   }
 
-  AppSettingEntity copyWith({String? key, String? value, String? type}) =>
+  AppSettingEntity copyWith(
+          {String? key,
+          String? value,
+          Value<Uint8List?> blobValue = const Value.absent(),
+          String? type}) =>
       AppSettingEntity(
         key: key ?? this.key,
         value: value ?? this.value,
+        blobValue: blobValue.present ? blobValue.value : this.blobValue,
         type: type ?? this.type,
       );
   AppSettingEntity copyWithCompanion(AppSettingsCompanion data) {
     return AppSettingEntity(
       key: data.key.present ? data.key.value : this.key,
       value: data.value.present ? data.value.value : this.value,
+      blobValue: data.blobValue.present ? data.blobValue.value : this.blobValue,
       type: data.type.present ? data.type.value : this.type,
     );
   }
@@ -4635,36 +5209,42 @@ class AppSettingEntity extends DataClass
     return (StringBuffer('AppSettingEntity(')
           ..write('key: $key, ')
           ..write('value: $value, ')
+          ..write('blobValue: $blobValue, ')
           ..write('type: $type')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(key, value, type);
+  int get hashCode =>
+      Object.hash(key, value, $driftBlobEquality.hash(blobValue), type);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is AppSettingEntity &&
           other.key == this.key &&
           other.value == this.value &&
+          $driftBlobEquality.equals(other.blobValue, this.blobValue) &&
           other.type == this.type);
 }
 
 class AppSettingsCompanion extends UpdateCompanion<AppSettingEntity> {
   final Value<String> key;
   final Value<String> value;
+  final Value<Uint8List?> blobValue;
   final Value<String> type;
   final Value<int> rowid;
   const AppSettingsCompanion({
     this.key = const Value.absent(),
     this.value = const Value.absent(),
+    this.blobValue = const Value.absent(),
     this.type = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   AppSettingsCompanion.insert({
     required String key,
     required String value,
+    this.blobValue = const Value.absent(),
     this.type = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : key = Value(key),
@@ -4672,12 +5252,14 @@ class AppSettingsCompanion extends UpdateCompanion<AppSettingEntity> {
   static Insertable<AppSettingEntity> custom({
     Expression<String>? key,
     Expression<String>? value,
+    Expression<Uint8List>? blobValue,
     Expression<String>? type,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (key != null) 'key': key,
       if (value != null) 'value': value,
+      if (blobValue != null) 'blob_value': blobValue,
       if (type != null) 'type': type,
       if (rowid != null) 'rowid': rowid,
     });
@@ -4686,11 +5268,13 @@ class AppSettingsCompanion extends UpdateCompanion<AppSettingEntity> {
   AppSettingsCompanion copyWith(
       {Value<String>? key,
       Value<String>? value,
+      Value<Uint8List?>? blobValue,
       Value<String>? type,
       Value<int>? rowid}) {
     return AppSettingsCompanion(
       key: key ?? this.key,
       value: value ?? this.value,
+      blobValue: blobValue ?? this.blobValue,
       type: type ?? this.type,
       rowid: rowid ?? this.rowid,
     );
@@ -4704,6 +5288,9 @@ class AppSettingsCompanion extends UpdateCompanion<AppSettingEntity> {
     }
     if (value.present) {
       map['value'] = Variable<String>(value.value);
+    }
+    if (blobValue.present) {
+      map['blob_value'] = Variable<Uint8List>(blobValue.value);
     }
     if (type.present) {
       map['type'] = Variable<String>(type.value);
@@ -4719,6 +5306,7 @@ class AppSettingsCompanion extends UpdateCompanion<AppSettingEntity> {
     return (StringBuffer('AppSettingsCompanion(')
           ..write('key: $key, ')
           ..write('value: $value, ')
+          ..write('blobValue: $blobValue, ')
           ..write('type: $type, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -5260,6 +5848,12 @@ class $EmojisTable extends Emojis with TableInfo<$EmojisTable, EmojiEntity> {
   late final GeneratedColumn<String> localPath = GeneratedColumn<String>(
       'local_path', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _emojiDataMeta =
+      const VerificationMeta('emojiData');
+  @override
+  late final GeneratedColumn<Uint8List> emojiData = GeneratedColumn<Uint8List>(
+      'emoji_data', aliasedName, true,
+      type: DriftSqlType.blob, requiredDuringInsert: false);
   @override
   late final GeneratedColumnWithTypeConverter<EmojiType, int> type =
       GeneratedColumn<int>('type', aliasedName, false,
@@ -5277,8 +5871,17 @@ class $EmojisTable extends Emojis with TableInfo<$EmojisTable, EmojiEntity> {
       'created_at', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, meaning, rawContent, groupId, localPath, type, roleId, createdAt];
+  List<GeneratedColumn> get $columns => [
+        id,
+        meaning,
+        rawContent,
+        groupId,
+        localPath,
+        emojiData,
+        type,
+        roleId,
+        createdAt
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -5316,6 +5919,10 @@ class $EmojisTable extends Emojis with TableInfo<$EmojisTable, EmojiEntity> {
     } else if (isInserting) {
       context.missing(_localPathMeta);
     }
+    if (data.containsKey('emoji_data')) {
+      context.handle(_emojiDataMeta,
+          emojiData.isAcceptableOrUnknown(data['emoji_data']!, _emojiDataMeta));
+    }
     if (data.containsKey('role_id')) {
       context.handle(_roleIdMeta,
           roleId.isAcceptableOrUnknown(data['role_id']!, _roleIdMeta));
@@ -5345,6 +5952,8 @@ class $EmojisTable extends Emojis with TableInfo<$EmojisTable, EmojiEntity> {
           .read(DriftSqlType.string, data['${effectivePrefix}group_id']),
       localPath: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}local_path'])!,
+      emojiData: attachedDatabase.typeMapping
+          .read(DriftSqlType.blob, data['${effectivePrefix}emoji_data']),
       type: $EmojisTable.$convertertype.fromSql(attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}type'])!),
       roleId: attachedDatabase.typeMapping
@@ -5369,6 +5978,7 @@ class EmojiEntity extends DataClass implements Insertable<EmojiEntity> {
   final String? rawContent;
   final String? groupId;
   final String localPath;
+  final Uint8List? emojiData;
   final EmojiType type;
   final String? roleId;
   final int createdAt;
@@ -5378,6 +5988,7 @@ class EmojiEntity extends DataClass implements Insertable<EmojiEntity> {
       this.rawContent,
       this.groupId,
       required this.localPath,
+      this.emojiData,
       required this.type,
       this.roleId,
       required this.createdAt});
@@ -5393,6 +6004,9 @@ class EmojiEntity extends DataClass implements Insertable<EmojiEntity> {
       map['group_id'] = Variable<String>(groupId);
     }
     map['local_path'] = Variable<String>(localPath);
+    if (!nullToAbsent || emojiData != null) {
+      map['emoji_data'] = Variable<Uint8List>(emojiData);
+    }
     {
       map['type'] = Variable<int>($EmojisTable.$convertertype.toSql(type));
     }
@@ -5414,6 +6028,9 @@ class EmojiEntity extends DataClass implements Insertable<EmojiEntity> {
           ? const Value.absent()
           : Value(groupId),
       localPath: Value(localPath),
+      emojiData: emojiData == null && nullToAbsent
+          ? const Value.absent()
+          : Value(emojiData),
       type: Value(type),
       roleId:
           roleId == null && nullToAbsent ? const Value.absent() : Value(roleId),
@@ -5430,6 +6047,7 @@ class EmojiEntity extends DataClass implements Insertable<EmojiEntity> {
       rawContent: serializer.fromJson<String?>(json['rawContent']),
       groupId: serializer.fromJson<String?>(json['groupId']),
       localPath: serializer.fromJson<String>(json['localPath']),
+      emojiData: serializer.fromJson<Uint8List?>(json['emojiData']),
       type: serializer.fromJson<EmojiType>(json['type']),
       roleId: serializer.fromJson<String?>(json['roleId']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
@@ -5444,6 +6062,7 @@ class EmojiEntity extends DataClass implements Insertable<EmojiEntity> {
       'rawContent': serializer.toJson<String?>(rawContent),
       'groupId': serializer.toJson<String?>(groupId),
       'localPath': serializer.toJson<String>(localPath),
+      'emojiData': serializer.toJson<Uint8List?>(emojiData),
       'type': serializer.toJson<EmojiType>(type),
       'roleId': serializer.toJson<String?>(roleId),
       'createdAt': serializer.toJson<int>(createdAt),
@@ -5456,6 +6075,7 @@ class EmojiEntity extends DataClass implements Insertable<EmojiEntity> {
           Value<String?> rawContent = const Value.absent(),
           Value<String?> groupId = const Value.absent(),
           String? localPath,
+          Value<Uint8List?> emojiData = const Value.absent(),
           EmojiType? type,
           Value<String?> roleId = const Value.absent(),
           int? createdAt}) =>
@@ -5465,6 +6085,7 @@ class EmojiEntity extends DataClass implements Insertable<EmojiEntity> {
         rawContent: rawContent.present ? rawContent.value : this.rawContent,
         groupId: groupId.present ? groupId.value : this.groupId,
         localPath: localPath ?? this.localPath,
+        emojiData: emojiData.present ? emojiData.value : this.emojiData,
         type: type ?? this.type,
         roleId: roleId.present ? roleId.value : this.roleId,
         createdAt: createdAt ?? this.createdAt,
@@ -5477,6 +6098,7 @@ class EmojiEntity extends DataClass implements Insertable<EmojiEntity> {
           data.rawContent.present ? data.rawContent.value : this.rawContent,
       groupId: data.groupId.present ? data.groupId.value : this.groupId,
       localPath: data.localPath.present ? data.localPath.value : this.localPath,
+      emojiData: data.emojiData.present ? data.emojiData.value : this.emojiData,
       type: data.type.present ? data.type.value : this.type,
       roleId: data.roleId.present ? data.roleId.value : this.roleId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
@@ -5491,6 +6113,7 @@ class EmojiEntity extends DataClass implements Insertable<EmojiEntity> {
           ..write('rawContent: $rawContent, ')
           ..write('groupId: $groupId, ')
           ..write('localPath: $localPath, ')
+          ..write('emojiData: $emojiData, ')
           ..write('type: $type, ')
           ..write('roleId: $roleId, ')
           ..write('createdAt: $createdAt')
@@ -5499,8 +6122,8 @@ class EmojiEntity extends DataClass implements Insertable<EmojiEntity> {
   }
 
   @override
-  int get hashCode => Object.hash(
-      id, meaning, rawContent, groupId, localPath, type, roleId, createdAt);
+  int get hashCode => Object.hash(id, meaning, rawContent, groupId, localPath,
+      $driftBlobEquality.hash(emojiData), type, roleId, createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5510,6 +6133,7 @@ class EmojiEntity extends DataClass implements Insertable<EmojiEntity> {
           other.rawContent == this.rawContent &&
           other.groupId == this.groupId &&
           other.localPath == this.localPath &&
+          $driftBlobEquality.equals(other.emojiData, this.emojiData) &&
           other.type == this.type &&
           other.roleId == this.roleId &&
           other.createdAt == this.createdAt);
@@ -5521,6 +6145,7 @@ class EmojisCompanion extends UpdateCompanion<EmojiEntity> {
   final Value<String?> rawContent;
   final Value<String?> groupId;
   final Value<String> localPath;
+  final Value<Uint8List?> emojiData;
   final Value<EmojiType> type;
   final Value<String?> roleId;
   final Value<int> createdAt;
@@ -5531,6 +6156,7 @@ class EmojisCompanion extends UpdateCompanion<EmojiEntity> {
     this.rawContent = const Value.absent(),
     this.groupId = const Value.absent(),
     this.localPath = const Value.absent(),
+    this.emojiData = const Value.absent(),
     this.type = const Value.absent(),
     this.roleId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -5542,6 +6168,7 @@ class EmojisCompanion extends UpdateCompanion<EmojiEntity> {
     this.rawContent = const Value.absent(),
     this.groupId = const Value.absent(),
     required String localPath,
+    this.emojiData = const Value.absent(),
     required EmojiType type,
     this.roleId = const Value.absent(),
     required int createdAt,
@@ -5557,6 +6184,7 @@ class EmojisCompanion extends UpdateCompanion<EmojiEntity> {
     Expression<String>? rawContent,
     Expression<String>? groupId,
     Expression<String>? localPath,
+    Expression<Uint8List>? emojiData,
     Expression<int>? type,
     Expression<String>? roleId,
     Expression<int>? createdAt,
@@ -5568,6 +6196,7 @@ class EmojisCompanion extends UpdateCompanion<EmojiEntity> {
       if (rawContent != null) 'raw_content': rawContent,
       if (groupId != null) 'group_id': groupId,
       if (localPath != null) 'local_path': localPath,
+      if (emojiData != null) 'emoji_data': emojiData,
       if (type != null) 'type': type,
       if (roleId != null) 'role_id': roleId,
       if (createdAt != null) 'created_at': createdAt,
@@ -5581,6 +6210,7 @@ class EmojisCompanion extends UpdateCompanion<EmojiEntity> {
       Value<String?>? rawContent,
       Value<String?>? groupId,
       Value<String>? localPath,
+      Value<Uint8List?>? emojiData,
       Value<EmojiType>? type,
       Value<String?>? roleId,
       Value<int>? createdAt,
@@ -5591,6 +6221,7 @@ class EmojisCompanion extends UpdateCompanion<EmojiEntity> {
       rawContent: rawContent ?? this.rawContent,
       groupId: groupId ?? this.groupId,
       localPath: localPath ?? this.localPath,
+      emojiData: emojiData ?? this.emojiData,
       type: type ?? this.type,
       roleId: roleId ?? this.roleId,
       createdAt: createdAt ?? this.createdAt,
@@ -5616,6 +6247,9 @@ class EmojisCompanion extends UpdateCompanion<EmojiEntity> {
     if (localPath.present) {
       map['local_path'] = Variable<String>(localPath.value);
     }
+    if (emojiData.present) {
+      map['emoji_data'] = Variable<Uint8List>(emojiData.value);
+    }
     if (type.present) {
       map['type'] =
           Variable<int>($EmojisTable.$convertertype.toSql(type.value));
@@ -5640,6 +6274,7 @@ class EmojisCompanion extends UpdateCompanion<EmojiEntity> {
           ..write('rawContent: $rawContent, ')
           ..write('groupId: $groupId, ')
           ..write('localPath: $localPath, ')
+          ..write('emojiData: $emojiData, ')
           ..write('type: $type, ')
           ..write('roleId: $roleId, ')
           ..write('createdAt: $createdAt, ')
@@ -6065,6 +6700,7 @@ typedef $$ChatSessionsTableCreateCompanionBuilder = ChatSessionsCompanion
   Value<String?> apiPresetId,
   Value<String?> imageApiPresetId,
   Value<String?> backgroundImage,
+  Value<Uint8List?> backgroundImageData,
   Value<int> rowid,
 });
 typedef $$ChatSessionsTableUpdateCompanionBuilder = ChatSessionsCompanion
@@ -6084,6 +6720,7 @@ typedef $$ChatSessionsTableUpdateCompanionBuilder = ChatSessionsCompanion
   Value<String?> apiPresetId,
   Value<String?> imageApiPresetId,
   Value<String?> backgroundImage,
+  Value<Uint8List?> backgroundImageData,
   Value<int> rowid,
 });
 
@@ -6170,6 +6807,10 @@ class $$ChatSessionsTableFilterComposer
       column: $table.backgroundImage,
       builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<Uint8List> get backgroundImageData => $composableBuilder(
+      column: $table.backgroundImageData,
+      builder: (column) => ColumnFilters(column));
+
   Expression<bool> chatMessagesRefs(
       Expression<bool> Function($$ChatMessagesTableFilterComposer f) f) {
     final $$ChatMessagesTableFilterComposer composer = $composerBuilder(
@@ -6253,6 +6894,10 @@ class $$ChatSessionsTableOrderingComposer
   ColumnOrderings<String> get backgroundImage => $composableBuilder(
       column: $table.backgroundImage,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<Uint8List> get backgroundImageData => $composableBuilder(
+      column: $table.backgroundImageData,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$ChatSessionsTableAnnotationComposer
@@ -6310,6 +6955,9 @@ class $$ChatSessionsTableAnnotationComposer
 
   GeneratedColumn<String> get backgroundImage => $composableBuilder(
       column: $table.backgroundImage, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get backgroundImageData => $composableBuilder(
+      column: $table.backgroundImageData, builder: (column) => column);
 
   Expression<T> chatMessagesRefs<T extends Object>(
       Expression<T> Function($$ChatMessagesTableAnnotationComposer a) f) {
@@ -6371,6 +7019,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             Value<String?> apiPresetId = const Value.absent(),
             Value<String?> imageApiPresetId = const Value.absent(),
             Value<String?> backgroundImage = const Value.absent(),
+            Value<Uint8List?> backgroundImageData = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ChatSessionsCompanion(
@@ -6389,6 +7038,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             apiPresetId: apiPresetId,
             imageApiPresetId: imageApiPresetId,
             backgroundImage: backgroundImage,
+            backgroundImageData: backgroundImageData,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -6407,6 +7057,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             Value<String?> apiPresetId = const Value.absent(),
             Value<String?> imageApiPresetId = const Value.absent(),
             Value<String?> backgroundImage = const Value.absent(),
+            Value<Uint8List?> backgroundImageData = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ChatSessionsCompanion.insert(
@@ -6425,6 +7076,7 @@ class $$ChatSessionsTableTableManager extends RootTableManager<
             apiPresetId: apiPresetId,
             imageApiPresetId: imageApiPresetId,
             backgroundImage: backgroundImage,
+            backgroundImageData: backgroundImageData,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -6480,6 +7132,7 @@ typedef $$ChatMessagesTableCreateCompanionBuilder = ChatMessagesCompanion
   Value<String?> sender,
   required MessageType type,
   required String content,
+  Value<Uint8List?> messageData,
   required int timestamp,
   Value<Map<String, dynamic>?> metadata,
   Value<bool> isRead,
@@ -6493,6 +7146,7 @@ typedef $$ChatMessagesTableUpdateCompanionBuilder = ChatMessagesCompanion
   Value<String?> sender,
   Value<MessageType> type,
   Value<String> content,
+  Value<Uint8List?> messageData,
   Value<int> timestamp,
   Value<Map<String, dynamic>?> metadata,
   Value<bool> isRead,
@@ -6544,6 +7198,9 @@ class $$ChatMessagesTableFilterComposer
 
   ColumnFilters<String> get content => $composableBuilder(
       column: $table.content, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<Uint8List> get messageData => $composableBuilder(
+      column: $table.messageData, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get timestamp => $composableBuilder(
       column: $table.timestamp, builder: (column) => ColumnFilters(column));
@@ -6602,6 +7259,9 @@ class $$ChatMessagesTableOrderingComposer
   ColumnOrderings<String> get content => $composableBuilder(
       column: $table.content, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<Uint8List> get messageData => $composableBuilder(
+      column: $table.messageData, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get timestamp => $composableBuilder(
       column: $table.timestamp, builder: (column) => ColumnOrderings(column));
 
@@ -6655,6 +7315,9 @@ class $$ChatMessagesTableAnnotationComposer
 
   GeneratedColumn<String> get content =>
       $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get messageData => $composableBuilder(
+      column: $table.messageData, builder: (column) => column);
 
   GeneratedColumn<int> get timestamp =>
       $composableBuilder(column: $table.timestamp, builder: (column) => column);
@@ -6716,6 +7379,7 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
             Value<String?> sender = const Value.absent(),
             Value<MessageType> type = const Value.absent(),
             Value<String> content = const Value.absent(),
+            Value<Uint8List?> messageData = const Value.absent(),
             Value<int> timestamp = const Value.absent(),
             Value<Map<String, dynamic>?> metadata = const Value.absent(),
             Value<bool> isRead = const Value.absent(),
@@ -6728,6 +7392,7 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
             sender: sender,
             type: type,
             content: content,
+            messageData: messageData,
             timestamp: timestamp,
             metadata: metadata,
             isRead: isRead,
@@ -6740,6 +7405,7 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
             Value<String?> sender = const Value.absent(),
             required MessageType type,
             required String content,
+            Value<Uint8List?> messageData = const Value.absent(),
             required int timestamp,
             Value<Map<String, dynamic>?> metadata = const Value.absent(),
             Value<bool> isRead = const Value.absent(),
@@ -6752,6 +7418,7 @@ class $$ChatMessagesTableTableManager extends RootTableManager<
             sender: sender,
             type: type,
             content: content,
+            messageData: messageData,
             timestamp: timestamp,
             metadata: metadata,
             isRead: isRead,
@@ -6819,6 +7486,7 @@ typedef $$MomentsPostsTableCreateCompanionBuilder = MomentsPostsCompanion
   required MomentsUser user,
   Value<String?> content,
   required List<MediaItem> mediaItems,
+  Value<String?> mediaData,
   required int createdAt,
   required List<MomentLike> likes,
   required List<MomentsComment> comments,
@@ -6831,6 +7499,7 @@ typedef $$MomentsPostsTableUpdateCompanionBuilder = MomentsPostsCompanion
   Value<MomentsUser> user,
   Value<String?> content,
   Value<List<MediaItem>> mediaItems,
+  Value<String?> mediaData,
   Value<int> createdAt,
   Value<List<MomentLike>> likes,
   Value<List<MomentsComment>> comments,
@@ -6862,6 +7531,9 @@ class $$MomentsPostsTableFilterComposer
       get mediaItems => $composableBuilder(
           column: $table.mediaItems,
           builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<String> get mediaData => $composableBuilder(
+      column: $table.mediaData, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
@@ -6902,6 +7574,9 @@ class $$MomentsPostsTableOrderingComposer
   ColumnOrderings<String> get mediaItems => $composableBuilder(
       column: $table.mediaItems, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get mediaData => $composableBuilder(
+      column: $table.mediaData, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
@@ -6936,6 +7611,9 @@ class $$MomentsPostsTableAnnotationComposer
   GeneratedColumnWithTypeConverter<List<MediaItem>, String> get mediaItems =>
       $composableBuilder(
           column: $table.mediaItems, builder: (column) => column);
+
+  GeneratedColumn<String> get mediaData =>
+      $composableBuilder(column: $table.mediaData, builder: (column) => column);
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -6980,6 +7658,7 @@ class $$MomentsPostsTableTableManager extends RootTableManager<
             Value<MomentsUser> user = const Value.absent(),
             Value<String?> content = const Value.absent(),
             Value<List<MediaItem>> mediaItems = const Value.absent(),
+            Value<String?> mediaData = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
             Value<List<MomentLike>> likes = const Value.absent(),
             Value<List<MomentsComment>> comments = const Value.absent(),
@@ -6991,6 +7670,7 @@ class $$MomentsPostsTableTableManager extends RootTableManager<
             user: user,
             content: content,
             mediaItems: mediaItems,
+            mediaData: mediaData,
             createdAt: createdAt,
             likes: likes,
             comments: comments,
@@ -7002,6 +7682,7 @@ class $$MomentsPostsTableTableManager extends RootTableManager<
             required MomentsUser user,
             Value<String?> content = const Value.absent(),
             required List<MediaItem> mediaItems,
+            Value<String?> mediaData = const Value.absent(),
             required int createdAt,
             required List<MomentLike> likes,
             required List<MomentsComment> comments,
@@ -7013,6 +7694,7 @@ class $$MomentsPostsTableTableManager extends RootTableManager<
             user: user,
             content: content,
             mediaItems: mediaItems,
+            mediaData: mediaData,
             createdAt: createdAt,
             likes: likes,
             comments: comments,
@@ -7629,9 +8311,11 @@ typedef $$ContactRolesTableCreateCompanionBuilder = ContactRolesCompanion
   required String id,
   required String name,
   Value<String?> avatarPath,
+  Value<Uint8List?> avatarData,
   required String description,
   Value<String?> appearance,
   Value<List<String>> referenceImages,
+  Value<String?> referenceImagesData,
   Value<List<String>> subscribedGroupIds,
   Value<List<String>> subscribedEmojiIds,
   Value<int> rowid,
@@ -7641,9 +8325,11 @@ typedef $$ContactRolesTableUpdateCompanionBuilder = ContactRolesCompanion
   Value<String> id,
   Value<String> name,
   Value<String?> avatarPath,
+  Value<Uint8List?> avatarData,
   Value<String> description,
   Value<String?> appearance,
   Value<List<String>> referenceImages,
+  Value<String?> referenceImagesData,
   Value<List<String>> subscribedGroupIds,
   Value<List<String>> subscribedEmojiIds,
   Value<int> rowid,
@@ -7667,6 +8353,9 @@ class $$ContactRolesTableFilterComposer
   ColumnFilters<String> get avatarPath => $composableBuilder(
       column: $table.avatarPath, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<Uint8List> get avatarData => $composableBuilder(
+      column: $table.avatarData, builder: (column) => ColumnFilters(column));
+
   ColumnFilters<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => ColumnFilters(column));
 
@@ -7677,6 +8366,10 @@ class $$ContactRolesTableFilterComposer
       get referenceImages => $composableBuilder(
           column: $table.referenceImages,
           builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<String> get referenceImagesData => $composableBuilder(
+      column: $table.referenceImagesData,
+      builder: (column) => ColumnFilters(column));
 
   ColumnWithTypeConverterFilters<List<String>, List<String>, String>
       get subscribedGroupIds => $composableBuilder(
@@ -7707,6 +8400,9 @@ class $$ContactRolesTableOrderingComposer
   ColumnOrderings<String> get avatarPath => $composableBuilder(
       column: $table.avatarPath, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<Uint8List> get avatarData => $composableBuilder(
+      column: $table.avatarData, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => ColumnOrderings(column));
 
@@ -7715,6 +8411,10 @@ class $$ContactRolesTableOrderingComposer
 
   ColumnOrderings<String> get referenceImages => $composableBuilder(
       column: $table.referenceImages,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get referenceImagesData => $composableBuilder(
+      column: $table.referenceImagesData,
       builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get subscribedGroupIds => $composableBuilder(
@@ -7744,6 +8444,9 @@ class $$ContactRolesTableAnnotationComposer
   GeneratedColumn<String> get avatarPath => $composableBuilder(
       column: $table.avatarPath, builder: (column) => column);
 
+  GeneratedColumn<Uint8List> get avatarData => $composableBuilder(
+      column: $table.avatarData, builder: (column) => column);
+
   GeneratedColumn<String> get description => $composableBuilder(
       column: $table.description, builder: (column) => column);
 
@@ -7753,6 +8456,9 @@ class $$ContactRolesTableAnnotationComposer
   GeneratedColumnWithTypeConverter<List<String>, String> get referenceImages =>
       $composableBuilder(
           column: $table.referenceImages, builder: (column) => column);
+
+  GeneratedColumn<String> get referenceImagesData => $composableBuilder(
+      column: $table.referenceImagesData, builder: (column) => column);
 
   GeneratedColumnWithTypeConverter<List<String>, String>
       get subscribedGroupIds => $composableBuilder(
@@ -7792,9 +8498,11 @@ class $$ContactRolesTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<String?> avatarPath = const Value.absent(),
+            Value<Uint8List?> avatarData = const Value.absent(),
             Value<String> description = const Value.absent(),
             Value<String?> appearance = const Value.absent(),
             Value<List<String>> referenceImages = const Value.absent(),
+            Value<String?> referenceImagesData = const Value.absent(),
             Value<List<String>> subscribedGroupIds = const Value.absent(),
             Value<List<String>> subscribedEmojiIds = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -7803,9 +8511,11 @@ class $$ContactRolesTableTableManager extends RootTableManager<
             id: id,
             name: name,
             avatarPath: avatarPath,
+            avatarData: avatarData,
             description: description,
             appearance: appearance,
             referenceImages: referenceImages,
+            referenceImagesData: referenceImagesData,
             subscribedGroupIds: subscribedGroupIds,
             subscribedEmojiIds: subscribedEmojiIds,
             rowid: rowid,
@@ -7814,9 +8524,11 @@ class $$ContactRolesTableTableManager extends RootTableManager<
             required String id,
             required String name,
             Value<String?> avatarPath = const Value.absent(),
+            Value<Uint8List?> avatarData = const Value.absent(),
             required String description,
             Value<String?> appearance = const Value.absent(),
             Value<List<String>> referenceImages = const Value.absent(),
+            Value<String?> referenceImagesData = const Value.absent(),
             Value<List<String>> subscribedGroupIds = const Value.absent(),
             Value<List<String>> subscribedEmojiIds = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -7825,9 +8537,11 @@ class $$ContactRolesTableTableManager extends RootTableManager<
             id: id,
             name: name,
             avatarPath: avatarPath,
+            avatarData: avatarData,
             description: description,
             appearance: appearance,
             referenceImages: referenceImages,
+            referenceImagesData: referenceImagesData,
             subscribedGroupIds: subscribedGroupIds,
             subscribedEmojiIds: subscribedEmojiIds,
             rowid: rowid,
@@ -7858,18 +8572,22 @@ typedef $$ContactMesTableCreateCompanionBuilder = ContactMesCompanion Function({
   required String id,
   required String name,
   Value<String?> avatarPath,
+  Value<Uint8List?> avatarData,
   required String info,
   Value<String?> appearance,
   Value<List<String>> referenceImages,
+  Value<String?> referenceImagesData,
   Value<int> rowid,
 });
 typedef $$ContactMesTableUpdateCompanionBuilder = ContactMesCompanion Function({
   Value<String> id,
   Value<String> name,
   Value<String?> avatarPath,
+  Value<Uint8List?> avatarData,
   Value<String> info,
   Value<String?> appearance,
   Value<List<String>> referenceImages,
+  Value<String?> referenceImagesData,
   Value<int> rowid,
 });
 
@@ -7891,6 +8609,9 @@ class $$ContactMesTableFilterComposer
   ColumnFilters<String> get avatarPath => $composableBuilder(
       column: $table.avatarPath, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<Uint8List> get avatarData => $composableBuilder(
+      column: $table.avatarData, builder: (column) => ColumnFilters(column));
+
   ColumnFilters<String> get info => $composableBuilder(
       column: $table.info, builder: (column) => ColumnFilters(column));
 
@@ -7901,6 +8622,10 @@ class $$ContactMesTableFilterComposer
       get referenceImages => $composableBuilder(
           column: $table.referenceImages,
           builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<String> get referenceImagesData => $composableBuilder(
+      column: $table.referenceImagesData,
+      builder: (column) => ColumnFilters(column));
 }
 
 class $$ContactMesTableOrderingComposer
@@ -7921,6 +8646,9 @@ class $$ContactMesTableOrderingComposer
   ColumnOrderings<String> get avatarPath => $composableBuilder(
       column: $table.avatarPath, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<Uint8List> get avatarData => $composableBuilder(
+      column: $table.avatarData, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get info => $composableBuilder(
       column: $table.info, builder: (column) => ColumnOrderings(column));
 
@@ -7929,6 +8657,10 @@ class $$ContactMesTableOrderingComposer
 
   ColumnOrderings<String> get referenceImages => $composableBuilder(
       column: $table.referenceImages,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get referenceImagesData => $composableBuilder(
+      column: $table.referenceImagesData,
       builder: (column) => ColumnOrderings(column));
 }
 
@@ -7950,6 +8682,9 @@ class $$ContactMesTableAnnotationComposer
   GeneratedColumn<String> get avatarPath => $composableBuilder(
       column: $table.avatarPath, builder: (column) => column);
 
+  GeneratedColumn<Uint8List> get avatarData => $composableBuilder(
+      column: $table.avatarData, builder: (column) => column);
+
   GeneratedColumn<String> get info =>
       $composableBuilder(column: $table.info, builder: (column) => column);
 
@@ -7959,6 +8694,9 @@ class $$ContactMesTableAnnotationComposer
   GeneratedColumnWithTypeConverter<List<String>, String> get referenceImages =>
       $composableBuilder(
           column: $table.referenceImages, builder: (column) => column);
+
+  GeneratedColumn<String> get referenceImagesData => $composableBuilder(
+      column: $table.referenceImagesData, builder: (column) => column);
 }
 
 class $$ContactMesTableTableManager extends RootTableManager<
@@ -7990,36 +8728,44 @@ class $$ContactMesTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<String?> avatarPath = const Value.absent(),
+            Value<Uint8List?> avatarData = const Value.absent(),
             Value<String> info = const Value.absent(),
             Value<String?> appearance = const Value.absent(),
             Value<List<String>> referenceImages = const Value.absent(),
+            Value<String?> referenceImagesData = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ContactMesCompanion(
             id: id,
             name: name,
             avatarPath: avatarPath,
+            avatarData: avatarData,
             info: info,
             appearance: appearance,
             referenceImages: referenceImages,
+            referenceImagesData: referenceImagesData,
             rowid: rowid,
           ),
           createCompanionCallback: ({
             required String id,
             required String name,
             Value<String?> avatarPath = const Value.absent(),
+            Value<Uint8List?> avatarData = const Value.absent(),
             required String info,
             Value<String?> appearance = const Value.absent(),
             Value<List<String>> referenceImages = const Value.absent(),
+            Value<String?> referenceImagesData = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ContactMesCompanion.insert(
             id: id,
             name: name,
             avatarPath: avatarPath,
+            avatarData: avatarData,
             info: info,
             appearance: appearance,
             referenceImages: referenceImages,
+            referenceImagesData: referenceImagesData,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -8057,6 +8803,8 @@ typedef $$ApiPresetsTableCreateCompanionBuilder = ApiPresetsCompanion Function({
   Value<bool> isStream,
   Value<bool> enableThinking,
   Value<int> timeout,
+  Value<String?> voiceId,
+  Value<int?> audioChannel,
   Value<int> rowid,
 });
 typedef $$ApiPresetsTableUpdateCompanionBuilder = ApiPresetsCompanion Function({
@@ -8072,6 +8820,8 @@ typedef $$ApiPresetsTableUpdateCompanionBuilder = ApiPresetsCompanion Function({
   Value<bool> isStream,
   Value<bool> enableThinking,
   Value<int> timeout,
+  Value<String?> voiceId,
+  Value<int?> audioChannel,
   Value<int> rowid,
 });
 
@@ -8124,6 +8874,12 @@ class $$ApiPresetsTableFilterComposer
 
   ColumnFilters<int> get timeout => $composableBuilder(
       column: $table.timeout, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get voiceId => $composableBuilder(
+      column: $table.voiceId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get audioChannel => $composableBuilder(
+      column: $table.audioChannel, builder: (column) => ColumnFilters(column));
 }
 
 class $$ApiPresetsTableOrderingComposer
@@ -8171,6 +8927,13 @@ class $$ApiPresetsTableOrderingComposer
 
   ColumnOrderings<int> get timeout => $composableBuilder(
       column: $table.timeout, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get voiceId => $composableBuilder(
+      column: $table.voiceId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get audioChannel => $composableBuilder(
+      column: $table.audioChannel,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$ApiPresetsTableAnnotationComposer
@@ -8217,6 +8980,12 @@ class $$ApiPresetsTableAnnotationComposer
 
   GeneratedColumn<int> get timeout =>
       $composableBuilder(column: $table.timeout, builder: (column) => column);
+
+  GeneratedColumn<String> get voiceId =>
+      $composableBuilder(column: $table.voiceId, builder: (column) => column);
+
+  GeneratedColumn<int> get audioChannel => $composableBuilder(
+      column: $table.audioChannel, builder: (column) => column);
 }
 
 class $$ApiPresetsTableTableManager extends RootTableManager<
@@ -8257,6 +9026,8 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
             Value<bool> isStream = const Value.absent(),
             Value<bool> enableThinking = const Value.absent(),
             Value<int> timeout = const Value.absent(),
+            Value<String?> voiceId = const Value.absent(),
+            Value<int?> audioChannel = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ApiPresetsCompanion(
@@ -8272,6 +9043,8 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
             isStream: isStream,
             enableThinking: enableThinking,
             timeout: timeout,
+            voiceId: voiceId,
+            audioChannel: audioChannel,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -8287,6 +9060,8 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
             Value<bool> isStream = const Value.absent(),
             Value<bool> enableThinking = const Value.absent(),
             Value<int> timeout = const Value.absent(),
+            Value<String?> voiceId = const Value.absent(),
+            Value<int?> audioChannel = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               ApiPresetsCompanion.insert(
@@ -8302,6 +9077,8 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
             isStream: isStream,
             enableThinking: enableThinking,
             timeout: timeout,
+            voiceId: voiceId,
+            audioChannel: audioChannel,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
@@ -8331,7 +9108,9 @@ typedef $$MomentsUserSettingsTableCreateCompanionBuilder
   required String id,
   Value<String> name,
   Value<String?> avatarUrl,
+  Value<Uint8List?> avatarData,
   Value<String?> coverImageUrl,
+  Value<Uint8List?> coverImageData,
   Value<String?> signature,
   Value<int> rowid,
 });
@@ -8340,7 +9119,9 @@ typedef $$MomentsUserSettingsTableUpdateCompanionBuilder
   Value<String> id,
   Value<String> name,
   Value<String?> avatarUrl,
+  Value<Uint8List?> avatarData,
   Value<String?> coverImageUrl,
+  Value<Uint8List?> coverImageData,
   Value<String?> signature,
   Value<int> rowid,
 });
@@ -8363,8 +9144,15 @@ class $$MomentsUserSettingsTableFilterComposer
   ColumnFilters<String> get avatarUrl => $composableBuilder(
       column: $table.avatarUrl, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<Uint8List> get avatarData => $composableBuilder(
+      column: $table.avatarData, builder: (column) => ColumnFilters(column));
+
   ColumnFilters<String> get coverImageUrl => $composableBuilder(
       column: $table.coverImageUrl, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<Uint8List> get coverImageData => $composableBuilder(
+      column: $table.coverImageData,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get signature => $composableBuilder(
       column: $table.signature, builder: (column) => ColumnFilters(column));
@@ -8388,8 +9176,15 @@ class $$MomentsUserSettingsTableOrderingComposer
   ColumnOrderings<String> get avatarUrl => $composableBuilder(
       column: $table.avatarUrl, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<Uint8List> get avatarData => $composableBuilder(
+      column: $table.avatarData, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get coverImageUrl => $composableBuilder(
       column: $table.coverImageUrl,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<Uint8List> get coverImageData => $composableBuilder(
+      column: $table.coverImageData,
       builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get signature => $composableBuilder(
@@ -8414,8 +9209,14 @@ class $$MomentsUserSettingsTableAnnotationComposer
   GeneratedColumn<String> get avatarUrl =>
       $composableBuilder(column: $table.avatarUrl, builder: (column) => column);
 
+  GeneratedColumn<Uint8List> get avatarData => $composableBuilder(
+      column: $table.avatarData, builder: (column) => column);
+
   GeneratedColumn<String> get coverImageUrl => $composableBuilder(
       column: $table.coverImageUrl, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get coverImageData => $composableBuilder(
+      column: $table.coverImageData, builder: (column) => column);
 
   GeneratedColumn<String> get signature =>
       $composableBuilder(column: $table.signature, builder: (column) => column);
@@ -8454,7 +9255,9 @@ class $$MomentsUserSettingsTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<String?> avatarUrl = const Value.absent(),
+            Value<Uint8List?> avatarData = const Value.absent(),
             Value<String?> coverImageUrl = const Value.absent(),
+            Value<Uint8List?> coverImageData = const Value.absent(),
             Value<String?> signature = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -8462,7 +9265,9 @@ class $$MomentsUserSettingsTableTableManager extends RootTableManager<
             id: id,
             name: name,
             avatarUrl: avatarUrl,
+            avatarData: avatarData,
             coverImageUrl: coverImageUrl,
+            coverImageData: coverImageData,
             signature: signature,
             rowid: rowid,
           ),
@@ -8470,7 +9275,9 @@ class $$MomentsUserSettingsTableTableManager extends RootTableManager<
             required String id,
             Value<String> name = const Value.absent(),
             Value<String?> avatarUrl = const Value.absent(),
+            Value<Uint8List?> avatarData = const Value.absent(),
             Value<String?> coverImageUrl = const Value.absent(),
+            Value<Uint8List?> coverImageData = const Value.absent(),
             Value<String?> signature = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -8478,7 +9285,9 @@ class $$MomentsUserSettingsTableTableManager extends RootTableManager<
             id: id,
             name: name,
             avatarUrl: avatarUrl,
+            avatarData: avatarData,
             coverImageUrl: coverImageUrl,
+            coverImageData: coverImageData,
             signature: signature,
             rowid: rowid,
           ),
@@ -8509,6 +9318,7 @@ typedef $$AppSettingsTableCreateCompanionBuilder = AppSettingsCompanion
     Function({
   required String key,
   required String value,
+  Value<Uint8List?> blobValue,
   Value<String> type,
   Value<int> rowid,
 });
@@ -8516,6 +9326,7 @@ typedef $$AppSettingsTableUpdateCompanionBuilder = AppSettingsCompanion
     Function({
   Value<String> key,
   Value<String> value,
+  Value<Uint8List?> blobValue,
   Value<String> type,
   Value<int> rowid,
 });
@@ -8534,6 +9345,9 @@ class $$AppSettingsTableFilterComposer
 
   ColumnFilters<String> get value => $composableBuilder(
       column: $table.value, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<Uint8List> get blobValue => $composableBuilder(
+      column: $table.blobValue, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get type => $composableBuilder(
       column: $table.type, builder: (column) => ColumnFilters(column));
@@ -8554,6 +9368,9 @@ class $$AppSettingsTableOrderingComposer
   ColumnOrderings<String> get value => $composableBuilder(
       column: $table.value, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<Uint8List> get blobValue => $composableBuilder(
+      column: $table.blobValue, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get type => $composableBuilder(
       column: $table.type, builder: (column) => ColumnOrderings(column));
 }
@@ -8572,6 +9389,9 @@ class $$AppSettingsTableAnnotationComposer
 
   GeneratedColumn<String> get value =>
       $composableBuilder(column: $table.value, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get blobValue =>
+      $composableBuilder(column: $table.blobValue, builder: (column) => column);
 
   GeneratedColumn<String> get type =>
       $composableBuilder(column: $table.type, builder: (column) => column);
@@ -8605,24 +9425,28 @@ class $$AppSettingsTableTableManager extends RootTableManager<
           updateCompanionCallback: ({
             Value<String> key = const Value.absent(),
             Value<String> value = const Value.absent(),
+            Value<Uint8List?> blobValue = const Value.absent(),
             Value<String> type = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               AppSettingsCompanion(
             key: key,
             value: value,
+            blobValue: blobValue,
             type: type,
             rowid: rowid,
           ),
           createCompanionCallback: ({
             required String key,
             required String value,
+            Value<Uint8List?> blobValue = const Value.absent(),
             Value<String> type = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               AppSettingsCompanion.insert(
             key: key,
             value: value,
+            blobValue: blobValue,
             type: type,
             rowid: rowid,
           ),
@@ -8903,6 +9727,7 @@ typedef $$EmojisTableCreateCompanionBuilder = EmojisCompanion Function({
   Value<String?> rawContent,
   Value<String?> groupId,
   required String localPath,
+  Value<Uint8List?> emojiData,
   required EmojiType type,
   Value<String?> roleId,
   required int createdAt,
@@ -8914,6 +9739,7 @@ typedef $$EmojisTableUpdateCompanionBuilder = EmojisCompanion Function({
   Value<String?> rawContent,
   Value<String?> groupId,
   Value<String> localPath,
+  Value<Uint8List?> emojiData,
   Value<EmojiType> type,
   Value<String?> roleId,
   Value<int> createdAt,
@@ -8943,6 +9769,9 @@ class $$EmojisTableFilterComposer
 
   ColumnFilters<String> get localPath => $composableBuilder(
       column: $table.localPath, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<Uint8List> get emojiData => $composableBuilder(
+      column: $table.emojiData, builder: (column) => ColumnFilters(column));
 
   ColumnWithTypeConverterFilters<EmojiType, EmojiType, int> get type =>
       $composableBuilder(
@@ -8980,6 +9809,9 @@ class $$EmojisTableOrderingComposer
   ColumnOrderings<String> get localPath => $composableBuilder(
       column: $table.localPath, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<Uint8List> get emojiData => $composableBuilder(
+      column: $table.emojiData, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get type => $composableBuilder(
       column: $table.type, builder: (column) => ColumnOrderings(column));
 
@@ -9013,6 +9845,9 @@ class $$EmojisTableAnnotationComposer
 
   GeneratedColumn<String> get localPath =>
       $composableBuilder(column: $table.localPath, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get emojiData =>
+      $composableBuilder(column: $table.emojiData, builder: (column) => column);
 
   GeneratedColumnWithTypeConverter<EmojiType, int> get type =>
       $composableBuilder(column: $table.type, builder: (column) => column);
@@ -9052,6 +9887,7 @@ class $$EmojisTableTableManager extends RootTableManager<
             Value<String?> rawContent = const Value.absent(),
             Value<String?> groupId = const Value.absent(),
             Value<String> localPath = const Value.absent(),
+            Value<Uint8List?> emojiData = const Value.absent(),
             Value<EmojiType> type = const Value.absent(),
             Value<String?> roleId = const Value.absent(),
             Value<int> createdAt = const Value.absent(),
@@ -9063,6 +9899,7 @@ class $$EmojisTableTableManager extends RootTableManager<
             rawContent: rawContent,
             groupId: groupId,
             localPath: localPath,
+            emojiData: emojiData,
             type: type,
             roleId: roleId,
             createdAt: createdAt,
@@ -9074,6 +9911,7 @@ class $$EmojisTableTableManager extends RootTableManager<
             Value<String?> rawContent = const Value.absent(),
             Value<String?> groupId = const Value.absent(),
             required String localPath,
+            Value<Uint8List?> emojiData = const Value.absent(),
             required EmojiType type,
             Value<String?> roleId = const Value.absent(),
             required int createdAt,
@@ -9085,6 +9923,7 @@ class $$EmojisTableTableManager extends RootTableManager<
             rawContent: rawContent,
             groupId: groupId,
             localPath: localPath,
+            emojiData: emojiData,
             type: type,
             roleId: roleId,
             createdAt: createdAt,

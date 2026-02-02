@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/contact_model.dart';
 import '../database/database.dart';
+import '../utils/storage_utils.dart';
 
 class ContactProvider extends ChangeNotifier {
   List<ContactRole> _roles = [];
@@ -174,16 +176,20 @@ class ContactProvider extends ChangeNotifier {
   }) async {
     try {
       final id = _generateId();
-      // 保存图片到持久化存储
-      final savedAvatarPath = await _saveProfileImage(avatarPath, id);
+      // 保存图片到持久化存储并获取二进制数据
+      final imageResult = await _saveProfileImageWithData(avatarPath, id);
+      final savedAvatarPath = imageResult?.path;
+      final savedAvatarData = imageResult?.data;
 
       // 保存参考图到持久化存储
       final List<String> savedReferenceImages = [];
+      final List<String> savedReferenceImagesData = [];
       for (var i = 0; i < referenceImages.length; i++) {
-        final savedPath =
-            await _saveProfileImage(referenceImages[i], '${id}_ref_$i');
-        if (savedPath != null) {
-          savedReferenceImages.add(savedPath);
+        final result =
+            await _saveProfileImageWithData(referenceImages[i], '${id}_ref_$i');
+        if (result != null) {
+          savedReferenceImages.add(result.path);
+          savedReferenceImagesData.add(base64Encode(result.data));
         }
       }
 
@@ -191,9 +197,11 @@ class ContactProvider extends ChangeNotifier {
         id: id,
         name: name,
         avatarPath: savedAvatarPath,
+        avatarData: savedAvatarData,
         description: description,
         appearance: appearance,
         referenceImages: savedReferenceImages,
+        referenceImagesData: savedReferenceImagesData,
       );
       _roles.add(newRole);
       await _saveRole(newRole);
@@ -214,16 +222,20 @@ class ContactProvider extends ChangeNotifier {
   }) async {
     try {
       final id = _generateId();
-      // 保存图片到持久化存储
-      final savedAvatarPath = await _saveProfileImage(avatarPath, id);
+      // 保存图片到持久化存储并获取二进制数据
+      final imageResult = await _saveProfileImageWithData(avatarPath, id);
+      final savedAvatarPath = imageResult?.path;
+      final savedAvatarData = imageResult?.data;
 
       // 保存参考图到持久化存储
       final List<String> savedReferenceImages = [];
+      final List<String> savedReferenceImagesData = [];
       for (var i = 0; i < referenceImages.length; i++) {
-        final savedPath =
-            await _saveProfileImage(referenceImages[i], '${id}_ref_$i');
-        if (savedPath != null) {
-          savedReferenceImages.add(savedPath);
+        final result =
+            await _saveProfileImageWithData(referenceImages[i], '${id}_ref_$i');
+        if (result != null) {
+          savedReferenceImages.add(result.path);
+          savedReferenceImagesData.add(base64Encode(result.data));
         }
       }
 
@@ -231,9 +243,11 @@ class ContactProvider extends ChangeNotifier {
         id: id,
         name: name,
         avatarPath: savedAvatarPath,
+        avatarData: savedAvatarData,
         info: info,
         appearance: appearance,
         referenceImages: savedReferenceImages,
+        referenceImagesData: savedReferenceImagesData,
       );
       _meList.add(newMe);
       await _saveMe(newMe);
@@ -259,23 +273,24 @@ class ContactProvider extends ChangeNotifier {
         final oldRole = _roles[index];
         String? finalAvatarPath = avatarPath;
 
+        Uint8List? finalAvatarData = oldRole.avatarData;
+
         // 如果头像路径变了，保存新图片
         if (avatarPath != oldRole.avatarPath) {
-          finalAvatarPath = await _saveProfileImage(avatarPath, id);
+          final imageResult = await _saveProfileImageWithData(avatarPath, id);
+          finalAvatarPath = imageResult?.path;
+          finalAvatarData = imageResult?.data;
         }
 
         // 处理参考图更新
-        // 简单起见，我们重新保存所有参考图（如果它们不在持久化目录中）
-        // 实际优化可以比较路径，但考虑到参考图数量通常不多，直接处理是可以接受的
         final List<String> savedReferenceImages = [];
+        final List<String> savedReferenceImagesData = [];
         for (var i = 0; i < referenceImages.length; i++) {
-          // 检查是否已经是持久化路径
           final path = referenceImages[i];
-          // 如果路径变了或者是新的临时路径，保存它
-          // _saveProfileImage 内部会检查是否已经在文档目录下
-          final savedPath = await _saveProfileImage(path, '${id}_ref_$i');
-          if (savedPath != null) {
-            savedReferenceImages.add(savedPath);
+          final result = await _saveProfileImageWithData(path, '${id}_ref_$i');
+          if (result != null) {
+            savedReferenceImages.add(result.path);
+            savedReferenceImagesData.add(base64Encode(result.data));
           }
         }
 
@@ -283,9 +298,11 @@ class ContactProvider extends ChangeNotifier {
           id: id,
           name: name,
           avatarPath: finalAvatarPath,
+          avatarData: finalAvatarData,
           description: description,
           appearance: appearance,
           referenceImages: savedReferenceImages,
+          referenceImagesData: savedReferenceImagesData,
           subscribedGroupIds: oldRole.subscribedGroupIds,
           subscribedEmojiIds: oldRole.subscribedEmojiIds,
         );
@@ -328,18 +345,24 @@ class ContactProvider extends ChangeNotifier {
         final oldMe = _meList[index];
         String? finalAvatarPath = avatarPath;
 
+        Uint8List? finalAvatarData = oldMe.avatarData;
+
         // 如果头像路径变了，保存新图片
         if (avatarPath != oldMe.avatarPath) {
-          finalAvatarPath = await _saveProfileImage(avatarPath, id);
+          final imageResult = await _saveProfileImageWithData(avatarPath, id);
+          finalAvatarPath = imageResult?.path;
+          finalAvatarData = imageResult?.data;
         }
 
         // 处理参考图更新
         final List<String> savedReferenceImages = [];
+        final List<String> savedReferenceImagesData = [];
         for (var i = 0; i < referenceImages.length; i++) {
           final path = referenceImages[i];
-          final savedPath = await _saveProfileImage(path, '${id}_ref_$i');
-          if (savedPath != null) {
-            savedReferenceImages.add(savedPath);
+          final result = await _saveProfileImageWithData(path, '${id}_ref_$i');
+          if (result != null) {
+            savedReferenceImages.add(result.path);
+            savedReferenceImagesData.add(base64Encode(result.data));
           }
         }
 
@@ -347,9 +370,11 @@ class ContactProvider extends ChangeNotifier {
           id: id,
           name: name,
           avatarPath: finalAvatarPath,
+          avatarData: finalAvatarData,
           info: info,
           appearance: appearance,
           referenceImages: savedReferenceImages,
+          referenceImagesData: savedReferenceImagesData,
         );
         _meList[index] = updatedMe;
         await _saveMe(updatedMe);
@@ -377,34 +402,30 @@ class ContactProvider extends ChangeNotifier {
   }
 
   String _generateId() {
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final random = Random().nextInt(10000);
-    return '$timestamp-$random';
+    return StorageUtils.getUniqueTimestamp().toString();
   }
 
-  /// 将图片保存到应用文档目录，防止临时文件被清理
-  Future<String?> _saveProfileImage(String? sourcePath, String id) async {
+  /// 将图片保存到应用文档目录，并返回路径和二进制数据
+  Future<({String path, Uint8List data})?> _saveProfileImageWithData(
+      String? sourcePath, String id) async {
     if (sourcePath == null || sourcePath.isEmpty) return null;
 
     try {
-      final sourceFile = File(sourcePath);
-      if (!await sourceFile.exists()) return null;
+      // 确保文件在持久化目录中
+      final persistentPath =
+          await StorageUtils.ensurePersistent(sourcePath, id);
+      final absPath = await StorageUtils.toAbsolutePath(persistentPath);
+      final file = File(absPath);
 
-      final appDir = await getApplicationDocumentsDirectory();
-      // 检查源文件是否已经在文档目录下（避免重复复制）
-      // 注意：在 iOS 上路径可能会变化，这里主要防止当次操作的重复复制
-      if (sourcePath.startsWith(appDir.path)) {
-        return sourcePath;
-      }
+      if (!await file.exists()) return null;
 
-      final fileName =
-          'avatar_${id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savedImage = await sourceFile.copy('${appDir.path}/$fileName');
-      debugPrint('[ContactProvider] 图片已保存到持久化目录: ${savedImage.path}');
-      return savedImage.path;
+      // 读取二进制数据用于数据库备份
+      final bytes = await file.readAsBytes();
+
+      return (path: persistentPath, data: bytes);
     } catch (e) {
-      debugPrint('[ContactProvider] 保存图片失败: $e');
-      return sourcePath; // 失败时返回原路径
+      debugPrint('[ContactProvider] 处理图片失败: $e');
+      return null;
     }
   }
 
@@ -488,7 +509,7 @@ class ContactProvider extends ChangeNotifier {
           for (var i = 0; i < _roles.length; i++) {
             final role = _roles[i];
             if (images.containsKey(role.id)) {
-              final timestamp = DateTime.now().millisecondsSinceEpoch;
+              final timestamp = StorageUtils.getUniqueTimestamp();
               final newPath = await _base64ToFile(
                 images[role.id],
                 'role_${role.id}_$timestamp.jpg',
@@ -519,7 +540,7 @@ class ContactProvider extends ChangeNotifier {
           for (var i = 0; i < _meList.length; i++) {
             final me = _meList[i];
             if (images.containsKey(me.id)) {
-              final timestamp = DateTime.now().millisecondsSinceEpoch;
+              final timestamp = StorageUtils.getUniqueTimestamp();
               final newPath = await _base64ToFile(
                 images[me.id],
                 'me_${me.id}_$timestamp.jpg',

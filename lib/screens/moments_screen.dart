@@ -1,8 +1,11 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../core/providers/moments_provider.dart';
+import '../core/providers/contact_provider.dart';
+import '../core/utils/storage_utils.dart';
 import '../widgets/moments_post_item.dart';
 import 'edit_moment_screen.dart';
 
@@ -61,6 +64,12 @@ class _MomentsBodyState extends State<_MomentsBody> {
     setState(() {
       _scrollOffset = _scrollController.offset;
     });
+
+    // 滚动到底部加载更多
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      context.read<MomentsProvider>().loadMore();
+    }
   }
 
   /// 显示编辑昵称对话框
@@ -264,9 +273,41 @@ class _MomentsBodyState extends State<_MomentsBody> {
                                           );
                                         },
                                       )
-                                    : Image.file(
-                                        File(currentUser.coverImageUrl!),
-                                        fit: BoxFit.cover,
+                                    : FutureBuilder<String>(
+                                        future: StorageUtils.ensureFileExists(
+                                          currentUser.coverImageUrl!,
+                                          backupData:
+                                              currentUser.coverImageData,
+                                        ),
+                                        builder: (context, snapshot) {
+                                          if (!snapshot.hasData) {
+                                            return const SizedBox.shrink();
+                                          }
+                                          final file = File(snapshot.data!);
+                                          if (!file.existsSync()) {
+                                            return Container(
+                                              color: Colors.grey[300],
+                                              child: const Icon(
+                                                Icons.image,
+                                                size: 50,
+                                              ),
+                                            );
+                                          }
+                                          return Image.file(
+                                            file,
+                                            fit: BoxFit.cover,
+                                            errorBuilder:
+                                                (context, error, stackTrace) {
+                                              return Container(
+                                                color: Colors.grey[300],
+                                                child: const Icon(
+                                                  Icons.image,
+                                                  size: 50,
+                                                ),
+                                              );
+                                            },
+                                          );
+                                        },
                                       ))
                                 : Container(color: Colors.grey[300]),
                           ),
@@ -333,9 +374,25 @@ class _MomentsBodyState extends State<_MomentsBody> {
                   // 朋友圈动态列表
                   SliverList(
                     delegate: SliverChildBuilderDelegate((context, index) {
-                      if (index >= posts.length) return null;
-                      return MomentsPostItem(post: posts[index]);
-                    }, childCount: posts.length),
+                      if (index < posts.length) {
+                        return MomentsPostItem(post: posts[index]);
+                      } else if (index == posts.length &&
+                          momentsProvider.isLoadingMore) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        );
+                      }
+                      return null;
+                    },
+                        childCount: posts.length +
+                            (momentsProvider.isLoadingMore ? 1 : 0)),
                   ),
                 ],
               ),
@@ -435,13 +492,43 @@ class _MomentsBodyState extends State<_MomentsBody> {
         },
       );
     } else {
-      return Image.file(
-        File(avatarUrl),
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            color: Colors.grey[300],
-            child: const Icon(Icons.person),
+      final momentsProvider = context.read<MomentsProvider>();
+      final contactProvider = context.read<ContactProvider>();
+      final currentUser = momentsProvider.currentUser;
+
+      // 尝试获取备份数据
+      Uint8List? backupData;
+      if (avatarUrl == currentUser.avatarUrl) {
+        backupData = currentUser.avatarData;
+      } else {
+        // 尝试从 ContactProvider 中查找匹配该路径的角色的备份数据
+        final role = contactProvider.roles
+            .where((r) => r.avatarPath == avatarUrl)
+            .firstOrNull;
+        backupData = role?.avatarData;
+      }
+
+      return FutureBuilder<String>(
+        future:
+            StorageUtils.ensureFileExists(avatarUrl, backupData: backupData),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const SizedBox.shrink();
+          final file = File(snapshot.data!);
+          if (!file.existsSync()) {
+            return Container(
+              color: Colors.grey[300],
+              child: const Icon(Icons.person),
+            );
+          }
+          return Image.file(
+            file,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                color: Colors.grey[300],
+                child: const Icon(Icons.person),
+              );
+            },
           );
         },
       );

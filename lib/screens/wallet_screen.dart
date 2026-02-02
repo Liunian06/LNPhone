@@ -114,8 +114,22 @@ class WalletScreen extends StatelessWidget {
                         icon: Icons.account_balance_wallet_outlined,
                         label: '提现',
                         onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('模拟功能，暂不支持提现')),
+                          final hour = DateTime.now().hour;
+                          final String message = (hour >= 6 && hour < 22)
+                              ? "还没到睡觉时间!"
+                              : "早点睡，梦里什么都有";
+
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              content: Text(message),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('确定'),
+                                ),
+                              ],
+                            ),
                           );
                         },
                       ),

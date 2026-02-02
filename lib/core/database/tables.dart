@@ -207,7 +207,7 @@ class ApiProviderConverter extends TypeConverter<ApiProvider, int> {
     }
 
     // Let's try to be more robust based on the new enum values
-    // New Enum: openai, gemini, volcengine
+    // New Enum: openai, gemini, volcengine, openaicompatible, minimax
     if (fromDb >= 0 && fromDb < ApiProvider.values.length) {
       return ApiProvider.values[fromDb];
     }
@@ -324,7 +324,9 @@ class MomentsUserSettings extends Table {
   TextColumn get id => text()(); // 固定为 'current_user'
   TextColumn get name => text().withDefault(const Constant('我'))();
   TextColumn get avatarUrl => text().nullable()();
+  BlobColumn get avatarData => blob().nullable()(); // 头像二进制数据
   TextColumn get coverImageUrl => text().nullable()();
+  BlobColumn get coverImageData => blob().nullable()(); // 封面图二进制数据
   TextColumn get signature => text().nullable()();
 
   @override
@@ -338,8 +340,9 @@ class MomentsUserSettings extends Table {
 class AppSettings extends Table {
   TextColumn get key => text()(); // 设置键名
   TextColumn get value => text()(); // 设置值（JSON 格式）
+  BlobColumn get blobValue => blob().nullable()(); // 二进制值
   TextColumn get type => text().withDefault(
-      const Constant('string'))(); // 值类型: string, int, double, bool, json
+      const Constant('string'))(); // 值类型: string, int, double, bool, json, blob
 
   @override
   Set<Column> get primaryKey => {key};
@@ -351,11 +354,13 @@ class ContactRoles extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get avatarPath => text().nullable()();
+  BlobColumn get avatarData => blob().nullable()(); // 头像二进制数据
   TextColumn get description => text()();
   TextColumn get appearance => text().nullable()();
   TextColumn get referenceImages => text()
       .map(const StringListConverter())
       .withDefault(const Constant('[]'))();
+  TextColumn get referenceImagesData => text().nullable()(); // 存储参考图的 Base64 列表
   TextColumn get subscribedGroupIds => text()
       .map(const StringListConverter())
       .withDefault(const Constant('[]'))();
@@ -373,11 +378,13 @@ class ContactMes extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get avatarPath => text().nullable()();
+  BlobColumn get avatarData => blob().nullable()(); // 头像二进制数据
   TextColumn get info => text()();
   TextColumn get appearance => text().nullable()();
   TextColumn get referenceImages => text()
       .map(const StringListConverter())
       .withDefault(const Constant('[]'))();
+  TextColumn get referenceImagesData => text().nullable()(); // 存储参考图的 Base64 列表
 
   @override
   Set<Column> get primaryKey => {id};
@@ -401,6 +408,8 @@ class ApiPresets extends Table {
   BoolColumn get enableThinking =>
       boolean().withDefault(const Constant(true))();
   IntColumn get timeout => integer().withDefault(const Constant(120))();
+  TextColumn get voiceId => text().nullable()(); // 语音 ID (Minimax)
+  IntColumn get audioChannel => integer().nullable()(); // 音频声道 (Minimax)
 
   @override
   Set<Column> get primaryKey => {id};
@@ -449,6 +458,7 @@ class ChatSessions extends Table {
   TextColumn get apiPresetId => text().nullable()();
   TextColumn get imageApiPresetId => text().nullable()();
   TextColumn get backgroundImage => text().nullable()(); // 聊天背景图路径
+  BlobColumn get backgroundImageData => blob().nullable()(); // 聊天背景图二进制数据
 
   @override
   Set<Column> get primaryKey => {id};
@@ -491,6 +501,7 @@ class MomentsPosts extends Table {
   TextColumn get user => text().map(const MomentsUserConverter())();
   TextColumn get content => text().nullable()();
   TextColumn get mediaItems => text().map(const MediaItemsConverter())();
+  TextColumn get mediaData => text().nullable()(); // 存储媒体文件的 Base64 列表
   IntColumn get createdAt => integer()(); // timestamp
   TextColumn get likes => text().map(const LikesConverter())();
   TextColumn get comments => text().map(const CommentsConverter())();
@@ -508,6 +519,8 @@ class Emojis extends Table {
   TextColumn get rawContent => text().nullable()();
   TextColumn get groupId => text().nullable()();
   TextColumn get localPath => text()();
+  BlobColumn get emojiData => blob().nullable()(); // [已弃用] 表情包二进制数据，保留用于向后兼容
+  TextColumn get backupPath => text().nullable()(); // [推荐] 表情包备份文件路径（文件备份，效率更高）
   IntColumn get type => integer().map(const EmojiTypeConverter())();
   TextColumn get roleId => text().nullable()();
   IntColumn get createdAt => integer()();
@@ -541,6 +554,7 @@ class ChatMessages extends Table {
   TextColumn get sender => text().nullable()(); // 发送者名称（用于引用显示）
   IntColumn get type => integer().map(const MessageTypeConverter())();
   TextColumn get content => text()();
+  BlobColumn get messageData => blob().nullable()(); // 消息二进制数据（如图片）
   IntColumn get timestamp => integer()();
   TextColumn get metadata => text().map(const MetadataConverter()).nullable()();
   BoolColumn get isRead => boolean().withDefault(const Constant(true))();

@@ -3,10 +3,13 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:image/image.dart' as img;
 import '../database/database.dart';
 import '../models/emoji_model.dart';
 import '../models/contact_model.dart';
+import '../utils/storage_utils.dart';
 import '../services/emoji_zip_service.dart';
+import '../services/emoji_file_backup_service.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart' as fp;
 
@@ -78,7 +81,7 @@ class EmojiProvider extends ChangeNotifier {
 
       final appDir = await getApplicationDocumentsDirectory();
       final fileName =
-          '${DateTime.now().millisecondsSinceEpoch}_${p.basename(filePath)}';
+          '${StorageUtils.getUniqueTimestamp()}_${p.basename(filePath)}';
       final newPath = p.join(appDir.path, 'emojis', fileName);
 
       final emojiDir = Directory(p.dirname(newPath));
@@ -86,17 +89,29 @@ class EmojiProvider extends ChangeNotifier {
         await emojiDir.create(recursive: true);
       }
 
-      await File(filePath).copy(newPath);
+      // 使用字节复制避免 File.copy() 损坏透明通道
+      final sourceFile = File(filePath);
+      final bytes = await sourceFile.readAsBytes();
+
+      await File(newPath).writeAsBytes(bytes);
+
+      // 存储相对路径
+      final relPath = await StorageUtils.toRelativePath(newPath);
+
+      // 使用字节复制方式创建备份，避免 File.copy() 损坏 GIF 透明通道
+      final backupPath = await EmojiFileBackupService.createBackup(relPath);
 
       final emoji = EmojiModel(
         id: id,
         meaning: meaning,
         rawContent: rawContent,
         groupId: groupId,
-        localPath: newPath,
+        localPath: relPath,
+        emojiData: null, // 不再使用二进制备份
+        backupPath: backupPath, // 使用文件备份路径
         type: type,
         roleId: roleId,
-        createdAt: DateTime.now().millisecondsSinceEpoch,
+        createdAt: StorageUtils.getUniqueTimestamp(),
       );
 
       await _db.insertEmoji(emoji);
@@ -126,6 +141,7 @@ class EmojiProvider extends ChangeNotifier {
         rawContent: emoji.rawContent,
         groupId: targetGroupId,
         localPath: emoji.localPath,
+        backupPath: emoji.backupPath, // 保持备份路径
         type: EmojiType.global,
         roleId: null,
         createdAt: emoji.createdAt,
@@ -151,9 +167,10 @@ class EmojiProvider extends ChangeNotifier {
         rawContent: emoji.rawContent,
         groupId: targetGroupId,
         localPath: emoji.localPath,
+        backupPath: emoji.backupPath, // 复制时共享备份文件
         type: EmojiType.global,
         roleId: null,
-        createdAt: DateTime.now().millisecondsSinceEpoch,
+        createdAt: StorageUtils.getUniqueTimestamp(),
       );
       await _db.insertEmoji(newEmoji);
     }
@@ -243,6 +260,7 @@ class EmojiProvider extends ChangeNotifier {
         rawContent: rawContent,
         groupId: groupId ?? emoji.groupId,
         localPath: emoji.localPath,
+        backupPath: emoji.backupPath, // 保持备份路径
         type: emoji.type,
         roleId: emoji.roleId,
         createdAt: emoji.createdAt,
@@ -280,6 +298,7 @@ class EmojiProvider extends ChangeNotifier {
               rawContent: tags['raw_content'] ?? emoji.rawContent,
               groupId: emoji.groupId,
               localPath: emoji.localPath,
+              backupPath: emoji.backupPath, // 保持备份路径
               type: emoji.type,
               roleId: emoji.roleId,
               createdAt: emoji.createdAt,
@@ -326,23 +345,36 @@ class EmojiProvider extends ChangeNotifier {
 
             final appDir = await getApplicationDocumentsDirectory();
             final fileName =
-                '${DateTime.now().millisecondsSinceEpoch}_${p.basename(path)}';
+                '${StorageUtils.getUniqueTimestamp()}_${p.basename(path)}';
             final newPath = p.join(appDir.path, 'emojis', fileName);
 
             final emojiDir = Directory(p.dirname(newPath));
             if (!await emojiDir.exists()) {
               await emojiDir.create(recursive: true);
             }
-            await File(path).copy(newPath);
+
+            // 使用字节复制避免 File.copy() 损坏透明通道
+            final sourceFile = File(path);
+            final bytes = await sourceFile.readAsBytes();
+
+            await File(newPath).writeAsBytes(bytes);
+
+            final relPath = await StorageUtils.toRelativePath(newPath);
+
+            // 使用字节复制方式创建备份
+            final backupPath =
+                await EmojiFileBackupService.createBackup(relPath);
 
             final emoji = EmojiModel(
               id: id,
               meaning: meaning,
               rawContent: rawContent,
-              localPath: newPath,
+              localPath: relPath,
+              emojiData: null, // 不再使用二进制备份
+              backupPath: backupPath, // 使用文件备份路径
               type: type,
               roleId: roleId,
-              createdAt: DateTime.now().millisecondsSinceEpoch,
+              createdAt: StorageUtils.getUniqueTimestamp(),
             );
 
             await _db.insertEmoji(emoji);
@@ -378,23 +410,35 @@ class EmojiProvider extends ChangeNotifier {
           final id = await _generateOrRecycleId();
           final appDir = await getApplicationDocumentsDirectory();
           final fileName =
-              '${DateTime.now().millisecondsSinceEpoch}_${p.basename(path)}';
+              '${StorageUtils.getUniqueTimestamp()}_${p.basename(path)}';
           final newPath = p.join(appDir.path, 'emojis', fileName);
 
           final emojiDir = Directory(p.dirname(newPath));
           if (!await emojiDir.exists()) {
             await emojiDir.create(recursive: true);
           }
-          await File(path).copy(newPath);
+
+          // 使用字节复制避免 File.copy() 损坏透明通道
+          final sourceFile = File(path);
+          final bytes = await sourceFile.readAsBytes();
+
+          await File(newPath).writeAsBytes(bytes);
+
+          final relPath = await StorageUtils.toRelativePath(newPath);
+
+          // 使用字节复制方式创建备份
+          final backupPath = await EmojiFileBackupService.createBackup(relPath);
 
           final emoji = EmojiModel(
             id: id,
             meaning: '未命名',
             rawContent: null,
-            localPath: newPath,
+            localPath: relPath,
+            emojiData: null, // 不再使用二进制备份
+            backupPath: backupPath, // 使用文件备份路径
             type: type,
             roleId: roleId,
-            createdAt: DateTime.now().millisecondsSinceEpoch,
+            createdAt: StorageUtils.getUniqueTimestamp(),
           );
 
           await _db.insertEmoji(emoji);
@@ -418,12 +462,12 @@ class EmojiProvider extends ChangeNotifier {
     String? roleId,
   }) async {
     final group = EmojiGroupEntity(
-      id: 'group-${DateTime.now().millisecondsSinceEpoch}',
+      id: 'group-${StorageUtils.getUniqueTimestamp()}',
       name: name,
       type: type,
       roleId: roleId,
       isVisible: true,
-      createdAt: DateTime.now().millisecondsSinceEpoch,
+      createdAt: StorageUtils.getUniqueTimestamp(),
     );
     await _db.insertEmojiGroup(group);
     await loadEmojis(null);
@@ -497,6 +541,7 @@ class EmojiProvider extends ChangeNotifier {
         rawContent: emoji.rawContent,
         groupId: null,
         localPath: emoji.localPath,
+        backupPath: emoji.backupPath, // 保持备份路径
         type: emoji.type,
         roleId: emoji.roleId,
         createdAt: emoji.createdAt,
@@ -517,6 +562,7 @@ class EmojiProvider extends ChangeNotifier {
           rawContent: emoji.rawContent,
           groupId: groupId,
           localPath: emoji.localPath,
+          backupPath: emoji.backupPath, // 保持备份路径
           type: emoji.type,
           roleId: emoji.roleId,
           createdAt: emoji.createdAt,

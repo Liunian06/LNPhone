@@ -47,15 +47,17 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>();
 
     if (androidImplementation != null) {
-      // 1. 创建通知频道（Android 8.0+ 必需，Android 15 更加严格）
+      // 1. 创建通知频道（Android 8.0+ 必需，Android 15/16 更加严格）
+      // 使用 Importance.max 确保在 Android 16 上能弹出通知
       const AndroidNotificationChannel channel = AndroidNotificationChannel(
         'ai_reply_channel', // 频道ID，必须与发送通知时一致
         'AI回复通知', // 频道名称
         description: 'AI角色回复消息的通知',
-        importance: Importance.high, // 高优先级才能弹出通知
+        importance: Importance.max, // 最高优先级，确保 Android 16 上能弹出
         playSound: true,
         enableVibration: true,
         showBadge: true,
+        enableLights: true, // Android 16+ 建议启用
       );
 
       await androidImplementation.createNotificationChannel(channel);
@@ -70,6 +72,17 @@ class NotificationService {
       final bool? exactAlarmsGranted =
           await androidImplementation.requestExactAlarmsPermission();
       debugPrint('[NotificationService] 精确闹钟权限请求结果: $exactAlarmsGranted');
+
+      // 4. Android 16+ 请求全屏 Intent 权限（用于弹出式通知）
+      try {
+        final bool? fullScreenGranted =
+            await androidImplementation.requestFullScreenIntentPermission();
+        debugPrint(
+            '[NotificationService] 全屏 Intent 权限请求结果: $fullScreenGranted');
+      } catch (e) {
+        // 低版本 Android 可能不支持此方法
+        debugPrint('[NotificationService] 全屏 Intent 权限请求不适用: $e');
+      }
     }
 
     _initialized = true;
@@ -113,11 +126,16 @@ class NotificationService {
         htmlFormatContent: false,
         htmlFormatContentTitle: false,
       ),
-      // Android 15 相关设置
+      // Android 15/16 相关设置
       category: AndroidNotificationCategory.message, // 消息类型
       visibility: NotificationVisibility.public, // 锁屏可见
       autoCancel: true, // 点击后自动消失
       ongoing: false, // 非持续通知
+      // Android 16+ 必需配置
+      ticker: '$title: $message', // 状态栏滚动文本
+      fullScreenIntent: true, // 请求全屏 Intent 以确保通知弹出
+      channelShowBadge: true, // 显示角标
+      enableLights: true, // 启用 LED 灯
     );
 
     const DarwinNotificationDetails iOSPlatformChannelSpecifics =

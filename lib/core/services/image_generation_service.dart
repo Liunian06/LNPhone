@@ -12,6 +12,7 @@ import '../models/api_log.dart';
 
 import '../models/contact_model.dart';
 import '../utils/image_utils.dart';
+import '../utils/storage_utils.dart';
 
 class ImageGenerationService {
   static final ImageGenerationService _instance =
@@ -37,16 +38,28 @@ class ImageGenerationService {
   /// [includeUser] 是否包含用户外貌信息
   /// [imageApiPresetId] 独立的生图 API 预设 ID
   /// 返回生成的图片本地路径
-  Future<String?> generateImage(
+  /// 生成图片并返回结果信息
+  /// 返回 Map 包含:
+  /// - 'path': 生成的第一张图片本地路径（兼容旧代码）
+  /// - 'paths': 生成的所有图片本地路径列表（新增，支持多图）
+  /// - 'api_preset_name': 使用的 API 预设名称
+  /// - 'style_preset_name': 使用的风格预设名称
+  /// - 'style_prompt': 风格提示词内容
+  /// - 'character_appearance': 角色外貌信息
+  /// - 'user_appearance': 用户外貌信息
+  /// - 'ref_image_paths': 参考图路径列表
+  Future<Map<String, dynamic>?> generateImage(
     String prompt,
-    String stylePrompt, {
+    String? stylePrompt, {
     bool includeCharacter = false,
     bool includeUser = false,
     String? imageApiPresetId,
+    String? imageStylePresetId,
   }) async {
     ApiPreset? preset;
     String? url;
     final stopwatch = Stopwatch();
+    final Map<String, dynamic> resultMetadata = {};
 
     try {
       // 优先使用传入的独立生图 API 预设 ID，否则使用全局默认
@@ -54,7 +67,7 @@ class ImageGenerationService {
       if (imageModelId == null) {
         // 获取当前选中的生图模型配置
         // 注意：ApiSettingsProvider 使用 'active_image_preset_id' 作为 key
-        imageModelId = await _db.getSetting('active_image_preset_id');
+        imageModelId = await _db.getSetting('active_image_api_preset_id');
       }
 
       if (imageModelId == null) {
@@ -73,33 +86,46 @@ class ImageGenerationService {
 
       debugPrint(
           '[ImageGeneration] 使用预设: ${preset.name}, Provider: ${preset.provider}, BaseURL: ${preset.baseUrl}, Model: ${preset.model}');
-
-      // 获取当前选定的生图预设
-      String? activePresetId = await _db.getSetting('active_image_preset_id');
-      if (activePresetId == null) {
-        // 兼容旧版本
-        final oldStyle = await _db.getSetting('text2image_style');
-        if (oldStyle != null) {
-          activePresetId =
-              oldStyle == 'custom' ? 't2i_custom_1' : 't2i_$oldStyle';
-        } else {
-          activePresetId = 't2i_realistic';
-        }
-      }
+      resultMetadata['api_preset_name'] = preset.name;
 
       String finalStylePrompt = '';
-      final textPreset = await _db.getTextPreset(activePresetId);
-      if (textPreset != null) {
-        if (textPreset.isBuiltIn) {
-          try {
-            finalStylePrompt = await rootBundle.loadString(textPreset.content);
-          } catch (e) {
-            debugPrint('[ImageGeneration] Error loading built-in prompt: $e');
+
+      // 如果传入了 stylePrompt 且不为空，则直接使用
+      if (stylePrompt != null && stylePrompt.isNotEmpty) {
+        finalStylePrompt = stylePrompt;
+        resultMetadata['style_preset_name'] = '自定义提示词';
+      } else {
+        // 否则根据预设 ID 获取
+        // 获取当前选定的生图预设
+        String? activePresetId = imageStylePresetId ??
+            await _db.getSetting('active_image_preset_id');
+        if (activePresetId == null) {
+          // 兼容旧版本
+          final oldStyle = await _db.getSetting('text2image_style');
+          if (oldStyle != null) {
+            activePresetId =
+                oldStyle == 'custom' ? 't2i_custom_1' : 't2i_$oldStyle';
+          } else {
+            activePresetId = 't2i_realistic';
           }
-        } else {
-          finalStylePrompt = textPreset.content;
+        }
+
+        final textPreset = await _db.getTextPreset(activePresetId);
+        if (textPreset != null) {
+          resultMetadata['style_preset_name'] = textPreset.name;
+          if (textPreset.isBuiltIn) {
+            try {
+              finalStylePrompt =
+                  await rootBundle.loadString(textPreset.content);
+            } catch (e) {
+              debugPrint('[ImageGeneration] Error loading built-in prompt: $e');
+            }
+          } else {
+            finalStylePrompt = textPreset.content;
+          }
         }
       }
+      resultMetadata['style_prompt'] = finalStylePrompt;
 
       final buffer = StringBuffer();
       if (finalStylePrompt.isNotEmpty) {
@@ -115,6 +141,7 @@ class ImageGenerationService {
             _currentRole!.appearance!.isNotEmpty) {
           buffer.writeln('\n[Character Appearance]');
           buffer.writeln(_currentRole!.appearance);
+          resultMetadata['character_appearance'] = _currentRole!.appearance;
         }
         if (_currentRole!.referenceImages.isNotEmpty) {
           // 检查参考图路径是否有效
@@ -134,6 +161,7 @@ class ImageGenerationService {
             _currentMe!.appearance!.isNotEmpty) {
           buffer.writeln('\n[User Appearance]');
           buffer.writeln(_currentMe!.appearance);
+          resultMetadata['user_appearance'] = _currentMe!.appearance;
         }
         if (_currentMe!.referenceImages.isNotEmpty) {
           // 检查参考图路径是否有效
@@ -150,6 +178,7 @@ class ImageGenerationService {
       // 如果有参考图，添加引导语
       if (refImagePaths.isNotEmpty) {
         buffer.writeln('\n以下是人物参考图，严格按照参考图中的形象生图：');
+        resultMetadata['ref_image_paths'] = refImagePaths;
       }
 
       final fullPrompt = buffer.toString();
@@ -200,6 +229,9 @@ class ImageGenerationService {
       if (preset.provider == ApiProvider.gemini) {
         url =
             '$baseUrl/v1beta/models/${preset.model}:generateContent?key=${preset.apiKey}';
+      } else if (preset.provider == ApiProvider.groklike) {
+        // Grok-like 使用 chat completions 接口
+        url = '$baseUrl/chat/completions';
       } else {
         // OpenAI 兼容接口
         url = '$baseUrl/images/generations';
@@ -251,6 +283,18 @@ class ImageGenerationService {
               "imageSize": "4K",
             }
           }
+        };
+      } else if (preset.provider == ApiProvider.groklike) {
+        // Grok-like 使用 chat completions 格式
+        body = {
+          'model': preset.model,
+          'messages': [
+            {
+              'role': 'user',
+              'content': fullPrompt,
+            }
+          ],
+          'stream': false,
         };
       } else {
         // OpenAI / Volcengine / OpenAI Compatible
@@ -319,7 +363,59 @@ class ImageGenerationService {
 
         final jsonData = jsonDecode(responseBody);
 
-        if (preset.provider == ApiProvider.gemini) {
+        // 读取"强制唯一输出"设置，默认开启
+        final forceUniqueOutput =
+            await _db.getSettingBool('image_force_unique_output') ?? true;
+
+        if (preset.provider == ApiProvider.groklike) {
+          // Grok-like 响应解析：从 Markdown 格式提取图片 URL
+          // 响应格式: {"choices": [{"message": {"content": "![image](url)\n![image](url2)"}}]}
+          final imagePaths = <String>[];
+
+          if (jsonData['choices'] != null &&
+              (jsonData['choices'] as List).isNotEmpty) {
+            final content =
+                jsonData['choices'][0]['message']?['content'] as String?;
+            if (content != null) {
+              // 提取所有 Markdown 图片 URL: ![...](url)
+              final urlRegex = RegExp(r'!\[.*?\]\((https?:\/\/[^\s\)]+)\)');
+              final matches = urlRegex.allMatches(content);
+
+              for (final match in matches) {
+                final imageUrl = match.group(1);
+                if (imageUrl != null) {
+                  debugPrint(
+                      '[ImageGeneration] 从 Grok-like 响应中提取到图片 URL: $imageUrl');
+                  final path = await _downloadAndSaveImage(imageUrl);
+                  if (path != null) {
+                    imagePaths.add(path);
+                    // 如果强制唯一输出，只取第一张
+                    if (forceUniqueOutput) break;
+                  }
+                }
+              }
+            }
+          }
+
+          if (imagePaths.isNotEmpty) {
+            return {
+              'path': imagePaths.first,
+              'paths': imagePaths,
+              ...resultMetadata
+            };
+          } else {
+            debugPrint('[ImageGeneration] Grok-like 响应中未找到有效图片');
+            await AppLogService.log(
+              '生图响应异常',
+              category: 'ImageGen',
+              level: LogLevel.error,
+              data: {
+                'error': 'No images found in Grok-like response',
+                'response': jsonData
+              },
+            );
+          }
+        } else if (preset.provider == ApiProvider.gemini) {
           if (jsonData['candidates'] != null &&
               (jsonData['candidates'] as List).isNotEmpty) {
             final candidate = jsonData['candidates'][0];
@@ -339,6 +435,8 @@ class ImageGenerationService {
             if (candidate['content'] != null &&
                 candidate['content']['parts'] != null) {
               final parts = candidate['content']['parts'] as List;
+              final imagePaths = <String>[];
+
               for (var part in parts) {
                 // 1. 尝试从 inlineData 获取图片 (标准格式)
                 if (part['inlineData'] != null &&
@@ -346,26 +444,59 @@ class ImageGenerationService {
                     part['inlineData']['mimeType'].startsWith('image/')) {
                   final b64Json = part['inlineData']['data'];
                   if (b64Json != null) {
-                    return await _saveBase64Image(b64Json);
+                    final path = await _saveBase64Image(b64Json);
+                    imagePaths.add(path);
+                    if (forceUniqueOutput) break;
                   }
                 }
 
                 // 2. 尝试从 text 获取图片 (Markdown 格式: ![image](data:image/jpeg;base64,...))
-                if (part['text'] != null) {
+                if (part['text'] != null &&
+                    (imagePaths.isEmpty || !forceUniqueOutput)) {
                   final text = part['text'] as String;
                   // 匹配 Markdown 图片语法，提取 Base64 数据
                   // 格式通常为: ![image](data:image/jpeg;base64,BASE64_DATA)
                   final regex =
                       RegExp(r'!\[.*?\]\(data:image\/.*?;base64,(.*?)\)');
-                  final match = regex.firstMatch(text);
-                  if (match != null) {
+                  final matches = regex.allMatches(text);
+                  for (final match in matches) {
                     final b64Json = match.group(1);
                     if (b64Json != null) {
                       debugPrint('[ImageGeneration] 从 Markdown 文本中提取到图片数据');
-                      return await _saveBase64Image(b64Json);
+                      final path = await _saveBase64Image(b64Json);
+                      imagePaths.add(path);
+                      if (forceUniqueOutput) break;
+                    }
+                  }
+
+                  // 也尝试提取 URL 格式的图片
+                  if (imagePaths.isEmpty || !forceUniqueOutput) {
+                    final urlRegex =
+                        RegExp(r'!\[.*?\]\((https?:\/\/[^\s\)]+)\)');
+                    final urlMatches = urlRegex.allMatches(text);
+                    for (final urlMatch in urlMatches) {
+                      final imageUrl = urlMatch.group(1);
+                      if (imageUrl != null) {
+                        debugPrint('[ImageGeneration] 从 Markdown 文本中提取到图片 URL');
+                        final path = await _downloadAndSaveImage(imageUrl);
+                        if (path != null) {
+                          imagePaths.add(path);
+                          if (forceUniqueOutput) break;
+                        }
+                      }
                     }
                   }
                 }
+
+                if (forceUniqueOutput && imagePaths.isNotEmpty) break;
+              }
+
+              if (imagePaths.isNotEmpty) {
+                return {
+                  'path': imagePaths.first,
+                  'paths': imagePaths,
+                  ...resultMetadata
+                };
               }
             }
           } else {
@@ -379,15 +510,33 @@ class ImageGenerationService {
           }
         } else {
           // 尝试解析 OpenAI 格式
+          final imagePaths = <String>[];
+
           if (jsonData['data'] != null &&
               (jsonData['data'] as List).isNotEmpty) {
-            final b64Json = jsonData['data'][0]['b64_json'] as String?;
-            final imageUrl = jsonData['data'][0]['url'] as String?;
+            for (final item in jsonData['data']) {
+              final b64Json = item['b64_json'] as String?;
+              final imageUrl = item['url'] as String?;
 
-            if (b64Json != null) {
-              return await _saveBase64Image(b64Json);
-            } else if (imageUrl != null) {
-              return await _downloadAndSaveImage(imageUrl);
+              if (b64Json != null) {
+                final path = await _saveBase64Image(b64Json);
+                imagePaths.add(path);
+                if (forceUniqueOutput) break;
+              } else if (imageUrl != null) {
+                final path = await _downloadAndSaveImage(imageUrl);
+                if (path != null) {
+                  imagePaths.add(path);
+                  if (forceUniqueOutput) break;
+                }
+              }
+            }
+
+            if (imagePaths.isNotEmpty) {
+              return {
+                'path': imagePaths.first,
+                'paths': imagePaths,
+                ...resultMetadata
+              };
             }
           }
           // 2. 尝试解析 Gemini 格式 (NewAPI 转发可能直接返回 Gemini 格式)
@@ -400,33 +549,54 @@ class ImageGenerationService {
                   part['inlineData']['mimeType'].startsWith('image/')) {
                 final b64Json = part['inlineData']['data'];
                 if (b64Json != null) {
-                  return await _saveBase64Image(b64Json);
+                  final path = await _saveBase64Image(b64Json);
+                  imagePaths.add(path);
+                  if (forceUniqueOutput) break;
                 }
               }
               // 2.2 尝试从 text 获取图片 (Markdown 格式)
-              if (part['text'] != null) {
+              if (part['text'] != null &&
+                  (imagePaths.isEmpty || !forceUniqueOutput)) {
                 final text = part['text'] as String;
                 final regex =
                     RegExp(r'!\[.*?\]\(data:image\/.*?;base64,(.*?)\)');
-                final match = regex.firstMatch(text);
-                if (match != null) {
+                final matches = regex.allMatches(text);
+                for (final match in matches) {
                   final b64Json = match.group(1);
                   if (b64Json != null) {
                     debugPrint('[ImageGeneration] 从 Markdown 文本中提取到图片数据');
-                    return await _saveBase64Image(b64Json);
+                    final path = await _saveBase64Image(b64Json);
+                    imagePaths.add(path);
+                    if (forceUniqueOutput) break;
                   }
                 }
                 // 2.3 尝试从 text 获取图片 URL (Markdown 格式)
-                final urlRegex = RegExp(r'!\[.*?\]\((https?:\/\/.*?)\)');
-                final urlMatch = urlRegex.firstMatch(text);
-                if (urlMatch != null) {
-                  final url = urlMatch.group(1);
-                  if (url != null) {
-                    debugPrint('[ImageGeneration] 从 Markdown 文本中提取到图片 URL');
-                    return await _downloadAndSaveImage(url);
+                if (imagePaths.isEmpty || !forceUniqueOutput) {
+                  final urlRegex = RegExp(r'!\[.*?\]\((https?:\/\/[^\s\)]+)\)');
+                  final urlMatches = urlRegex.allMatches(text);
+                  for (final urlMatch in urlMatches) {
+                    final imageUrl = urlMatch.group(1);
+                    if (imageUrl != null) {
+                      debugPrint('[ImageGeneration] 从 Markdown 文本中提取到图片 URL');
+                      final path = await _downloadAndSaveImage(imageUrl);
+                      if (path != null) {
+                        imagePaths.add(path);
+                        if (forceUniqueOutput) break;
+                      }
+                    }
                   }
                 }
               }
+
+              if (forceUniqueOutput && imagePaths.isNotEmpty) break;
+            }
+
+            if (imagePaths.isNotEmpty) {
+              return {
+                'path': imagePaths.first,
+                'paths': imagePaths,
+                ...resultMetadata
+              };
             }
           } else if (jsonData['error'] != null) {
             final error = jsonData['error'];
@@ -511,7 +681,7 @@ class ImageGenerationService {
     if (!await imagesDir.exists()) {
       await imagesDir.create(recursive: true);
     }
-    final fileName = 'img_${DateTime.now().millisecondsSinceEpoch}.png';
+    final fileName = 'img_${StorageUtils.getUniqueTimestamp()}.png';
     final file = File('${imagesDir.path}/$fileName');
     await file.writeAsBytes(bytes);
     return file.path;
@@ -526,7 +696,7 @@ class ImageGenerationService {
         if (!await imagesDir.exists()) {
           await imagesDir.create(recursive: true);
         }
-        final fileName = 'img_${DateTime.now().millisecondsSinceEpoch}.png';
+        final fileName = 'img_${StorageUtils.getUniqueTimestamp()}.png';
         final file = File('${imagesDir.path}/$fileName');
         await file.writeAsBytes(response.bodyBytes);
         return file.path;
