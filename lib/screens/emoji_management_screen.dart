@@ -516,7 +516,8 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
     }
 
     final result = await fp.FilePicker.platform.pickFiles(
-      type: fp.FileType.image,
+      type: fp.FileType.custom,
+      allowedExtensions: ['gif', 'png', 'jpg', 'jpeg', 'webp'],
       allowMultiple: true,
     );
 
@@ -941,7 +942,8 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
     }
 
     final result = await fp.FilePicker.platform.pickFiles(
-      type: fp.FileType.image,
+      type: fp.FileType.custom,
+      allowedExtensions: ['gif', 'png', 'jpg', 'jpeg', 'webp'],
       allowMultiple: true,
     );
 
@@ -1116,7 +1118,8 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
     }
 
     final result = await fp.FilePicker.platform.pickFiles(
-      type: fp.FileType.image,
+      type: fp.FileType.custom,
+      allowedExtensions: ['gif', 'png', 'jpg', 'jpeg', 'webp'],
       allowMultiple: true,
     );
 

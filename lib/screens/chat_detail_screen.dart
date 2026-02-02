@@ -1015,7 +1015,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
           // 底部面板区域 - 使用 Stack 实现蒙版式切换
           // 底层：固定高度的占位区域（键盘或面板空间）
           // 上层：面板内容（表情/扩展），覆盖在键盘上方
-          SizedBox(
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
             height: spacerHeight,
             child: Stack(
               children: [
