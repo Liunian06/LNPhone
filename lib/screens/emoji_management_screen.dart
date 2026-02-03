@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart' as fp;
+import 'package:image_picker/image_picker.dart';
 // ignore: depend_on_referenced_packages
 import 'package:path/path.dart' as p;
 import '../core/models/emoji_model.dart';
@@ -515,23 +516,18 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
       return;
     }
 
-    final result = await fp.FilePicker.platform.pickFiles(
-      type: fp.FileType.custom,
-      allowedExtensions: ['gif', 'png', 'jpg', 'jpeg', 'webp'],
-      allowMultiple: true,
-    );
+    final picker = ImagePicker();
+    final images = await picker.pickMultiImage();
 
-    if (result != null && mounted) {
-      for (final file in result.files) {
-        if (file.path == null) continue;
-
+    if (images.isNotEmpty && mounted) {
+      for (final image in images) {
         final meaningResult =
-            await _showMeaningDialog(context, imagePath: file.path);
+            await _showMeaningDialog(context, imagePath: image.path);
         if (meaningResult == null) continue;
 
         if (mounted) {
           await context.read<EmojiProvider>().addEmoji(
-                filePath: file.path!,
+                filePath: image.path,
                 meaning: meaningResult['meaning']!,
                 type: EmojiType.global,
                 roleId: null,
@@ -941,13 +937,10 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
       return;
     }
 
-    final result = await fp.FilePicker.platform.pickFiles(
-      type: fp.FileType.custom,
-      allowedExtensions: ['gif', 'png', 'jpg', 'jpeg', 'webp'],
-      allowMultiple: true,
-    );
+    final picker = ImagePicker();
+    final images = await picker.pickMultiImage();
 
-    if (result == null || result.files.isEmpty) return;
+    if (images.isEmpty) return;
 
     if (!mounted) return;
     final apiProvider = context.read<ApiSettingsProvider>();
@@ -1005,7 +998,7 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
 
     if (mounted) {
       await context.read<EmojiProvider>().batchImportEmojis(
-            filePaths: result.files.map((f) => f.path!).toList(),
+            filePaths: images.map((img) => img.path).toList(),
             type: EmojiType.global,
             roleId: null,
             onTagging: (path) async {
@@ -1117,13 +1110,10 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
       return;
     }
 
-    final result = await fp.FilePicker.platform.pickFiles(
-      type: fp.FileType.custom,
-      allowedExtensions: ['gif', 'png', 'jpg', 'jpeg', 'webp'],
-      allowMultiple: true,
-    );
+    final picker = ImagePicker();
+    final images = await picker.pickMultiImage();
 
-    if (result == null || result.files.isEmpty) return;
+    if (images.isEmpty) return;
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1131,7 +1121,7 @@ class _EmojiManagementScreenState extends State<EmojiManagementScreen>
     );
 
     await context.read<EmojiProvider>().pureBatchImportEmojis(
-          filePaths: result.files.map((f) => f.path!).toList(),
+          filePaths: images.map((img) => img.path).toList(),
           type: EmojiType.global,
           roleId: null,
         );

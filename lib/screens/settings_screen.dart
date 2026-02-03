@@ -17,6 +17,7 @@ import '../core/data/grid_default_apps.dart';
 import '../core/utils/storage_utils.dart';
 import '../core/services/api_log_service.dart';
 import '../core/services/app_log_service.dart';
+import '../core/services/json_export_service.dart';
 import '../core/database/database.dart';
 import '../widgets/ios_wallpaper.dart';
 import 'api_settings_screen.dart';
@@ -337,10 +338,20 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
                           onTap: _showStorageInfo,
                         ),
                         SettingsTile(
-                          title: '导出数据',
-                          subtitle: '导出所有个性化设置',
+                          title: '导出数据 (ZIP)',
+                          subtitle: '备份所有设置和资源',
                           icon: CupertinoIcons.square_arrow_up_fill,
                           onTap: _exportSettings,
+                        ),
+                        SettingsTile(
+                          title: '导出明文数据 (JSON)',
+                          subtitle: '导出可读的文本数据',
+                          icon: CupertinoIcons.doc_text,
+                          onTap: _exportToJson,
+                          iconGradient: const [
+                            Color(0xFFFDC830),
+                            Color(0xFFF37335)
+                          ],
                         ),
                         SettingsTile(
                           title: '导入数据',
@@ -476,6 +487,120 @@ class _DataManagementScreenState extends State<DataManagementScreen> {
         builder: (context) => const StorageStatisticsScreen(),
       ),
     );
+  }
+
+  void _exportToJson() async {
+    try {
+      final jsonService = JsonExportService();
+      final summary = await jsonService.getExportSummary();
+
+      if (!mounted) return;
+
+      // 准备摘要信息
+      final chatCount =
+          (summary['chats'] as Map<String, dynamic>)['sessionCount'];
+      final msgCount =
+          (summary['chats'] as Map<String, dynamic>)['messageCount'];
+      final contactCount =
+          (summary['contacts'] as Map<String, dynamic>)['roleCount'] +
+              (summary['contacts'] as Map<String, dynamic>)['meCount'];
+
+      // 确认导出
+      final confirm = await showCupertinoDialog<bool>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('导出明文数据'),
+          content: Text(
+              '即将导出以下数据为 JSON 格式：\n\n• $contactCount 个联系人\n• $chatCount 个会话 ($msgCount 条消息)\n• 朋友圈、钱包、预设等数据\n\n导出的文件可供开发者分析或数据迁移，图片已以 Base64 编码存储。'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('取消'),
+              onPressed: () => Navigator.pop(context, false),
+            ),
+            CupertinoDialogAction(
+              child: const Text('导出'),
+              onPressed: () => Navigator.pop(context, true),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+
+      // 执行导出
+      final filePath = await jsonService.exportToJson();
+
+      if (!mounted) return;
+
+      // 显示选择导出方式
+      final action = await showCupertinoModalPopup<int>(
+        context: context,
+        builder: (context) => CupertinoActionSheet(
+          title: const Text('导出成功'),
+          message: const Text('选择导出方式'),
+          actions: [
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, 0),
+              child: const Text('系统分享'),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, 1),
+              child: const Text('保存到文件'),
+            ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+        ),
+      );
+
+      if (action == null) return;
+
+      if (action == 0) {
+        // 系统分享
+        await Share.shareXFiles(
+          [XFile(filePath)],
+          subject: 'LNPhone JSON 数据导出',
+          text: '这是 LNPhone 的明文数据导出文件',
+        );
+      } else {
+        // 保存到文件
+        final params = SaveFileDialogParams(sourceFilePath: filePath);
+        final savedPath = await FlutterFileDialog.saveFile(params: params);
+
+        if (savedPath != null && mounted) {
+          showCupertinoDialog(
+            context: context,
+            builder: (context) => CupertinoAlertDialog(
+              title: const Text('保存成功'),
+              content: const Text('文件已保存'),
+              actions: [
+                CupertinoDialogAction(
+                  child: const Text('确定'),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      showCupertinoDialog(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('导出失败'),
+          content: Text('错误：$e'),
+          actions: [
+            CupertinoDialogAction(
+              child: const Text('确定'),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   void _exportSettings() async {
@@ -2058,7 +2183,8 @@ class _ExportManagementScreenState extends State<ExportManagementScreen> {
             name.startsWith('app_logs_') ||
             name.startsWith('emojis_export_') ||
             name.startsWith('backup_') ||
-            name.startsWith('LNPhone-Backup-')) {
+            name.startsWith('LNPhone-Backup-') ||
+            name.startsWith('LNPhone-Export-')) {
           results.add(entity);
         }
       }
