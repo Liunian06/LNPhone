@@ -291,7 +291,8 @@ class EmojiProvider extends ChangeNotifier {
 
         await Future.wait(chunk.map((emoji) async {
           try {
-            final tags = await onTagging(emoji.localPath);
+            final absPath = await StorageUtils.toAbsolutePath(emoji.localPath);
+            final tags = await onTagging(absPath);
             final updatedEmoji = EmojiModel(
               id: emoji.id,
               meaning: tags['simple_content'] ?? emoji.meaning,
@@ -588,11 +589,11 @@ class EmojiProvider extends ChangeNotifier {
     }
   }
 
-  /// 同步检查表情是否有效且文件存在
+  /// 同步检查表情是否存在于表情库中
+  /// 注意：此方法仅检查数据库记录，不检查文件是否存在
+  /// 文件存在性检查由 UI 层（如 EmojiBubble）通过 StorageUtils.ensureFileExists 异步处理
   bool isEmojiValidSync(String id) {
-    final emoji = _allEmojis.where((e) => e.id == id).firstOrNull;
-    if (emoji == null) return false;
-    return File(emoji.localPath).existsSync();
+    return _allEmojis.any((e) => e.id == id);
   }
 
   // --- 导入导出 ---

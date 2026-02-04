@@ -1,0 +1,37 @@
+{
+    "id": "chatcmpl-20260202230420538850615ypIhY3KH",
+    "model": "gemini-3-pro-image-preview",
+    "object": "chat.completion",
+    "created": 1770044679,
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "![image](data:image/jpeg;base64,/9j/4AAQZJRgAB……WikmtVttfW3U//9k=)"
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "usage": {
+        "prompt_tokens": 10,
+        "completion_tokens": 1369,
+        "total_tokens": 1379,
+        "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "text_tokens": 10,
+            "audio_tokens": 0,
+            "image_tokens": 0
+        },
+        "completion_tokens_details": {
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "reasoning_tokens": 159
+        },
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "input_tokens_details": null,
+        "claude_cache_creation_5_m_tokens": 0,
+        "claude_cache_creation_1_h_tokens": 0
+    }
+}
