@@ -1522,7 +1522,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                     imageStylePresetId:
                         chat.textPresetIds.cast<String?>().firstWhere(
                               (id) => chatProvider.textPresets.any((p) =>
-                                  p.id == id && p.type == TextPresetType.image),
+                                  p.id == id &&
+                                  (p.type == TextPresetType.image ||
+                                      p.type == 'image')),
                               orElse: () => null,
                             ),
                     initialScene: scene,
@@ -1635,8 +1637,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       enableEmoji: chat.enableEmoji,
       imageApiPresetId: chat.imageApiPresetId,
       imageStylePresetId: chat.textPresetIds.cast<String?>().firstWhere(
-            (id) => chatProvider.textPresets
-                .any((p) => p.id == id && p.type == TextPresetType.image),
+            (id) => chatProvider.textPresets.any((p) =>
+                p.id == id &&
+                (p.type == TextPresetType.image || p.type == 'image')),
             orElse: () => null,
           ),
       delayedReplySeconds: promptProvider.delayedReplySeconds,
@@ -1821,8 +1824,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       enableEmoji: chat.enableEmoji,
       imageApiPresetId: chat.imageApiPresetId,
       imageStylePresetId: chat.textPresetIds.cast<String?>().firstWhere(
-            (id) => chatProvider.textPresets
-                .any((p) => p.id == id && p.type == TextPresetType.image),
+            (id) => chatProvider.textPresets.any((p) =>
+                p.id == id &&
+                (p.type == TextPresetType.image || p.type == 'image')),
             orElse: () => null,
           ),
       delayedReplySeconds:
@@ -1931,6 +1935,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                   ? () {
                       _removeOverlay();
                       _showOriginalPromptDialog(message);
+                    }
+                  : null,
+              onRegenerateImage: message.type == MessageType.image &&
+                      message.metadata != null &&
+                      message.metadata!.containsKey('original_prompt')
+                  ? () {
+                      _removeOverlay();
+                      _handleRegenerateImage(message);
                     }
                   : null,
             ),
@@ -2086,6 +2098,74 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     context.read<ChatProvider>().deleteMessage(messageId);
   }
 
+  void _handleRegenerateImage(ChatMessage message) async {
+    final prompt = message.metadata?['original_prompt'] as String? ?? '';
+    if (prompt.isEmpty) return;
+
+    final genMetadata =
+        message.metadata?['image_gen_metadata'] as Map<String, dynamic>?;
+
+    final chatProvider = context.read<ChatProvider>();
+    final apiProvider = context.read<ApiSettingsProvider>();
+    final chat = chatProvider.getChat(widget.chatId);
+    if (chat == null) return;
+
+    // 获取 API 预设
+    ApiPreset? imageApiPreset;
+    if (genMetadata != null && genMetadata.containsKey('api_preset_id')) {
+      final presetId = genMetadata['api_preset_id'] as String;
+      try {
+        imageApiPreset =
+            apiProvider.presets.firstWhere((p) => p.id == presetId);
+      } catch (e) {
+        // 找不到原预设，回退
+      }
+    }
+
+    if (imageApiPreset == null) {
+      if (chat.imageApiPresetId != null && chat.imageApiPresetId!.isNotEmpty) {
+        try {
+          imageApiPreset = apiProvider.presets
+              .firstWhere((p) => p.id == chat.imageApiPresetId);
+        } catch (e) {}
+      }
+    }
+
+    imageApiPreset ??= apiProvider.activePreset;
+
+    if (imageApiPreset == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('无法找到可用的 API 预设')),
+      );
+      return;
+    }
+
+    // 显示进度提示
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+          content: Text('正在重新生成图片...'), duration: Duration(seconds: 2)),
+    );
+
+    try {
+      await chatProvider.regenerateImageMessage(
+        chatId: widget.chatId,
+        messageId: message.id,
+        prompt: prompt,
+        apiPreset: imageApiPreset,
+        stylePresetName: genMetadata?['style_preset_name'],
+        stylePrompt: genMetadata?['style_prompt'],
+        characterAppearance: genMetadata?['character_appearance'],
+        userAppearance: genMetadata?['user_appearance'],
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('重新生成失败: $e')),
+        );
+      }
+    }
+  }
+
   /// 显示回溯确认对话框
   /// 注意：所有设置现在从数据库读取，SharedPreferences 已被弃用
   void _showBacktrackDialog(ChatMessage message) async {
@@ -2237,8 +2317,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       enableEmoji: chat.enableEmoji,
       imageApiPresetId: chat.imageApiPresetId,
       imageStylePresetId: chat.textPresetIds.cast<String?>().firstWhere(
-            (id) => chatProvider.textPresets
-                .any((p) => p.id == id && p.type == TextPresetType.image),
+            (id) => chatProvider.textPresets.any((p) =>
+                p.id == id &&
+                (p.type == TextPresetType.image || p.type == 'image')),
             orElse: () => null,
           ),
       delayedReplySeconds: 0, // 回溯后通常立即回复

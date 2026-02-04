@@ -186,8 +186,9 @@ class ScenarioHistoryScreen extends StatelessWidget {
           apiPreset: activePreset!,
           imageApiPresetId: session.imageApiPresetId,
           imageStylePresetId: session.textPresetIds.cast<String?>().firstWhere(
-                (id) => chatProvider.textPresets
-                    .any((p) => p.id == id && p.type == TextPresetType.image),
+                (id) => chatProvider.textPresets.any((p) =>
+                    p.id == id &&
+                    (p.type == TextPresetType.image || p.type == 'image')),
                 orElse: () => null,
               ),
         ),

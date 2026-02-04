@@ -97,9 +97,11 @@ class ImageGenerationService {
       } else {
         // 否则根据预设 ID 获取
         // 获取当前选定的生图预设
-        String? activePresetId = imageStylePresetId ??
-            await _db.getSetting('active_image_preset_id');
-        if (activePresetId == null) {
+        String? activePresetId = imageStylePresetId;
+        if (activePresetId == null || activePresetId.isEmpty) {
+          activePresetId = await _db.getSetting('active_image_preset_id');
+        }
+        if (activePresetId == null || activePresetId.isEmpty) {
           // 兼容旧版本
           final oldStyle = await _db.getSetting('text2image_style');
           if (oldStyle != null) {
@@ -241,6 +243,11 @@ class ImageGenerationService {
 
       final headers = {
         'Content-Type': 'application/json',
+        // 添加浏览器特征头以绕过 Cloudflare 基本检查
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
       };
 
       if (preset.provider != ApiProvider.gemini) {
@@ -689,7 +696,16 @@ class ImageGenerationService {
 
   Future<String?> _downloadAndSaveImage(String url) async {
     try {
-      final response = await http.get(Uri.parse(url));
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept':
+              'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
+        },
+      );
       if (response.statusCode == 200) {
         final directory = await getApplicationDocumentsDirectory();
         final imagesDir = Directory('${directory.path}/generated_images');
