@@ -576,6 +576,13 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// 更新消息类型
+  Future<void> updateMessageType(String id, MessageType type) {
+    return (update(chatMessages)..where((t) => t.id.equals(id))).write(
+      ChatMessagesCompanion(type: Value(type)),
+    );
+  }
+
   /// 标记消息为已读
   Future<void> markMessageAsRead(String id) {
     return (update(chatMessages)..where((t) => t.id.equals(id))).write(

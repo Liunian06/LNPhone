@@ -616,7 +616,7 @@ class ImageGenerationService {
             );
             // 抛出异常以便上层捕获
             if (error is Map && error['message'] != null) {
-              throw Exception(error['message']);
+              throw Exception('${error['message']}');
             } else {
               throw Exception(error.toString());
             }
@@ -655,6 +655,9 @@ class ImageGenerationService {
           modelId: preset.model,
           durationSeconds: durationSeconds,
         ));
+        return {
+          'error': 'API 请求失败: HTTP ${response.statusCode} ${response.body}'
+        };
       }
     } catch (e) {
       debugPrint('[ImageGeneration] 生成图片异常: $e');
@@ -677,6 +680,7 @@ class ImageGenerationService {
           error: e.toString(),
         ));
       }
+      return {'error': '发生异常: $e'};
     }
     return null;
   }

@@ -1284,6 +1284,97 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
+  /// 重新生成图片消息内容
+  Future<void> regenerateImageMessage({
+    required String chatId,
+    required String messageId,
+    required String prompt,
+    required ApiPreset apiPreset,
+    String? stylePresetName,
+    String? stylePrompt,
+    String? characterAppearance,
+    String? userAppearance,
+  }) async {
+    _typingStates[chatId] = true;
+    notifyListeners();
+
+    try {
+      // 1. 设置生图上下文（角色和用户信息，用于获取参考图）
+      final chat = getChat(chatId);
+      if (chat != null) {
+        final role = await _database.getContactRole(chat.roleId);
+        final me = await _database.getContactMe(chat.meId);
+        ImageGenerationService().setCurrentContext(role, me);
+      }
+
+      // 2. 调用生图服务重新生成图片
+      final result = await ImageGenerationService().generateImage(
+        prompt,
+        stylePrompt,
+        includeCharacter: characterAppearance != null,
+        includeUser: userAppearance != null,
+        imageApiPresetId: apiPreset.id,
+      );
+
+      if (result != null && result['path'] != null) {
+        final String newPath = result['path'];
+        // 转换为相对路径存储
+        final relativePath = await StorageUtils.toRelativePath(newPath);
+
+        // 2. 更新消息内容和元数据
+        final chat = getChat(chatId);
+        if (chat != null) {
+          final msgIndex = chat.messages.indexWhere((m) => m.id == messageId);
+          if (msgIndex != -1) {
+            final oldMsg = chat.messages[msgIndex];
+            final newMetadata =
+                Map<String, dynamic>.from(oldMsg.metadata ?? {});
+
+            // 更新元数据中的生图详情
+            newMetadata['image_gen_metadata'] = {
+              'api_preset_id': apiPreset.id,
+              'api_preset_name': result['api_preset_name'] ?? apiPreset.name,
+              'style_preset_name':
+                  result['style_preset_name'] ?? stylePresetName,
+              'style_prompt': result['style_prompt'] ?? stylePrompt,
+              'character_appearance':
+                  result['character_appearance'] ?? characterAppearance,
+              'user_appearance': result['user_appearance'] ?? userAppearance,
+              'ref_image_paths': result['ref_image_paths'],
+            };
+
+            await updateMessageMetadata(messageId, newMetadata);
+            // 关键：更新内存中的消息类型，因为之前可能是 words (失败提示)
+            oldMsg.metadata?['image_gen_metadata'] =
+                newMetadata['image_gen_metadata'];
+            final updatedMsg = ChatMessage(
+              id: oldMsg.id,
+              isMe: oldMsg.isMe,
+              sender: oldMsg.sender,
+              type: MessageType.image,
+              content: relativePath,
+              timestamp: oldMsg.timestamp,
+              metadata: newMetadata,
+              isRead: oldMsg.isRead,
+            );
+            chat.messages[msgIndex] = updatedMsg;
+
+            await _database.updateMessageContent(messageId, relativePath);
+            await _database.updateMessageType(messageId, MessageType.image);
+            await _database.updateMessageMetadata(messageId, newMetadata);
+
+            await _refreshChats();
+          }
+        }
+      } else {
+        throw Exception('生图失败，返回结果为空');
+      }
+    } finally {
+      _typingStates[chatId] = false;
+      notifyListeners();
+    }
+  }
+
   int _calculateTypingDelay(int textLength) {
     if (textLength <= 10) {
       return textLength * 100;

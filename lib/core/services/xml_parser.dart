@@ -365,7 +365,9 @@ class ResponseParser {
           metadata['image_gen_metadata'] = imageResult;
           type = MessageType.image;
         } else {
-          content = '图片生成失败';
+          final errorMsg =
+              imageResult != null ? (imageResult['error'] ?? '未知错误') : '生成结果为空';
+          content = '图片生成失败：$errorMsg';
           type = MessageType.words; // 降级为文本
           metadata['original_prompt'] = item['content'] as String? ?? '';
         }
@@ -805,7 +807,9 @@ class ResponseParser {
           // 将生图元数据存入消息元数据
           metadata['image_gen_metadata'] = imageResult;
         } else {
-          finalContent = '图片生成失败';
+          final errorMsg =
+              imageResult != null ? (imageResult['error'] ?? '未知错误') : '生成结果为空';
+          finalContent = '图片生成失败：$errorMsg';
           finalType = MessageType.words;
           metadata['original_prompt'] = content;
         }

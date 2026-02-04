@@ -1939,7 +1939,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                   : null,
               onRegenerateImage: (message.type == MessageType.image ||
                           (message.type == MessageType.words &&
-                              message.content == '图片生成失败')) &&
+                              message.content.startsWith('图片生成失败'))) &&
                       message.metadata != null &&
                       message.metadata!.containsKey('original_prompt')
                   ? () {
