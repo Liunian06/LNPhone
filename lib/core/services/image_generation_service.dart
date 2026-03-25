@@ -266,10 +266,11 @@ class ImageGenerationService {
         for (final imagePath in refImagePaths) {
           final base64 = await ImageUtils.imageToBase64(imagePath);
           if (base64 != null) {
+            final mimeType = await ImageUtils.getMimeType(imagePath);
             debugPrint('[ImageGeneration] 添加参考图: $imagePath');
             parts.add({
               "inline_data": {
-                "mime_type": ImageUtils.getMimeType(imagePath),
+                "mime_type": mimeType,
                 "data": base64
               }
             });

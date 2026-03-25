@@ -459,9 +459,10 @@ class LlmService {
           for (var path in images) {
             final base64 = await ImageUtils.imageToBase64(path);
             if (base64 != null) {
+              final mimeType = await ImageUtils.getMimeType(path);
               imageDataList.add({
                 'data': base64,
-                'mime': ImageUtils.getMimeType(path),
+                'mime': mimeType,
               });
             }
           }
@@ -1281,7 +1282,7 @@ class LlmService {
     if (base64Image == null) {
       throw Exception('无法读取图片文件');
     }
-    String mimeType = ImageUtils.getMimeType(imagePath);
+    String mimeType = await ImageUtils.getMimeType(imagePath);
 
     // 关键修复：处理 GIF 不支持的问题
     // 大多数多模态 API 不支持 image/gif。

@@ -23,6 +23,7 @@ import '../services/notification_service.dart';
 import '../services/background_service.dart';
 import '../services/image_generation_service.dart';
 import '../database/database.dart' as db;
+import '../utils/image_utils.dart';
 import '../utils/storage_utils.dart';
 
 class ChatProvider extends ChangeNotifier {
@@ -729,15 +730,18 @@ class ChatProvider extends ChangeNotifier {
 
       if (!sourcePath.startsWith(appDir.path)) {
         final timestamp = _generateId();
-        final fileName = 'chat_bg_${id}_$timestamp.jpg';
+        final mimeType =
+            ImageUtils.detectMimeTypeFromBytes(bytes, pathHint: sourcePath);
+        final extension = ImageUtils.extensionForMimeType(mimeType);
+        final fileName = 'chat_image_${id}_$timestamp$extension';
         final savedImage = await sourceFile.copy('${appDir.path}/$fileName');
         finalPath = savedImage.path;
-        debugPrint('[ChatProvider] 背景图已从临时路径物理移动到持久化目录: $finalPath');
+        debugPrint('[ChatProvider] 图片已从临时路径复制到持久化目录: $finalPath');
       }
 
       return (path: finalPath, data: bytes);
     } catch (e) {
-      debugPrint('[ChatProvider] 处理背景图失败: $e');
+      debugPrint('[ChatProvider] 处理图片失败: $e');
       return null;
     }
   }
