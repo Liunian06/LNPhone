@@ -5,14 +5,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../database/database.dart';
 import '../models/api_preset.dart';
 import '../models/moments_model.dart';
 import '../models/chat_model.dart';
 import '../models/prompt_config.dart';
+import '../models/background_reply_model.dart';
 import '../services/llm_service.dart';
 import '../services/app_log_service.dart';
+import '../services/notification_service.dart';
+import '../services/background_permission_service.dart';
+import '../services/background_reply_scheduler_service.dart';
 import 'package:drift/drift.dart' as drift;
 import '../utils/storage_utils.dart';
 
@@ -25,10 +28,22 @@ class TimeoutException implements Exception {
   String toString() => message;
 }
 
+class _BackgroundReplyTriggerResult {
+  final bool success;
+  final bool disableSessionDueToFailure;
+  final String? error;
+
+  const _BackgroundReplyTriggerResult({
+    required this.success,
+    this.disableSessionDueToFailure = false,
+    this.error,
+  });
+}
+
 @pragma('vm:entry-point')
 class BackgroundService {
-  static const String _lastActiveTimeKey = 'last_active_time';
-  static const String _lastBackgroundCheckKey = 'last_background_check_time';
+  static const String _lastActiveTimeKey =
+      BackgroundReplySchedulerService.lastActiveTimeKey;
 
   static Future<void> initializeService() async {
     // 注意：权限请求移到后面，避免阻塞服务初始化
@@ -79,6 +94,7 @@ class BackgroundService {
 
   // 后台 Isolate 中的通知插件实例
   static FlutterLocalNotificationsPlugin? _bgNotificationsPlugin;
+  static Timer? _nextDueTimer;
 
   @pragma('vm:entry-point')
   static void onStart(ServiceInstance service) async {
@@ -111,138 +127,152 @@ class BackgroundService {
 
     service.on('force_check').listen((event) async {
       // 确保在后台 Isolate 中也能收到日志
-      print('[BG] 收到强制检查指令 (Isolate: ${Isolate.current.debugName})');
+      debugPrint(
+        '[BG] 收到强制检查指令 (Isolate: ${Isolate.current.debugName})',
+      );
       try {
-        await _checkAndTriggerActiveReply(force: true);
+        await _checkAndTriggerActiveReply(
+          force: true,
+          triggerSource: 'force_check',
+        );
       } catch (e, stack) {
-        print('[BG] 强制检查执行失败: $e\n$stack');
+        debugPrint('[BG] 强制检查执行失败: $e\n$stack');
       }
     });
 
-    // 定时检查任务
-    Timer.periodic(const Duration(minutes: 1), (timer) async {
+    service.on('run_due_tasks').listen((event) async {
       try {
-        if (service is AndroidServiceInstance) {
-          if (await service.isForegroundService()) {
-            // 更新通知内容，显示服务正在运行
-            // service.setForegroundNotificationInfo(
-            //   title: "AI Phone Service",
-            //   content: "Checking for active replies...",
-            // );
-          }
-        }
-
-        await _checkAndTriggerActiveReply();
+        final triggerSource = event?['triggerSource'] as String? ??
+            'service_event_run_due_tasks';
+        await _checkAndTriggerActiveReply(
+          force: false,
+          triggerSource: triggerSource,
+        );
       } catch (e) {
-        debugPrint('Error in background service timer: $e');
+        debugPrint('[BG] run_due_tasks 失败: $e');
       }
     });
+
+    await _checkAndTriggerActiveReply(
+      force: false,
+      triggerSource: 'service_start',
+    );
   }
 
-  static Future<void> _checkAndTriggerActiveReply({bool force = false}) async {
+  static Future<void> _checkAndTriggerActiveReply({
+    bool force = false,
+    String triggerSource = 'background_scheduler',
+  }) async {
     try {
-      debugPrint('[BG] ========== 后台检查开始 (Force: $force) ==========');
+      debugPrint(
+        '[BG] ========== 后台任务检查开始 (Force: $force, Source: $triggerSource) ==========',
+      );
 
-      // 记录后台检查开始日志
       await AppLogService.logBackgroundCheckStart(force: force);
-
-      // 注意：所有设置现在从数据库读取，SharedPreferences 已被弃用
       final db = AppDatabase();
-
-      // 1. 检查是否开启了后台主动回复（从数据库读取）
       final enableActiveReply =
           await db.getSettingBool('enable_background_active_reply') ?? true;
-      debugPrint('[BG] 后台主动回复开关: $enableActiveReply');
       if (!enableActiveReply && !force) {
-        debugPrint('[BG] 后台主动回复已关闭，跳过检查');
         await AppLogService.logBackgroundSkip('后台主动回复已关闭');
+        _cancelNextDueTimer();
+        _serviceInstance?.invoke('cancel_background_reply_wakeup');
         return;
       }
 
-      // 2. 获取配置的间隔时间 (分钟)（从数据库读取）
-      final intervalMinutes =
-          await db.getSettingInt('background_active_reply_interval') ?? 60;
-      final intervalMillis = intervalMinutes * 60 * 1000;
-      debugPrint('[BG] 配置的间隔时间: $intervalMinutes 分钟 ($intervalMillis 毫秒)');
-
-      // 3. 获取上次活跃时间（从数据库读取）
-      final lastActiveTime = await db.getSettingInt(_lastActiveTimeKey) ?? 0;
-      final currentTime = StorageUtils.getUniqueTimestamp();
-      final inactiveTime = currentTime - lastActiveTime;
-      debugPrint('[BG] 上次活跃时间: $lastActiveTime');
-      debugPrint('[BG] 当前时间: $currentTime');
-      debugPrint('[BG] 不活跃时长: ${inactiveTime ~/ 1000} 秒');
-
-      // 记录后台检查设置日志
-      await AppLogService.logBackgroundCheckSettings(
-        enableActiveReply: enableActiveReply,
-        intervalMinutes: intervalMinutes,
-        lastActiveTime: lastActiveTime,
-        currentTime: currentTime,
+      final permissionSnapshot =
+          await BackgroundPermissionService.getPersistedSnapshot();
+      final syncedNextWakeup =
+          await BackgroundReplySchedulerService.syncAllTasksFromStoredPermissions(
+        triggerSource: '${triggerSource}_sync',
       );
 
-      // 4. 检查是否满足触发条件：当前时间 - 上次活跃时间 > 间隔时间
-      // 如果是强制检查，则忽略全局活跃时间限制，但仍然检查会话的最后消息时间（或者也忽略？）
-      // 这里我们策略是：强制检查时，忽略全局活跃时间，但对会话仍然要求有一定的间隔（防止刷屏），
-      // 或者我们可以让强制检查也忽略会话间隔？
-      // 为了测试方便，强制检查时我们把 interval 视为 0 (即立即触发)
-      final effectiveInterval = force ? 0 : intervalMillis;
-
-      // 增加日志：输出详细的时间比较信息
-      debugPrint(
-          '[BG] 检查条件: currentTime($currentTime) - lastActiveTime($lastActiveTime) = $inactiveTime > effectiveInterval($effectiveInterval)');
-
-      if (currentTime - lastActiveTime > effectiveInterval) {
-        debugPrint('[BG] 满足全局触发条件，开始检查会话');
-        // 获取所有会话
-        final sessions = await db.getAllSessions();
-        debugPrint('[BG] 总会话数: ${sessions.length}');
-
-        for (final session in sessions) {
-          debugPrint('[BG] 检查会话: ${session.id}');
-          // 获取该会话最后一条消息的时间
-          final lastMessage = await db.getLastMessage(session.id);
-          if (lastMessage != null) {
-            final lastMessageTime = lastMessage.timestamp;
-            final sessionInactiveTime = currentTime - lastMessageTime;
-            debugPrint('[BG] 会话 ${session.id} 最后消息时间: $lastMessageTime');
-            debugPrint(
-              '[BG] 会话 ${session.id} 不活跃时长: ${sessionInactiveTime ~/ 1000} 秒 (阈值: ${effectiveInterval ~/ 1000} 秒)',
-            );
-
-            // 优化：无论最后一条消息是谁发送的，只要超过了设定的间隔时间，就允许 AI 主动发言。
-            if (!lastMessage.isMe) {
-              debugPrint('[BG] 会话 ${session.id} 用户未回应 AI，准备追问');
-            }
-
-            final willTrigger =
-                currentTime - lastMessageTime > effectiveInterval;
-
-            // 记录会话检查日志
-            await AppLogService.logBackgroundSessionCheck(
-              sessionId: session.id,
-              lastMessageTime: lastMessageTime,
-              currentTime: currentTime,
-              willTrigger: willTrigger,
-            );
-
-            if (willTrigger) {
-              debugPrint('[BG] 会话 ${session.id} 满足条件，触发 AI 回复');
-              // 触发 AI 回复
-              await _triggerAiReply(db, session);
-            } else {
-              debugPrint('[BG] 会话 ${session.id} 不满足条件，跳过');
-            }
-          } else {
-            debugPrint('[BG] 会话 ${session.id} 没有消息记录');
-          }
-        }
-        debugPrint('[BG] 所有会话检查完成');
-      } else {
-        debugPrint('[BG] 不满足触发条件（需要不活跃 ${intervalMinutes} 分钟），跳过检查');
-        await AppLogService.logBackgroundSkip('用户活跃时间未达到间隔阈值');
+      if (!permissionSnapshot.hasBaseRequirements && !force) {
+        await AppLogService.logBackgroundSkip('后台权限链未满足，任务已暂停');
+        await _scheduleNextDueTask(
+          nextTriggerAt: syncedNextWakeup,
+          triggerSource: triggerSource,
+        );
+        return;
       }
-      debugPrint('[BG] ========== 后台检查结束 ==========');
+
+      final currentTime = StorageUtils.getUniqueTimestamp();
+      final dueTasks = force
+          ? (await db.getAllBackgroundReplyTasks())
+              .where((task) => task.enabled)
+              .take(3)
+              .toList()
+          : await db.getDueBackgroundReplyTasks(currentTime, limit: 3);
+
+      if (dueTasks.isEmpty) {
+        await AppLogService.logBackgroundSkip('当前没有到期的后台任务');
+        await _scheduleNextDueTask(
+          nextTriggerAt: syncedNextWakeup,
+          triggerSource: triggerSource,
+        );
+        return;
+      }
+
+      for (final task in dueTasks) {
+        final session = await db.getChatSessionEntity(task.sessionId);
+        if (session == null) {
+          await AppLogService.warning(
+            '后台任务关联会话不存在，已删除任务',
+            category: 'Scheduler',
+            data: {'sessionId': task.sessionId},
+          );
+          await db.deleteBackgroundReplyTaskBySessionId(task.sessionId);
+          continue;
+        }
+
+        await db.updateBackgroundReplyTaskState(
+          task.sessionId,
+          status: BackgroundReplyTaskStatus.running,
+          enabled: true,
+          lastAttemptAt: currentTime,
+          triggerSource: triggerSource,
+        );
+        await db.updateSessionBackgroundReplySettings(
+          task.sessionId,
+          backgroundReplyStatus: 'running',
+        );
+
+        final result = await _triggerAiReply(
+          db,
+          session,
+          triggerSource: triggerSource,
+        );
+
+        if (result.disableSessionDueToFailure) {
+          await BackgroundReplySchedulerService.disableSessionDueToApiFailure(
+            task.sessionId,
+            reason: result.error ?? '后台主动回复失败',
+          );
+          continue;
+        }
+
+        if (!result.success) {
+          await db.updateBackgroundReplyTaskState(
+            task.sessionId,
+            status: BackgroundReplyTaskStatus.pending,
+            enabled: true,
+            triggerSource: triggerSource,
+          );
+          await AppLogService.warning(
+            '后台任务执行未成功，但未触发熔断',
+            category: 'Background',
+            data: {'sessionId': task.sessionId, 'triggerSource': triggerSource},
+          );
+        }
+      }
+
+      final nextWakeup =
+          await BackgroundReplySchedulerService.syncAllTasksFromStoredPermissions(
+        triggerSource: '${triggerSource}_post_run',
+      );
+      await _scheduleNextDueTask(
+        nextTriggerAt: nextWakeup,
+        triggerSource: triggerSource,
+      );
       await AppLogService.logBackgroundCheckEnd();
     } catch (e, stackTrace) {
       debugPrint('[BG] ❌ 后台检查出错: $e');
@@ -253,10 +283,11 @@ class BackgroundService {
 
   /// 触发 AI 回复
   /// 注意：所有设置现在从数据库读取，SharedPreferences 已被弃用
-  static Future<void> _triggerAiReply(
+  static Future<_BackgroundReplyTriggerResult> _triggerAiReply(
     AppDatabase db,
-    ChatSession session,
-  ) async {
+    ChatSessionEntity session, {
+    required String triggerSource,
+  }) async {
     try {
       debugPrint('[BG] >>> 开始为会话 ${session.id} 生成 AI 回复');
 
@@ -268,11 +299,11 @@ class BackgroundService {
 
       if (role == null) {
         debugPrint('[BG] ❌ 未找到角色信息，roleId=${session.roleId}');
-        return;
+        return const _BackgroundReplyTriggerResult(success: false);
       }
       if (me == null) {
         debugPrint('[BG] ❌ 未找到用户信息，meId=${session.meId}');
-        return;
+        return const _BackgroundReplyTriggerResult(success: false);
       }
       debugPrint('[BG] ✓ 角色: ${role.name}, 用户: ${me.name}');
 
@@ -308,7 +339,8 @@ class BackgroundService {
 
       // 加载 API Preset（从数据库读取）
       debugPrint('[BG] 加载 API Preset...');
-      final currentApiId = await db.getSetting('active_preset_id');
+      final currentApiId =
+          session.apiPresetId ?? await db.getSetting('active_preset_id');
       debugPrint('[BG] 当前 API ID: $currentApiId');
 
       ApiPreset? apiPreset;
@@ -336,7 +368,7 @@ class BackgroundService {
 
       if (apiPreset == null) {
         debugPrint('[BG] ❌ 没有可用的 API Preset，无法生成回复');
-        return;
+        return const _BackgroundReplyTriggerResult(success: false);
       }
 
       // 获取历史消息
@@ -470,12 +502,37 @@ class BackgroundService {
           debugPrint('[BG] ✓ 消息已保存');
 
           // 直接在后台 Isolate 中发送通知（不依赖 IPC，更可靠）
-          if (msg.type == MessageType.words) {
+          final notificationBody = _buildNotificationBody(msg);
+          if (notificationBody != null) {
             debugPrint('[BG] 直接发送通知: ${role.name}');
+            final notificationId = _nextNotificationId();
             await _showNotificationDirectly(
               title: role.name,
-              message: msg.content,
-              id: StorageUtils.getUniqueTimestamp() % 100000,
+              message: notificationBody,
+              id: notificationId,
+            );
+            _serviceInstance?.invoke('show_notification', {
+              'title': role.name,
+              'message': notificationBody,
+              'id': notificationId,
+            });
+            await AppLogService.log(
+              '后台消息已通过双通道通知派发',
+              category: 'Notification',
+              data: {
+                'sessionId': session.id,
+                'notificationId': notificationId,
+                'messageType': msg.type.name,
+              },
+            );
+          } else {
+            await AppLogService.warning(
+              '后台消息已生成，但当前类型不会触发通知',
+              category: 'Notification',
+              data: {
+                'sessionId': session.id,
+                'messageType': msg.type.name,
+              },
             );
           }
 
@@ -514,6 +571,25 @@ class BackgroundService {
         // 因为 insertMessage 内部已经会自动更新 lastUpdated
         // 使用 insertChatSession(InsertMode.insertOrReplace) 会导致级联删除消息！
         debugPrint('[BG] <<< AI 回复处理完成');
+        if (savedCount <= 0) {
+          return const _BackgroundReplyTriggerResult(
+            success: false,
+            disableSessionDueToFailure: true,
+            error: 'API 返回内容无法生成有效后台消息',
+          );
+        }
+        await db.updateBackgroundReplyTaskState(
+          session.id,
+          status: BackgroundReplyTaskStatus.pending,
+          enabled: true,
+          lastSuccessAt: StorageUtils.getUniqueTimestamp(),
+          triggerSource: triggerSource,
+        );
+        await db.updateSessionBackgroundReplySettings(
+          session.id,
+          backgroundReplyStatus: 'scheduled',
+        );
+        return const _BackgroundReplyTriggerResult(success: true);
       } else {
         debugPrint('[BG] ⚠️ API 返回了空消息列表');
         await AppLogService.warning(
@@ -521,11 +597,21 @@ class BackgroundService {
           category: 'Background',
           data: {'sessionId': session.id},
         );
+        return const _BackgroundReplyTriggerResult(
+          success: false,
+          disableSessionDueToFailure: true,
+          error: 'API 返回空消息列表',
+        );
       }
     } catch (e, stackTrace) {
       debugPrint('[BG] ❌ 生成 AI 回复时出错: $e');
       debugPrint('[BG] ❌ 堆栈跟踪: $stackTrace');
       await AppLogService.logBackgroundError('生成 AI 回复时出错', e, stackTrace);
+      return _BackgroundReplyTriggerResult(
+        success: false,
+        disableSessionDueToFailure: true,
+        error: e.toString(),
+      );
     }
   }
 
@@ -539,19 +625,50 @@ class BackgroundService {
     );
   }
 
-  static Future<void> _requestIgnoreBatteryOptimizations() async {
-    try {
-      final status = await Permission.ignoreBatteryOptimizations.status;
-      if (!status.isGranted) {
-        debugPrint('[BG] 请求忽略电池优化权限...');
-        final result = await Permission.ignoreBatteryOptimizations.request();
-        debugPrint('[BG] 忽略电池优化权限请求结果: $result');
-      } else {
-        debugPrint('[BG] 已获得忽略电池优化权限');
-      }
-    } catch (e) {
-      debugPrint('[BG] 请求忽略电池优化权限失败: $e');
+  static void _cancelNextDueTimer() {
+    _nextDueTimer?.cancel();
+    _nextDueTimer = null;
+  }
+
+  static Future<void> _scheduleNextDueTask({
+    required int? nextTriggerAt,
+    required String triggerSource,
+  }) async {
+    _cancelNextDueTimer();
+
+    if (nextTriggerAt == null) {
+      _serviceInstance?.invoke('cancel_background_reply_wakeup');
+      return;
     }
+
+    final now = StorageUtils.getUniqueTimestamp();
+    final delayMs = nextTriggerAt - now;
+    final safeDelayMs = delayMs <= 0 ? 1 : delayMs;
+
+    _nextDueTimer = Timer(Duration(milliseconds: safeDelayMs), () async {
+      await _checkAndTriggerActiveReply(
+        force: false,
+        triggerSource: 'in_memory_timer',
+      );
+    });
+
+    _serviceInstance?.invoke(
+      'schedule_next_background_reply_wakeup',
+      {
+        'timestampMs': nextTriggerAt,
+        'triggerSource': triggerSource,
+      },
+    );
+
+    await AppLogService.log(
+      '已调度下一次后台任务',
+      category: 'Scheduler',
+      data: {
+        'nextTriggerAt': nextTriggerAt,
+        'delayMs': safeDelayMs,
+        'triggerSource': triggerSource,
+      },
+    );
   }
 
   /// 在后台 Isolate 中初始化通知插件
@@ -562,7 +679,7 @@ class BackgroundService {
       _bgNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
       const AndroidInitializationSettings androidSettings =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
+          AndroidInitializationSettings('@mipmap/launcher_icon');
 
       const InitializationSettings initSettings = InitializationSettings(
         android: androidSettings,
@@ -578,10 +695,10 @@ class BackgroundService {
       if (androidImpl != null) {
         // Android 16+ 需要使用更高的 importance 和额外配置
         const AndroidNotificationChannel channel = AndroidNotificationChannel(
-          'ai_reply_channel',
-          'AI回复通知',
-          description: 'AI角色回复消息的通知',
-          importance: Importance.max, // 使用 max 确保 Android 16 上能弹出
+          NotificationService.aiReplyChannelId,
+          NotificationService.aiReplyChannelName,
+          description: NotificationService.aiReplyChannelDescription,
+          importance: Importance.high,
           playSound: true,
           enableVibration: true,
           showBadge: true,
@@ -595,17 +712,6 @@ class BackgroundService {
         final notificationGranted =
             await androidImpl.requestNotificationsPermission();
         debugPrint('[BG] 通知权限状态: $notificationGranted');
-
-        // Android 16+ 请求全屏 Intent 权限（用于弹出式通知）
-        // 注意：这个权限在 Android 16 上是必需的
-        try {
-          final fullScreenGranted =
-              await androidImpl.requestFullScreenIntentPermission();
-          debugPrint('[BG] 全屏 Intent 权限状态: $fullScreenGranted');
-        } catch (e) {
-          // 低版本 Android 可能不支持此方法
-          debugPrint('[BG] 全屏 Intent 权限请求不适用: $e');
-        }
       }
 
       debugPrint('[BG] ✓ 后台通知插件初始化完成');
@@ -634,11 +740,11 @@ class BackgroundService {
       // Android 16+ 需要额外的配置才能弹出通知
       final AndroidNotificationDetails androidDetails =
           AndroidNotificationDetails(
-        'ai_reply_channel',
-        'AI回复通知',
-        channelDescription: 'AI角色回复消息的通知',
-        importance: Importance.max,
-        priority: Priority.max,
+        NotificationService.aiReplyChannelId,
+        NotificationService.aiReplyChannelName,
+        channelDescription: NotificationService.aiReplyChannelDescription,
+        importance: Importance.high,
+        priority: Priority.high,
         showWhen: true,
         enableVibration: true,
         playSound: true,
@@ -651,9 +757,7 @@ class BackgroundService {
         category: AndroidNotificationCategory.message,
         visibility: NotificationVisibility.public,
         autoCancel: true,
-        // Android 16+ 必需：设置 ticker 和 fullScreenIntent
         ticker: '$title: $message',
-        fullScreenIntent: true, // 请求全屏 Intent 以确保通知弹出
         ongoing: false,
         showProgress: false,
         channelShowBadge: true,
@@ -684,5 +788,22 @@ class BackgroundService {
         success: false,
       );
     }
+  }
+
+  static String? _buildNotificationBody(ChatMessage msg) {
+    switch (msg.type) {
+      case MessageType.words:
+        return msg.content;
+      case MessageType.image:
+        return '[图片]';
+      case MessageType.moment:
+        return msg.content.isEmpty ? '[朋友圈动态]' : '[朋友圈] ${msg.content}';
+      default:
+        return null;
+    }
+  }
+
+  static int _nextNotificationId() {
+    return StorageUtils.getUniqueTimestamp().remainder(0x7fffffff).toInt();
   }
 }

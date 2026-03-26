@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'background_reply_model.dart';
 
 /// 消息类型枚举
 enum MessageType {
@@ -161,6 +162,11 @@ class ChatSession {
   final String? backgroundImage; // 聊天背景图路径
   final Uint8List? backgroundImageData; // 聊天背景图二进制数据
   final int? unreadCountOverride; // 预计算的未读数
+  final bool enableBackgroundReply; // 是否启用该角色的后台主动回复
+  final int backgroundReplyIntervalMinutes; // 0 表示跟随全局设置
+  final BackgroundReplySessionStatus backgroundReplyStatus; // 当前后台状态
+  final String? backgroundReplyLastError; // 最近一次后台失败原因
+  final bool backgroundReplyDisabledByFailure; // 是否因 API 失败自动停用
 
   ChatSession({
     required this.id,
@@ -181,6 +187,11 @@ class ChatSession {
     this.imageApiPresetId,
     this.backgroundImage,
     this.backgroundImageData,
+    this.enableBackgroundReply = false,
+    this.backgroundReplyIntervalMinutes = 0,
+    this.backgroundReplyStatus = BackgroundReplySessionStatus.idle,
+    this.backgroundReplyLastError,
+    this.backgroundReplyDisabledByFailure = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -204,6 +215,12 @@ class ChatSession {
       'backgroundImageData': backgroundImageData != null
           ? base64Encode(backgroundImageData!)
           : null,
+      'enableBackgroundReply': enableBackgroundReply,
+      'backgroundReplyIntervalMinutes': backgroundReplyIntervalMinutes,
+      'backgroundReplyStatus':
+          backgroundReplySessionStatusName(backgroundReplyStatus),
+      'backgroundReplyLastError': backgroundReplyLastError,
+      'backgroundReplyDisabledByFailure': backgroundReplyDisabledByFailure,
     };
   }
 
@@ -235,6 +252,15 @@ class ChatSession {
       backgroundImageData: json['backgroundImageData'] != null
           ? base64Decode(json['backgroundImageData'])
           : null,
+      enableBackgroundReply: json['enableBackgroundReply'] ?? false,
+      backgroundReplyIntervalMinutes:
+          json['backgroundReplyIntervalMinutes'] ?? 0,
+      backgroundReplyStatus: backgroundReplySessionStatusFromName(
+        json['backgroundReplyStatus'] ?? 'idle',
+      ),
+      backgroundReplyLastError: json['backgroundReplyLastError'],
+      backgroundReplyDisabledByFailure:
+          json['backgroundReplyDisabledByFailure'] ?? false,
     );
   }
 

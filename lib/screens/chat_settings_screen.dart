@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../core/providers/chat_provider.dart';
 import '../core/database/database.dart';
+import '../core/models/chat_model.dart';
 import '../core/models/world_info_model.dart';
 import '../core/models/text_preset_model.dart';
 import '../core/models/api_preset.dart';
@@ -67,7 +68,6 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     final bgColor = isDark ? const Color(0xFF111111) : const Color(0xFFEDEDED);
     final textColor = isDark ? Colors.white : Colors.black;
     final subtitleColor = isDark ? Colors.white70 : Colors.black87;
-    final cardColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -200,6 +200,96 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   },
                 ),
               ),
+              _buildSettingItem(
+                isDark: isDark,
+                child: SwitchListTile(
+                  title: Text(
+                    '启用角色后台主动回复',
+                    style: TextStyle(
+                        fontSize: 16,
+                        color: textColor,
+                        fontWeight: FontWeight.w500),
+                  ),
+                  subtitle: Text(
+                    chat.backgroundReplyDisabledByFailure
+                        ? '当前角色已因最近一次后台 API 失败自动停用'
+                        : _getBackgroundReplySubtitle(chat),
+                    style: TextStyle(fontSize: 13, color: subtitleColor),
+                  ),
+                  value: chat.enableBackgroundReply,
+                  activeColor: const Color(0xFF07C160),
+                  onChanged: (value) async {
+                    await chatProvider.updateChatBackgroundReplySettings(
+                      widget.chatId,
+                      enableBackgroundReply: value,
+                      clearFailure: value,
+                    );
+                  },
+                ),
+              ),
+              if (chat.enableBackgroundReply)
+                _buildSettingItem(
+                  isDark: isDark,
+                  child: ListTile(
+                    title: Text(
+                      '角色后台触发间隔',
+                      style: TextStyle(
+                          fontSize: 16,
+                          color: textColor,
+                          fontWeight: FontWeight.w500),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 4),
+                        Text(
+                          chat.backgroundReplyIntervalMinutes <= 0
+                              ? '当前跟随全局设置'
+                              : '当前为 ${chat.backgroundReplyIntervalMinutes} 分钟',
+                          style: TextStyle(fontSize: 13, color: subtitleColor),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '点击选择 0/5/10/30/60/120/240 分钟',
+                          style: TextStyle(fontSize: 12, color: subtitleColor),
+                        ),
+                      ],
+                    ),
+                    trailing: Icon(Icons.arrow_forward_ios,
+                        size: 16, color: textColor),
+                    onTap: () => _showBackgroundReplyIntervalPicker(
+                      context,
+                      chatProvider,
+                      chat.backgroundReplyIntervalMinutes,
+                      isDark,
+                    ),
+                  ),
+                ),
+              if (chat.backgroundReplyDisabledByFailure)
+                _buildSettingItem(
+                  isDark: isDark,
+                  child: ListTile(
+                    title: const Text(
+                      '清除失败状态并重新启用',
+                      style: TextStyle(
+                        color: Color(0xFFFF9500),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    subtitle: Text(
+                      chat.backgroundReplyLastError ?? '最近一次后台 API 执行失败',
+                      style: TextStyle(fontSize: 13, color: subtitleColor),
+                    ),
+                    onTap: () async {
+                      await chatProvider.updateChatBackgroundReplySettings(
+                        widget.chatId,
+                        enableBackgroundReply: true,
+                        clearFailure: true,
+                      );
+                    },
+                  ),
+                ),
 
               _buildSectionTitle('API 设置', isDark),
               _buildSettingItem(
@@ -410,6 +500,24 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
     );
   }
 
+  String _getBackgroundReplySubtitle(ChatSession chat) {
+    switch (chat.backgroundReplyStatus.name) {
+      case 'scheduled':
+        return '当前角色已进入后台调度队列';
+      case 'running':
+        return '当前角色后台任务正在执行';
+      case 'pausedPermissionMissing':
+        return '基础权限链未满足，当前角色任务已暂停';
+      case 'pausedGlobally':
+        return '全局后台主动回复总开关当前关闭';
+      case 'disabledByFailure':
+        return '当前角色已因后台 API 失败自动停用';
+      case 'idle':
+      default:
+        return '为当前角色单独开启后台主动回复';
+    }
+  }
+
   String _getApiPresetName(String id) {
     try {
       final preset = _allApiPresets.firstWhere((p) => p.id == id);
@@ -522,6 +630,62 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                   ],
                 ),
               ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showBackgroundReplyIntervalPicker(
+    BuildContext context,
+    ChatProvider provider,
+    int currentValue,
+    bool isDark,
+  ) {
+    final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    const options = [0, 5, 10, 30, 60, 120, 240];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: bgColor,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '选择角色后台触发间隔',
+                style: TextStyle(fontSize: 18, color: textColor),
+              ),
+              const SizedBox(height: 12),
+              ...options.map((minutes) {
+                final selected = minutes == currentValue;
+                return ListTile(
+                  title: Text(
+                    minutes == 0 ? '跟随全局设置' : '$minutes 分钟',
+                    style: TextStyle(color: textColor),
+                  ),
+                  trailing: selected
+                      ? const Icon(Icons.check, color: Color(0xFF07C160))
+                      : null,
+                  onTap: () async {
+                    await provider.updateChatBackgroundReplySettings(
+                      widget.chatId,
+                      backgroundReplyIntervalMinutes: minutes,
+                    );
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                    }
+                  },
+                );
+              }),
+              const SizedBox(height: 8),
             ],
           ),
         );

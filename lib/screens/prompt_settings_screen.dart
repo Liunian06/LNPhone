@@ -3,9 +3,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import '../widgets/ios_wallpaper.dart';
+import '../core/models/background_reply_model.dart';
 import '../core/providers/prompt_settings_provider.dart';
-import '../core/providers/chat_provider.dart';
-import '../core/models/text_preset_model.dart';
+import '../core/services/background_permission_service.dart';
 
 class PromptSettingsScreen extends StatefulWidget {
   const PromptSettingsScreen({super.key});
@@ -14,7 +14,33 @@ class PromptSettingsScreen extends StatefulWidget {
   State<PromptSettingsScreen> createState() => _PromptSettingsScreenState();
 }
 
-class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
+class _PromptSettingsScreenState extends State<PromptSettingsScreen>
+    with WidgetsBindingObserver {
+  BackgroundPermissionSnapshot? _permissionSnapshot;
+  int? _nextWakeupAt;
+  bool _isPermissionLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshPermissionSnapshot();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _refreshPermissionSnapshot();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -50,7 +76,7 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                             style: TextStyle(
                               color: isDark ? Colors.white : Colors.black87,
                               fontSize: 16,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
                         ),
@@ -68,7 +94,7 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                               style: TextStyle(
                                 color: Colors.red,
                                 fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ),
@@ -86,6 +112,8 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                         _buildDelayedReplySection(provider, isDark),
                         const SizedBox(height: 16),
                         _buildBackgroundActiveReplySection(provider, isDark),
+                        const SizedBox(height: 16),
+                        _buildBackgroundPermissionSection(isDark),
                         const SizedBox(height: 40),
                       ],
                     );
@@ -230,7 +258,7 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                     style: TextStyle(
                       color: textColor,
                       fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -290,7 +318,7 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                 style: TextStyle(
                   color: textColor,
                   fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
               Text(
@@ -300,7 +328,7 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                 style: const TextStyle(
                   color: Color(0xFF007AFF),
                   fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
@@ -361,7 +389,7 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                     style: TextStyle(
                       color: textColor,
                       fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -395,18 +423,18 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                   style: const TextStyle(
                     color: Color(0xFF007AFF),
                     fontSize: 14,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             Text(
-              '当应用在后台检测到超过此时间没有发送过消息，则所有角色都分别请求一次 API',
-              style: TextStyle(
-                color: textColor.withValues(alpha: 0.6),
-                fontSize: 12,
-              ),
+                '当应用在后台检测到超过此时间没有发送过消息，则所有角色都分别请求一次 API',
+                style: TextStyle(
+                  color: textColor.withValues(alpha: 0.6),
+                  fontSize: 12,
+                ),
             ),
             const SizedBox(height: 8),
             SizedBox(
@@ -441,6 +469,17 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            if (_permissionSnapshot != null &&
+                !_permissionSnapshot!.hasBaseRequirements)
+              Text(
+                '基础权限链未满足，后台任务会保持暂停状态。请在下方先完成权限配置。',
+                style: TextStyle(
+                  color: CupertinoColors.systemYellow.resolveFrom(context),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             const SizedBox(height: 20),
             Center(
               child: CupertinoButton(
@@ -462,7 +501,7 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
                   style: TextStyle(
                     color: Color(0xFF007AFF),
                     fontSize: 14,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -471,6 +510,230 @@ class _PromptSettingsScreenState extends State<PromptSettingsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildBackgroundPermissionSection(bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
+
+    final snapshot = _permissionSnapshot;
+    final nextWakeupText = _formatWakeupTime(_nextWakeupAt);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '后台权限检查',
+            style: TextStyle(
+              color: textColor,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '按从低到高的顺序检查，用户从系统设置返回后会自动复检。',
+            style: TextStyle(
+              color: textColor.withValues(alpha: 0.6),
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_isPermissionLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(child: CupertinoActivityIndicator()),
+            )
+          else if (snapshot != null) ...[
+            _buildPermissionRow(
+              title: '1. 通知权限',
+              subtitle: '决定后台消息能否真正推到系统通知栏',
+              granted: snapshot.notificationsGranted,
+              actionLabel: snapshot.notificationsGranted ? '已开启' : '去开启',
+              onTap: snapshot.notificationsGranted
+                  ? null
+                  : () async {
+                      final granted = await BackgroundPermissionService
+                          .requestNotificationPermission();
+                      if (!granted) {
+                        await BackgroundPermissionService
+                            .openNotificationSettings();
+                      }
+                      await _refreshPermissionSnapshot();
+                    },
+              textColor: textColor,
+            ),
+            _buildPermissionRow(
+              title: '2. 精确闹钟',
+              subtitle: '决定系统是否能按最近一次任务时间尝试唤醒',
+              granted: snapshot.exactAlarmGranted,
+              actionLabel: snapshot.exactAlarmGranted ? '已开启' : '去开启',
+              onTap: snapshot.exactAlarmGranted
+                  ? null
+                  : () async {
+                      await BackgroundPermissionService.openExactAlarmSettings();
+                      await _refreshPermissionSnapshot();
+                    },
+              textColor: textColor,
+            ),
+            _buildPermissionRow(
+              title: '3. 忽略电池优化',
+              subtitle: '降低 ROM 在锁屏或待机时清理服务的概率',
+              granted: snapshot.batteryOptimizationIgnored,
+              actionLabel:
+                  snapshot.batteryOptimizationIgnored ? '已开启' : '去开启',
+              onTap: snapshot.batteryOptimizationIgnored
+                  ? null
+                  : () async {
+                      final granted = await BackgroundPermissionService
+                          .requestIgnoreBatteryOptimizations();
+                      if (!granted) {
+                        await BackgroundPermissionService
+                            .openBatteryOptimizationSettings();
+                      }
+                      await _refreshPermissionSnapshot();
+                    },
+              textColor: textColor,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              snapshot.hasBaseRequirements
+                  ? '当前状态：基础权限满足，后台任务可运行'
+                  : '当前状态：基础权限未满足，后台任务会暂停',
+              style: TextStyle(
+                color: snapshot.hasBaseRequirements
+                    ? const Color(0xFF34C759)
+                    : CupertinoColors.systemYellow.resolveFrom(context),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '最近一次计划唤醒：$nextWakeupText',
+              style: TextStyle(
+                color: textColor.withValues(alpha: 0.7),
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: CupertinoButton(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                onPressed: _refreshPermissionSnapshot,
+                child: const Text('立即复检'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPermissionRow({
+    required String title,
+    required String subtitle,
+    required bool granted,
+    required String actionLabel,
+    required VoidCallback? onTap,
+    required Color textColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(
+              granted
+                  ? CupertinoIcons.check_mark_circled_solid
+                  : CupertinoIcons.exclamationmark_circle,
+              color: granted
+                  ? const Color(0xFF34C759)
+                  : CupertinoColors.systemYellow.resolveFrom(context),
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: textColor.withValues(alpha: 0.6),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+            onPressed: onTap,
+            child: Text(
+              actionLabel,
+              style: TextStyle(
+                color: onTap == null
+                    ? textColor.withValues(alpha: 0.4)
+                    : const Color(0xFF007AFF),
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _refreshPermissionSnapshot() async {
+    if (!mounted) return;
+    setState(() => _isPermissionLoading = true);
+    try {
+      final snapshot =
+          await BackgroundPermissionService.refreshAndPersistSnapshot();
+      final nextWakeup = await BackgroundPermissionService.getPersistedNextWakeup();
+      if (!mounted) return;
+      setState(() {
+        _permissionSnapshot = snapshot;
+        _nextWakeupAt = nextWakeup;
+        _isPermissionLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isPermissionLoading = false);
+    }
+  }
+
+  String _formatWakeupTime(int? timestampMs) {
+    if (timestampMs == null || timestampMs <= 0) return '未调度';
+    final dateTime = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+    final hh = dateTime.hour.toString().padLeft(2, '0');
+    final mm = dateTime.minute.toString().padLeft(2, '0');
+    final ss = dateTime.second.toString().padLeft(2, '0');
+    return '${dateTime.month}/${dateTime.day} $hh:$mm:$ss';
   }
 }
 

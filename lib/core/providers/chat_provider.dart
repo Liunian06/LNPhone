@@ -5,6 +5,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/chat_model.dart';
@@ -19,8 +20,11 @@ import '../providers/regex_settings_provider.dart';
 import '../providers/wallet_provider.dart';
 import '../services/llm_service.dart';
 import '../models/prompt_config.dart';
+import '../services/app_log_service.dart';
 import '../services/notification_service.dart';
 import '../services/background_service.dart';
+import '../services/background_permission_service.dart';
+import '../services/background_reply_scheduler_service.dart';
 import '../services/image_generation_service.dart';
 import '../database/database.dart' as db;
 import '../utils/image_utils.dart';
@@ -198,6 +202,13 @@ class ChatProvider extends ChangeNotifier {
           backgroundImage: newSession.backgroundImage,
           backgroundImageData: newSession.backgroundImageData,
           unreadCountOverride: newSession.unreadCountOverride,
+          enableBackgroundReply: newSession.enableBackgroundReply,
+          backgroundReplyIntervalMinutes:
+              newSession.backgroundReplyIntervalMinutes,
+          backgroundReplyStatus: newSession.backgroundReplyStatus,
+          backgroundReplyLastError: newSession.backgroundReplyLastError,
+          backgroundReplyDisabledByFailure:
+              newSession.backgroundReplyDisabledByFailure,
         );
       }
     }
@@ -257,6 +268,12 @@ class ChatProvider extends ChangeNotifier {
           backgroundImage: chat.backgroundImage,
           backgroundImageData: chat.backgroundImageData,
           unreadCountOverride: chat.unreadCountOverride,
+          enableBackgroundReply: chat.enableBackgroundReply,
+          backgroundReplyIntervalMinutes: chat.backgroundReplyIntervalMinutes,
+          backgroundReplyStatus: chat.backgroundReplyStatus,
+          backgroundReplyLastError: chat.backgroundReplyLastError,
+          backgroundReplyDisabledByFailure:
+              chat.backgroundReplyDisabledByFailure,
         );
 
         _chatOffsets[chatId] = currentOffset + moreMessages.length;
@@ -518,9 +535,39 @@ class ChatProvider extends ChangeNotifier {
     await _database.insertMessage(newMessage);
     await _refreshChats();
 
-    // 更新后台服务活跃时间
     if (isMe) {
       await BackgroundService.updateLastActiveTime();
+      final nextWakeup =
+          await BackgroundReplySchedulerService.recordForegroundUserActivity(
+        triggerSource: 'user_message',
+      );
+      try {
+        if (nextWakeup != null) {
+          await BackgroundPermissionService.scheduleNextWakeup(nextWakeup);
+        } else {
+          await BackgroundPermissionService.cancelNextWakeup();
+        }
+      } catch (_) {}
+      FlutterBackgroundService().invoke(
+        'run_due_tasks',
+        {'triggerSource': 'user_message'},
+      );
+    } else {
+      final nextWakeup =
+          await BackgroundReplySchedulerService.syncAllTasksFromStoredPermissions(
+        triggerSource: 'message_added',
+      );
+      try {
+        if (nextWakeup != null) {
+          await BackgroundPermissionService.scheduleNextWakeup(nextWakeup);
+        } else {
+          await BackgroundPermissionService.cancelNextWakeup();
+        }
+      } catch (_) {}
+      FlutterBackgroundService().invoke(
+        'run_due_tasks',
+        {'triggerSource': 'message_added'},
+      );
     }
   }
 
@@ -568,12 +615,42 @@ class ChatProvider extends ChangeNotifier {
   Future<void> deleteChat(String chatId) async {
     await _database.deleteSession(chatId);
     await _refreshChats();
+    final nextWakeup =
+        await BackgroundReplySchedulerService.syncAllTasksFromStoredPermissions(
+      triggerSource: 'delete_chat',
+    );
+    try {
+      if (nextWakeup != null) {
+        await BackgroundPermissionService.scheduleNextWakeup(nextWakeup);
+      } else {
+        await BackgroundPermissionService.cancelNextWakeup();
+      }
+    } catch (_) {}
+    FlutterBackgroundService().invoke(
+      'run_due_tasks',
+      {'triggerSource': 'delete_chat'},
+    );
   }
 
   /// 清空聊天记录
   Future<void> clearChatMessages(String chatId) async {
     await _database.clearSessionMessages(chatId);
     await _refreshChats();
+    final nextWakeup =
+        await BackgroundReplySchedulerService.syncAllTasksFromStoredPermissions(
+      triggerSource: 'clear_chat_messages',
+    );
+    try {
+      if (nextWakeup != null) {
+        await BackgroundPermissionService.scheduleNextWakeup(nextWakeup);
+      } else {
+        await BackgroundPermissionService.cancelNextWakeup();
+      }
+    } catch (_) {}
+    FlutterBackgroundService().invoke(
+      'run_due_tasks',
+      {'triggerSource': 'clear_chat_messages'},
+    );
   }
 
   /// 更新消息内容
@@ -682,6 +759,54 @@ class ChatProvider extends ChangeNotifier {
       enableIndependentSendButton: enableIndependentSendButton,
     );
     await _refreshChats();
+  }
+
+  Future<void> updateChatBackgroundReplySettings(
+    String chatId, {
+    bool? enableBackgroundReply,
+    int? backgroundReplyIntervalMinutes,
+    bool clearFailure = false,
+  }) async {
+    await AppLogService.log(
+      '修改角色后台主动回复设置',
+      category: 'Scheduler',
+      data: {
+        'chatId': chatId,
+        'enableBackgroundReply': enableBackgroundReply,
+        'backgroundReplyIntervalMinutes': backgroundReplyIntervalMinutes,
+        'clearFailure': clearFailure,
+      },
+    );
+    if (clearFailure) {
+      await _database.clearSessionBackgroundReplyFailure(chatId);
+    }
+
+    await _database.updateSessionBackgroundReplySettings(
+      chatId,
+      enableBackgroundReply: enableBackgroundReply,
+      backgroundReplyIntervalMinutes: backgroundReplyIntervalMinutes,
+    );
+
+    await _refreshChats();
+
+    final snapshot = await BackgroundPermissionService.getPersistedSnapshot();
+    final nextWakeup = await BackgroundReplySchedulerService.syncAllTasks(
+      permissionSnapshot: snapshot,
+      triggerSource: 'chat_background_reply_settings',
+    );
+    if (nextWakeup != null) {
+      try {
+        await BackgroundPermissionService.scheduleNextWakeup(nextWakeup);
+      } catch (_) {}
+    } else {
+      try {
+        await BackgroundPermissionService.cancelNextWakeup();
+      } catch (_) {}
+    }
+    FlutterBackgroundService().invoke(
+      'run_due_tasks',
+      {'triggerSource': 'chat_background_reply_settings'},
+    );
   }
 
   /// 更新聊天的配置（世界书、预设、API预设）
@@ -1106,16 +1231,36 @@ class ChatProvider extends ChangeNotifier {
                 sender: role.name, // AI 消息使用角色名
               );
 
-              // 发送通知 (仅 words 类型)
-              if (message.type == MessageType.words) {
+              // 发送通知
+              final notificationBody =
+                  _buildAiNotificationBody(message.type, message.content);
+              if (notificationBody != null) {
                 try {
+                  final notificationId = _nextNotificationId();
                   await NotificationService().showAiReplyNotification(
                     title: role.name,
-                    message: message.content,
-                    id: StorageUtils.getUniqueTimestamp() % 100000,
+                    message: notificationBody,
+                    id: notificationId,
+                  );
+                  await AppLogService.log(
+                    '前台 AI 消息已发送通知',
+                    category: 'Notification',
+                    data: {
+                      'chatId': chatId,
+                      'notificationId': notificationId,
+                      'messageType': message.type.name,
+                    },
                   );
                 } catch (e) {
                   debugPrint('发送通知失败: $e');
+                  await AppLogService.error(
+                    '前台 AI 消息发送通知失败',
+                    category: 'Notification',
+                    data: {
+                      'chatId': chatId,
+                      'error': e.toString(),
+                    },
+                  );
                 }
               }
 
@@ -1391,5 +1536,22 @@ class ChatProvider extends ChangeNotifier {
 
   String _generateId() {
     return StorageUtils.getUniqueTimestamp().toString();
+  }
+
+  String? _buildAiNotificationBody(MessageType type, String content) {
+    switch (type) {
+      case MessageType.words:
+        return content;
+      case MessageType.image:
+        return '[图片]';
+      case MessageType.moment:
+        return content.isEmpty ? '[朋友圈动态]' : '[朋友圈] $content';
+      default:
+        return null;
+    }
+  }
+
+  int _nextNotificationId() {
+    return StorageUtils.getUniqueTimestamp().remainder(0x7fffffff).toInt();
   }
 }

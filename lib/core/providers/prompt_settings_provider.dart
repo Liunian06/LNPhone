@@ -1,8 +1,12 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database/database.dart';
 import '../models/prompt_config.dart';
+import '../services/app_log_service.dart';
+import '../services/background_permission_service.dart';
+import '../services/background_reply_scheduler_service.dart';
 
 /// Prompt设置提供者
 /// 注意：所有设置现在存储在数据库中
@@ -320,6 +324,28 @@ class PromptSettingsProvider extends ChangeNotifier {
   Future<void> toggleBackgroundActiveReply(bool value) async {
     _enableBackgroundActiveReply = value;
     await _db.setSettingBool('enable_background_active_reply', value);
+    await AppLogService.log(
+      '修改全局后台主动回复开关',
+      category: 'Scheduler',
+      data: {'enabled': value},
+    );
+    final snapshot =
+        await BackgroundPermissionService.refreshAndPersistSnapshot();
+    final nextWakeup = await BackgroundReplySchedulerService.syncAllTasks(
+      permissionSnapshot: snapshot,
+      triggerSource: 'global_background_reply_toggle',
+    );
+    try {
+      if (nextWakeup != null) {
+        await BackgroundPermissionService.scheduleNextWakeup(nextWakeup);
+      } else {
+        await BackgroundPermissionService.cancelNextWakeup();
+      }
+    } catch (_) {}
+    FlutterBackgroundService().invoke(
+      'run_due_tasks',
+      {'triggerSource': 'global_background_reply_toggle'},
+    );
     notifyListeners();
   }
 
@@ -327,6 +353,27 @@ class PromptSettingsProvider extends ChangeNotifier {
   Future<void> updateBackgroundActiveReplyInterval(int value) async {
     _backgroundActiveReplyInterval = value;
     await _db.setSettingInt('background_active_reply_interval', value);
+    await AppLogService.log(
+      '修改全局后台主动回复间隔',
+      category: 'Scheduler',
+      data: {'intervalMinutes': value},
+    );
+    final snapshot = await BackgroundPermissionService.getPersistedSnapshot();
+    final nextWakeup = await BackgroundReplySchedulerService.syncAllTasks(
+      permissionSnapshot: snapshot,
+      triggerSource: 'global_background_reply_interval',
+    );
+    try {
+      if (nextWakeup != null) {
+        await BackgroundPermissionService.scheduleNextWakeup(nextWakeup);
+      } else {
+        await BackgroundPermissionService.cancelNextWakeup();
+      }
+    } catch (_) {}
+    FlutterBackgroundService().invoke(
+      'run_due_tasks',
+      {'triggerSource': 'global_background_reply_interval'},
+    );
     notifyListeners();
   }
 

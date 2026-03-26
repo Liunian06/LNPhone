@@ -15,6 +15,8 @@ import 'core/providers/wallet_provider.dart';
 import 'core/providers/regex_settings_provider.dart';
 import 'core/providers/emoji_provider.dart';
 import 'core/services/background_service.dart';
+import 'core/services/background_permission_service.dart';
+import 'core/services/background_reply_scheduler_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/app_log_service.dart';
 import 'core/services/storage_permission_service.dart';
@@ -133,6 +135,38 @@ Future<void> _initializeServicesAsync() async {
 
   // 4. 监听后台服务发来的通知请求（IPC 机制）
   _setupBackgroundServiceListener();
+
+  // 5. 刷新权限快照并同步后台任务
+  try {
+    final snapshot = await BackgroundPermissionService.refreshAndPersistSnapshot();
+    final nextWakeup = await BackgroundReplySchedulerService.syncAllTasks(
+      permissionSnapshot: snapshot,
+      triggerSource: 'app_init',
+    );
+    if (nextWakeup != null) {
+      await BackgroundPermissionService.scheduleNextWakeup(nextWakeup);
+    } else {
+      await BackgroundPermissionService.cancelNextWakeup();
+    }
+    FlutterBackgroundService().invoke(
+      'run_due_tasks',
+      {'triggerSource': 'app_init'},
+    );
+    debugPrint('[Init] ✓ 后台权限与任务同步完成');
+    await AppLogService.log(
+      '启动后后台权限与任务同步完成',
+      category: 'Scheduler',
+      data: {'nextWakeup': nextWakeup},
+    );
+  } catch (e, stackTrace) {
+    debugPrint('[Init] ❌ 后台权限与任务同步失败: $e');
+    debugPrint('[Init] Stack trace: $stackTrace');
+    await AppLogService.error(
+      '启动后后台权限与任务同步失败',
+      category: 'Scheduler',
+      data: {'error': e.toString()},
+    );
+  }
 }
 
 /// 设置后台服务监听器，接收后台 Isolate 发来的通知请求
@@ -150,6 +184,11 @@ void _setupBackgroundServiceListener() {
     if (title != null && message != null) {
       debugPrint(
           '[Main] 收到后台通知请求: $title - ${message.length > 30 ? '${message.substring(0, 30)}...' : message}');
+      await AppLogService.log(
+        '主进程收到后台通知请求',
+        category: 'Notification',
+        data: {'title': title, 'id': id},
+      );
       try {
         await NotificationService().showAiReplyNotification(
           title: title,
@@ -160,6 +199,44 @@ void _setupBackgroundServiceListener() {
       } catch (e) {
         debugPrint('[Main] ❌ 通知发送失败: $e');
       }
+    }
+  });
+
+  service.on('schedule_next_background_reply_wakeup').listen((event) async {
+    if (event == null) return;
+    final timestampMs = event['timestampMs'] as int?;
+    if (timestampMs == null) return;
+
+    try {
+      await BackgroundPermissionService.scheduleNextWakeup(timestampMs);
+      debugPrint('[Main] 已同步原生后台唤醒时间: $timestampMs');
+      await AppLogService.log(
+        '主进程已同步原生后台唤醒时间',
+        category: 'Scheduler',
+        data: {'timestampMs': timestampMs},
+      );
+    } catch (e) {
+      debugPrint('[Main] 同步原生后台唤醒时间失败: $e');
+      await AppLogService.error(
+        '主进程同步原生后台唤醒时间失败',
+        category: 'Scheduler',
+        data: {'error': e.toString()},
+      );
+    }
+  });
+
+  service.on('cancel_background_reply_wakeup').listen((event) async {
+    try {
+      await BackgroundPermissionService.cancelNextWakeup();
+      debugPrint('[Main] 已取消原生后台唤醒');
+      await AppLogService.info('主进程已取消原生后台唤醒', category: 'Scheduler');
+    } catch (e) {
+      debugPrint('[Main] 取消原生后台唤醒失败: $e');
+      await AppLogService.error(
+        '主进程取消原生后台唤醒失败',
+        category: 'Scheduler',
+        data: {'error': e.toString()},
+      );
     }
   });
 
@@ -202,10 +279,46 @@ class _LnPhoneAppState extends State<LnPhoneApp> with WidgetsBindingObserver {
       case AppLifecycleState.resumed:
         // 应用返回前台
         AppLogService.logAppForeground();
+        _refreshBackgroundRuntimeState();
         break;
       default:
         break;
     }
+  }
+
+  void _refreshBackgroundRuntimeState() {
+    Future(() async {
+      try {
+        final snapshot =
+            await BackgroundPermissionService.refreshAndPersistSnapshot();
+        final nextWakeup = await BackgroundReplySchedulerService.syncAllTasks(
+          permissionSnapshot: snapshot,
+          triggerSource: 'app_resumed',
+        );
+        if (nextWakeup != null) {
+          await BackgroundPermissionService.scheduleNextWakeup(nextWakeup);
+        } else {
+          await BackgroundPermissionService.cancelNextWakeup();
+        }
+        FlutterBackgroundService().invoke(
+          'run_due_tasks',
+          {'triggerSource': 'app_resumed'},
+        );
+        await AppLogService.log(
+          '应用恢复前台后已刷新后台权限与任务',
+          category: 'Scheduler',
+          data: {'nextWakeup': nextWakeup},
+        );
+      } catch (e, stackTrace) {
+        debugPrint('[Main] 恢复后台状态失败: $e');
+        debugPrint('[Main] Stack trace: $stackTrace');
+        await AppLogService.error(
+          '应用恢复前台后刷新后台权限与任务失败',
+          category: 'Scheduler',
+          data: {'error': e.toString()},
+        );
+      }
+    });
   }
 
   @override

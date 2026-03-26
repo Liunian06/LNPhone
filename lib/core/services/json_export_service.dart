@@ -222,6 +222,12 @@ class JsonExportService {
       'enableTextToImage': session.enableTextToImage,
       'enableEmoji': session.enableEmoji,
       'enableIndependentSendButton': session.enableIndependentSendButton,
+      'enableBackgroundReply': session.enableBackgroundReply,
+      'backgroundReplyIntervalMinutes': session.backgroundReplyIntervalMinutes,
+      'backgroundReplyStatus': session.backgroundReplyStatus.name,
+      'backgroundReplyLastError': session.backgroundReplyLastError,
+      'backgroundReplyDisabledByFailure':
+          session.backgroundReplyDisabledByFailure,
       'currentState': session.currentState,
       'isPinned': session.isPinned,
       'worldInfoIds': session.worldInfoIds,

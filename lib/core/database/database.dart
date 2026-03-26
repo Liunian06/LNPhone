@@ -16,6 +16,7 @@ import '../models/memory_model.dart';
 import '../models/wallet_model.dart';
 import 'tables.dart';
 import '../models/emoji_model.dart';
+import '../models/background_reply_model.dart';
 import '../utils/storage_utils.dart';
 
 part 'database.g.dart';
@@ -436,6 +437,7 @@ class AppDatabase extends _$AppDatabase {
             t.isMe.equals(false) &
             t.isRead.equals(false));
       final unreadCount = (await unreadCountQuery.get()).length;
+      final bgConfig = await getSessionBackgroundReplyConfig(s.id);
 
       result.add(
         ChatSession(
@@ -457,6 +459,11 @@ class AppDatabase extends _$AppDatabase {
           imageApiPresetId: s.imageApiPresetId,
           backgroundImage: s.backgroundImage,
           backgroundImageData: s.backgroundImageData,
+          enableBackgroundReply: bgConfig.enableBackgroundReply,
+          backgroundReplyIntervalMinutes: bgConfig.intervalMinutes,
+          backgroundReplyStatus: bgConfig.status,
+          backgroundReplyLastError: bgConfig.lastError,
+          backgroundReplyDisabledByFailure: bgConfig.disabledByFailure,
         ),
       );
     }
@@ -482,6 +489,7 @@ class AppDatabase extends _$AppDatabase {
           ])
           ..limit(limit))
         .get();
+    final bgConfig = await getSessionBackgroundReplyConfig(s.id);
 
     return ChatSession(
       id: s.id,
@@ -517,7 +525,53 @@ class AppDatabase extends _$AppDatabase {
       imageApiPresetId: s.imageApiPresetId,
       backgroundImage: s.backgroundImage,
       backgroundImageData: s.backgroundImageData,
+      enableBackgroundReply: bgConfig.enableBackgroundReply,
+      backgroundReplyIntervalMinutes: bgConfig.intervalMinutes,
+      backgroundReplyStatus: bgConfig.status,
+      backgroundReplyLastError: bgConfig.lastError,
+      backgroundReplyDisabledByFailure: bgConfig.disabledByFailure,
     );
+  }
+
+  Future<({
+    bool enableBackgroundReply,
+    int intervalMinutes,
+    BackgroundReplySessionStatus status,
+    String? lastError,
+    bool disabledByFailure,
+  })> getSessionBackgroundReplyConfig(String sessionId) async {
+    final enableBackgroundReply =
+        await getSettingBool(_sessionBackgroundReplyKey(sessionId, 'enabled')) ??
+            false;
+    final intervalMinutes =
+        await getSettingInt(_sessionBackgroundReplyKey(sessionId, 'interval')) ??
+            0;
+    final statusRaw =
+        await getSetting(_sessionBackgroundReplyKey(sessionId, 'status')) ??
+            'idle';
+    final lastError =
+        await getSetting(_sessionBackgroundReplyKey(sessionId, 'last_error'));
+    final disabledByFailure = await getSettingBool(
+          _sessionBackgroundReplyKey(sessionId, 'disabled_by_failure'),
+        ) ??
+        false;
+
+    return (
+      enableBackgroundReply: enableBackgroundReply,
+      intervalMinutes: intervalMinutes,
+      status: backgroundReplySessionStatusFromName(statusRaw),
+      lastError: lastError,
+      disabledByFailure: disabledByFailure,
+    );
+  }
+
+  Future<List<ChatSessionEntity>> getAllSessionEntities() {
+    return select(chatSessions).get();
+  }
+
+  Future<ChatSessionEntity?> getChatSessionEntity(String id) {
+    return (select(chatSessions)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
   }
 
   /// 创建新会话
@@ -711,6 +765,46 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  Future<void> updateSessionBackgroundReplySettings(
+    String id, {
+    bool? enableBackgroundReply,
+    int? backgroundReplyIntervalMinutes,
+    String? backgroundReplyStatus,
+    String? backgroundReplyLastError,
+    bool? backgroundReplyDisabledByFailure,
+  }) async {
+    if (enableBackgroundReply != null) {
+      await setSettingBool(
+        _sessionBackgroundReplyKey(id, 'enabled'),
+        enableBackgroundReply,
+      );
+    }
+    if (backgroundReplyIntervalMinutes != null) {
+      await setSettingInt(
+        _sessionBackgroundReplyKey(id, 'interval'),
+        backgroundReplyIntervalMinutes,
+      );
+    }
+    if (backgroundReplyStatus != null) {
+      await setSetting(
+        _sessionBackgroundReplyKey(id, 'status'),
+        backgroundReplyStatus,
+      );
+    }
+    if (backgroundReplyLastError != null) {
+      await setSetting(
+        _sessionBackgroundReplyKey(id, 'last_error'),
+        backgroundReplyLastError,
+      );
+    }
+    if (backgroundReplyDisabledByFailure != null) {
+      await setSettingBool(
+        _sessionBackgroundReplyKey(id, 'disabled_by_failure'),
+        backgroundReplyDisabledByFailure,
+      );
+    }
+  }
+
   /// 更新会话状态
   Future<void> updateSessionState(String id, String? state) {
     return (update(chatSessions)..where((t) => t.id.equals(id))).write(
@@ -776,6 +870,246 @@ class AppDatabase extends _$AppDatabase {
         backgroundImageData: Value(backgroundImageData),
       ),
     );
+  }
+
+  Future<void> clearSessionBackgroundReplyFailure(String id) async {
+    await setSetting(_sessionBackgroundReplyKey(id, 'status'), 'idle');
+    await deleteSetting(_sessionBackgroundReplyKey(id, 'last_error'));
+    await setSettingBool(
+      _sessionBackgroundReplyKey(id, 'disabled_by_failure'),
+      false,
+    );
+  }
+
+  // --- Background Reply Task Queries ---
+
+  static const String _backgroundReplyTasksKey = 'background_reply_tasks_v1';
+
+  String _sessionBackgroundReplyKey(String sessionId, String field) {
+    return 'chat_background_reply_${field}_$sessionId';
+  }
+
+  Future<List<BackgroundReplyTaskModel>> _loadBackgroundReplyTasks() async {
+    final raw = await getSetting(_backgroundReplyTasksKey);
+    if (raw == null || raw.isEmpty) {
+      return [];
+    }
+
+    try {
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      return decoded
+          .whereType<Map>()
+          .map(
+            (item) => BackgroundReplyTaskModel(
+              id: item['id']?.toString() ?? '',
+              sessionId: item['sessionId']?.toString() ?? '',
+              roleId: item['roleId']?.toString() ?? '',
+              enabled: item['enabled'] == true,
+              status: backgroundReplyTaskStatusFromName(
+                item['status']?.toString() ?? 'pending',
+              ),
+              nextTriggerAt:
+                  int.tryParse(item['nextTriggerAt']?.toString() ?? '') ?? 0,
+              lastAttemptAt:
+                  int.tryParse(item['lastAttemptAt']?.toString() ?? ''),
+              lastSuccessAt:
+                  int.tryParse(item['lastSuccessAt']?.toString() ?? ''),
+              lastError: item['lastError']?.toString(),
+              triggerSource: item['triggerSource']?.toString(),
+              createdAt:
+                  int.tryParse(item['createdAt']?.toString() ?? '') ?? 0,
+              updatedAt:
+                  int.tryParse(item['updatedAt']?.toString() ?? '') ?? 0,
+            ),
+          )
+          .where((task) => task.sessionId.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _saveBackgroundReplyTasks(
+    List<BackgroundReplyTaskModel> tasks,
+  ) async {
+    final encoded = jsonEncode(
+      tasks
+          .map(
+            (task) => {
+              'id': task.id,
+              'sessionId': task.sessionId,
+              'roleId': task.roleId,
+              'enabled': task.enabled,
+              'status': backgroundReplyTaskStatusName(task.status),
+              'nextTriggerAt': task.nextTriggerAt,
+              'lastAttemptAt': task.lastAttemptAt,
+              'lastSuccessAt': task.lastSuccessAt,
+              'lastError': task.lastError,
+              'triggerSource': task.triggerSource,
+              'createdAt': task.createdAt,
+              'updatedAt': task.updatedAt,
+            },
+          )
+          .toList(),
+    );
+    await setSetting(_backgroundReplyTasksKey, encoded);
+  }
+
+  Future<List<BackgroundReplyTaskModel>> getAllBackgroundReplyTasks() async {
+    final tasks = await _loadBackgroundReplyTasks();
+    tasks.sort((a, b) => a.nextTriggerAt.compareTo(b.nextTriggerAt));
+    return tasks;
+  }
+
+  Future<BackgroundReplyTaskModel?> getBackgroundReplyTaskBySessionId(
+    String sessionId,
+  ) async {
+    final tasks = await _loadBackgroundReplyTasks();
+    try {
+      return tasks.firstWhere((task) => task.sessionId == sessionId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<BackgroundReplyTaskModel?> getNextBackgroundReplyTask() async {
+    final tasks = await getAllBackgroundReplyTasks();
+    final enabledTasks = tasks.where((task) => task.enabled).toList();
+    if (enabledTasks.isEmpty) return null;
+    return enabledTasks.first;
+  }
+
+  Future<List<BackgroundReplyTaskModel>> getDueBackgroundReplyTasks(
+    int now, {
+    int? limit,
+  }) async {
+    final tasks = await getAllBackgroundReplyTasks();
+    final dueTasks = tasks
+        .where((task) => task.enabled && task.nextTriggerAt <= now)
+        .toList();
+    if (limit == null || dueTasks.length <= limit) {
+      return dueTasks;
+    }
+    return dueTasks.take(limit).toList();
+  }
+
+  Future<void> upsertBackgroundReplyTask({
+    required String id,
+    required String sessionId,
+    required String roleId,
+    required int nextTriggerAt,
+    required BackgroundReplyTaskStatus status,
+    bool enabled = true,
+    int? lastAttemptAt,
+    int? lastSuccessAt,
+    String? lastError,
+    String? triggerSource,
+    int? createdAt,
+    int? updatedAt,
+  }) async {
+    final now = StorageUtils.getUniqueTimestamp();
+    final tasks = await _loadBackgroundReplyTasks();
+    final index = tasks.indexWhere((task) => task.sessionId == sessionId);
+    final task = BackgroundReplyTaskModel(
+      id: id,
+      sessionId: sessionId,
+      roleId: roleId,
+      enabled: enabled,
+      status: status,
+      nextTriggerAt: nextTriggerAt,
+      lastAttemptAt: lastAttemptAt,
+      lastSuccessAt: lastSuccessAt,
+      lastError: lastError,
+      triggerSource: triggerSource,
+      createdAt: createdAt ?? (index == -1 ? now : tasks[index].createdAt),
+      updatedAt: updatedAt ?? now,
+    );
+
+    if (index == -1) {
+      tasks.add(task);
+    } else {
+      tasks[index] = task;
+    }
+
+    await _saveBackgroundReplyTasks(tasks);
+  }
+
+  Future<void> updateBackgroundReplyTaskState(
+    String sessionId, {
+    BackgroundReplyTaskStatus? status,
+    bool? enabled,
+    int? nextTriggerAt,
+    int? lastAttemptAt,
+    int? lastSuccessAt,
+    String? triggerSource,
+  }) async {
+    final tasks = await _loadBackgroundReplyTasks();
+    final index = tasks.indexWhere((task) => task.sessionId == sessionId);
+    if (index == -1) return;
+
+    final old = tasks[index];
+    tasks[index] = BackgroundReplyTaskModel(
+      id: old.id,
+      sessionId: old.sessionId,
+      roleId: old.roleId,
+      enabled: enabled ?? old.enabled,
+      status: status ?? old.status,
+      nextTriggerAt: nextTriggerAt ?? old.nextTriggerAt,
+      lastAttemptAt: lastAttemptAt ?? old.lastAttemptAt,
+      lastSuccessAt: lastSuccessAt ?? old.lastSuccessAt,
+      lastError: old.lastError,
+      triggerSource: triggerSource ?? old.triggerSource,
+      createdAt: old.createdAt,
+      updatedAt: StorageUtils.getUniqueTimestamp(),
+    );
+    await _saveBackgroundReplyTasks(tasks);
+  }
+
+  Future<void> updateBackgroundReplyTaskError(
+    String sessionId, {
+    required BackgroundReplyTaskStatus status,
+    required String? lastError,
+    bool enabled = false,
+  }) async {
+    final tasks = await _loadBackgroundReplyTasks();
+    final index = tasks.indexWhere((task) => task.sessionId == sessionId);
+    if (index == -1) return;
+
+    final old = tasks[index];
+    tasks[index] = BackgroundReplyTaskModel(
+      id: old.id,
+      sessionId: old.sessionId,
+      roleId: old.roleId,
+      enabled: enabled,
+      status: status,
+      nextTriggerAt: old.nextTriggerAt,
+      lastAttemptAt: old.lastAttemptAt,
+      lastSuccessAt: old.lastSuccessAt,
+      lastError: lastError,
+      triggerSource: old.triggerSource,
+      createdAt: old.createdAt,
+      updatedAt: StorageUtils.getUniqueTimestamp(),
+    );
+    await _saveBackgroundReplyTasks(tasks);
+  }
+
+  Future<void> deleteBackgroundReplyTaskBySessionId(String sessionId) async {
+    final tasks = await _loadBackgroundReplyTasks();
+    tasks.removeWhere((task) => task.sessionId == sessionId);
+    await _saveBackgroundReplyTasks(tasks);
+  }
+
+  Future<void> deleteBackgroundReplyTasksBySessionIds(
+    List<String> sessionIds,
+  ) async {
+    if (sessionIds.isEmpty) return;
+    final tasks = await _loadBackgroundReplyTasks();
+    tasks.removeWhere((task) => sessionIds.contains(task.sessionId));
+    await _saveBackgroundReplyTasks(tasks);
+  }
+
+  Future<void> clearAllBackgroundReplyTasks() async {
+    await deleteSetting(_backgroundReplyTasksKey);
   }
 
   // --- Moments Queries ---
