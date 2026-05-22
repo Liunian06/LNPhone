@@ -4023,6 +4023,16 @@ class $ApiPresetsTable extends ApiPresets
       defaultConstraints: GeneratedColumn.constraintIsAlways(
           'CHECK ("enable_thinking" IN (0, 1))'),
       defaultValue: const Constant(true));
+  static const VerificationMeta _includeEnableThinkingParamMeta =
+      const VerificationMeta('includeEnableThinkingParam');
+  @override
+  late final GeneratedColumn<bool> includeEnableThinkingParam =
+      GeneratedColumn<bool>('include_enable_thinking_param', aliasedName, false,
+          type: DriftSqlType.bool,
+          requiredDuringInsert: false,
+          defaultConstraints: GeneratedColumn.constraintIsAlways(
+              'CHECK ("include_enable_thinking_param" IN (0, 1))'),
+          defaultValue: const Constant(true));
   static const VerificationMeta _timeoutMeta =
       const VerificationMeta('timeout');
   @override
@@ -4056,6 +4066,7 @@ class $ApiPresetsTable extends ApiPresets
         topP,
         isStream,
         enableThinking,
+        includeEnableThinkingParam,
         timeout,
         voiceId,
         audioChannel
@@ -4119,6 +4130,13 @@ class $ApiPresetsTable extends ApiPresets
           enableThinking.isAcceptableOrUnknown(
               data['enable_thinking']!, _enableThinkingMeta));
     }
+    if (data.containsKey('include_enable_thinking_param')) {
+      context.handle(
+          _includeEnableThinkingParamMeta,
+          includeEnableThinkingParam.isAcceptableOrUnknown(
+              data['include_enable_thinking_param']!,
+              _includeEnableThinkingParamMeta));
+    }
     if (data.containsKey('timeout')) {
       context.handle(_timeoutMeta,
           timeout.isAcceptableOrUnknown(data['timeout']!, _timeoutMeta));
@@ -4165,6 +4183,9 @@ class $ApiPresetsTable extends ApiPresets
           .read(DriftSqlType.bool, data['${effectivePrefix}is_stream'])!,
       enableThinking: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}enable_thinking'])!,
+      includeEnableThinkingParam: attachedDatabase.typeMapping.read(
+          DriftSqlType.bool,
+          data['${effectivePrefix}include_enable_thinking_param'])!,
       timeout: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}timeout'])!,
       voiceId: attachedDatabase.typeMapping
@@ -4197,6 +4218,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
   final double topP;
   final bool isStream;
   final bool enableThinking;
+  final bool includeEnableThinkingParam;
   final int timeout;
   final String? voiceId;
   final int? audioChannel;
@@ -4212,6 +4234,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       required this.topP,
       required this.isStream,
       required this.enableThinking,
+      required this.includeEnableThinkingParam,
       required this.timeout,
       this.voiceId,
       this.audioChannel});
@@ -4234,6 +4257,8 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
     map['top_p'] = Variable<double>(topP);
     map['is_stream'] = Variable<bool>(isStream);
     map['enable_thinking'] = Variable<bool>(enableThinking);
+    map['include_enable_thinking_param'] =
+        Variable<bool>(includeEnableThinkingParam);
     map['timeout'] = Variable<int>(timeout);
     if (!nullToAbsent || voiceId != null) {
       map['voice_id'] = Variable<String>(voiceId);
@@ -4257,6 +4282,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       topP: Value(topP),
       isStream: Value(isStream),
       enableThinking: Value(enableThinking),
+      includeEnableThinkingParam: Value(includeEnableThinkingParam),
       timeout: Value(timeout),
       voiceId: voiceId == null && nullToAbsent
           ? const Value.absent()
@@ -4282,6 +4308,8 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       topP: serializer.fromJson<double>(json['topP']),
       isStream: serializer.fromJson<bool>(json['isStream']),
       enableThinking: serializer.fromJson<bool>(json['enableThinking']),
+      includeEnableThinkingParam:
+          serializer.fromJson<bool>(json['includeEnableThinkingParam']),
       timeout: serializer.fromJson<int>(json['timeout']),
       voiceId: serializer.fromJson<String?>(json['voiceId']),
       audioChannel: serializer.fromJson<int?>(json['audioChannel']),
@@ -4302,6 +4330,8 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       'topP': serializer.toJson<double>(topP),
       'isStream': serializer.toJson<bool>(isStream),
       'enableThinking': serializer.toJson<bool>(enableThinking),
+      'includeEnableThinkingParam':
+          serializer.toJson<bool>(includeEnableThinkingParam),
       'timeout': serializer.toJson<int>(timeout),
       'voiceId': serializer.toJson<String?>(voiceId),
       'audioChannel': serializer.toJson<int?>(audioChannel),
@@ -4320,6 +4350,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
           double? topP,
           bool? isStream,
           bool? enableThinking,
+          bool? includeEnableThinkingParam,
           int? timeout,
           Value<String?> voiceId = const Value.absent(),
           Value<int?> audioChannel = const Value.absent()}) =>
@@ -4335,6 +4366,8 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
         topP: topP ?? this.topP,
         isStream: isStream ?? this.isStream,
         enableThinking: enableThinking ?? this.enableThinking,
+        includeEnableThinkingParam:
+            includeEnableThinkingParam ?? this.includeEnableThinkingParam,
         timeout: timeout ?? this.timeout,
         voiceId: voiceId.present ? voiceId.value : this.voiceId,
         audioChannel:
@@ -4356,6 +4389,9 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       enableThinking: data.enableThinking.present
           ? data.enableThinking.value
           : this.enableThinking,
+      includeEnableThinkingParam: data.includeEnableThinkingParam.present
+          ? data.includeEnableThinkingParam.value
+          : this.includeEnableThinkingParam,
       timeout: data.timeout.present ? data.timeout.value : this.timeout,
       voiceId: data.voiceId.present ? data.voiceId.value : this.voiceId,
       audioChannel: data.audioChannel.present
@@ -4378,6 +4414,8 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
           ..write('topP: $topP, ')
           ..write('isStream: $isStream, ')
           ..write('enableThinking: $enableThinking, ')
+          ..write(
+              'includeEnableThinkingParam: $includeEnableThinkingParam, ')
           ..write('timeout: $timeout, ')
           ..write('voiceId: $voiceId, ')
           ..write('audioChannel: $audioChannel')
@@ -4398,6 +4436,7 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
       topP,
       isStream,
       enableThinking,
+      includeEnableThinkingParam,
       timeout,
       voiceId,
       audioChannel);
@@ -4416,6 +4455,8 @@ class ApiPresetEntity extends DataClass implements Insertable<ApiPresetEntity> {
           other.topP == this.topP &&
           other.isStream == this.isStream &&
           other.enableThinking == this.enableThinking &&
+          other.includeEnableThinkingParam ==
+              this.includeEnableThinkingParam &&
           other.timeout == this.timeout &&
           other.voiceId == this.voiceId &&
           other.audioChannel == this.audioChannel);
@@ -4433,6 +4474,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
   final Value<double> topP;
   final Value<bool> isStream;
   final Value<bool> enableThinking;
+  final Value<bool> includeEnableThinkingParam;
   final Value<int> timeout;
   final Value<String?> voiceId;
   final Value<int?> audioChannel;
@@ -4449,6 +4491,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     this.topP = const Value.absent(),
     this.isStream = const Value.absent(),
     this.enableThinking = const Value.absent(),
+    this.includeEnableThinkingParam = const Value.absent(),
     this.timeout = const Value.absent(),
     this.voiceId = const Value.absent(),
     this.audioChannel = const Value.absent(),
@@ -4466,6 +4509,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     this.topP = const Value.absent(),
     this.isStream = const Value.absent(),
     this.enableThinking = const Value.absent(),
+    this.includeEnableThinkingParam = const Value.absent(),
     this.timeout = const Value.absent(),
     this.voiceId = const Value.absent(),
     this.audioChannel = const Value.absent(),
@@ -4488,6 +4532,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     Expression<double>? topP,
     Expression<bool>? isStream,
     Expression<bool>? enableThinking,
+    Expression<bool>? includeEnableThinkingParam,
     Expression<int>? timeout,
     Expression<String>? voiceId,
     Expression<int>? audioChannel,
@@ -4505,6 +4550,8 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
       if (topP != null) 'top_p': topP,
       if (isStream != null) 'is_stream': isStream,
       if (enableThinking != null) 'enable_thinking': enableThinking,
+      if (includeEnableThinkingParam != null)
+        'include_enable_thinking_param': includeEnableThinkingParam,
       if (timeout != null) 'timeout': timeout,
       if (voiceId != null) 'voice_id': voiceId,
       if (audioChannel != null) 'audio_channel': audioChannel,
@@ -4524,6 +4571,7 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
       Value<double>? topP,
       Value<bool>? isStream,
       Value<bool>? enableThinking,
+      Value<bool>? includeEnableThinkingParam,
       Value<int>? timeout,
       Value<String?>? voiceId,
       Value<int?>? audioChannel,
@@ -4540,6 +4588,8 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
       topP: topP ?? this.topP,
       isStream: isStream ?? this.isStream,
       enableThinking: enableThinking ?? this.enableThinking,
+      includeEnableThinkingParam:
+          includeEnableThinkingParam ?? this.includeEnableThinkingParam,
       timeout: timeout ?? this.timeout,
       voiceId: voiceId ?? this.voiceId,
       audioChannel: audioChannel ?? this.audioChannel,
@@ -4585,6 +4635,10 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
     if (enableThinking.present) {
       map['enable_thinking'] = Variable<bool>(enableThinking.value);
     }
+    if (includeEnableThinkingParam.present) {
+      map['include_enable_thinking_param'] =
+          Variable<bool>(includeEnableThinkingParam.value);
+    }
     if (timeout.present) {
       map['timeout'] = Variable<int>(timeout.value);
     }
@@ -4614,6 +4668,8 @@ class ApiPresetsCompanion extends UpdateCompanion<ApiPresetEntity> {
           ..write('topP: $topP, ')
           ..write('isStream: $isStream, ')
           ..write('enableThinking: $enableThinking, ')
+          ..write(
+              'includeEnableThinkingParam: $includeEnableThinkingParam, ')
           ..write('timeout: $timeout, ')
           ..write('voiceId: $voiceId, ')
           ..write('audioChannel: $audioChannel, ')
@@ -8802,6 +8858,7 @@ typedef $$ApiPresetsTableCreateCompanionBuilder = ApiPresetsCompanion Function({
   Value<double> topP,
   Value<bool> isStream,
   Value<bool> enableThinking,
+  Value<bool> includeEnableThinkingParam,
   Value<int> timeout,
   Value<String?> voiceId,
   Value<int?> audioChannel,
@@ -8819,6 +8876,7 @@ typedef $$ApiPresetsTableUpdateCompanionBuilder = ApiPresetsCompanion Function({
   Value<double> topP,
   Value<bool> isStream,
   Value<bool> enableThinking,
+  Value<bool> includeEnableThinkingParam,
   Value<int> timeout,
   Value<String?> voiceId,
   Value<int?> audioChannel,
@@ -8870,6 +8928,10 @@ class $$ApiPresetsTableFilterComposer
 
   ColumnFilters<bool> get enableThinking => $composableBuilder(
       column: $table.enableThinking,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get includeEnableThinkingParam => $composableBuilder(
+      column: $table.includeEnableThinkingParam,
       builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get timeout => $composableBuilder(
@@ -8925,6 +8987,10 @@ class $$ApiPresetsTableOrderingComposer
       column: $table.enableThinking,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<bool> get includeEnableThinkingParam => $composableBuilder(
+      column: $table.includeEnableThinkingParam,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get timeout => $composableBuilder(
       column: $table.timeout, builder: (column) => ColumnOrderings(column));
 
@@ -8978,6 +9044,11 @@ class $$ApiPresetsTableAnnotationComposer
   GeneratedColumn<bool> get enableThinking => $composableBuilder(
       column: $table.enableThinking, builder: (column) => column);
 
+  GeneratedColumn<bool> get includeEnableThinkingParam =>
+      $composableBuilder(
+          column: $table.includeEnableThinkingParam,
+          builder: (column) => column);
+
   GeneratedColumn<int> get timeout =>
       $composableBuilder(column: $table.timeout, builder: (column) => column);
 
@@ -9025,6 +9096,7 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
             Value<double> topP = const Value.absent(),
             Value<bool> isStream = const Value.absent(),
             Value<bool> enableThinking = const Value.absent(),
+            Value<bool> includeEnableThinkingParam = const Value.absent(),
             Value<int> timeout = const Value.absent(),
             Value<String?> voiceId = const Value.absent(),
             Value<int?> audioChannel = const Value.absent(),
@@ -9042,6 +9114,7 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
             topP: topP,
             isStream: isStream,
             enableThinking: enableThinking,
+            includeEnableThinkingParam: includeEnableThinkingParam,
             timeout: timeout,
             voiceId: voiceId,
             audioChannel: audioChannel,
@@ -9059,6 +9132,7 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
             Value<double> topP = const Value.absent(),
             Value<bool> isStream = const Value.absent(),
             Value<bool> enableThinking = const Value.absent(),
+            Value<bool> includeEnableThinkingParam = const Value.absent(),
             Value<int> timeout = const Value.absent(),
             Value<String?> voiceId = const Value.absent(),
             Value<int?> audioChannel = const Value.absent(),
@@ -9076,6 +9150,7 @@ class $$ApiPresetsTableTableManager extends RootTableManager<
             topP: topP,
             isStream: isStream,
             enableThinking: enableThinking,
+            includeEnableThinkingParam: includeEnableThinkingParam,
             timeout: timeout,
             voiceId: voiceId,
             audioChannel: audioChannel,

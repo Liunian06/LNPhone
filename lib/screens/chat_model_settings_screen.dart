@@ -280,6 +280,7 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
   late double _topP;
   late bool _isStream;
   late bool _enableThinking;
+  late bool _includeEnableThinkingParam;
   List<String> _availableModels = [];
 
   @override
@@ -300,6 +301,7 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
     _topPController = TextEditingController(text: _topP.toString());
     _isStream = preset?.isStream ?? true;
     _enableThinking = preset?.enableThinking ?? true;
+    _includeEnableThinkingParam = preset?.includeEnableThinkingParam ?? true;
 
     if (_model.isNotEmpty) {
       _availableModels = [_model];
@@ -407,13 +409,31 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
                             onChanged: (v) => setState(() => _isStream = v),
                             isDark: isDark,
                           ),
-                          _buildSwitch(
-                            label: '启用推理 (Thinking)',
-                            value: _enableThinking,
-                            onChanged: (v) =>
-                                setState(() => _enableThinking = v),
-                            isDark: isDark,
-                          ),
+                          if (_provider == ApiProvider.openai)
+                            _buildSwitch(
+                              label: '携带 enable_thinking 参数',
+                              value: _includeEnableThinkingParam,
+                              onChanged: (v) => setState(
+                                () => _includeEnableThinkingParam = v,
+                              ),
+                              isDark: isDark,
+                            ),
+                          if (_provider == ApiProvider.openai &&
+                              !_includeEnableThinkingParam)
+                            _buildHelperText(
+                              text:
+                                  '关闭后请求体不会发送 enable_thinking，按服务端默认行为处理。',
+                              isDark: isDark,
+                            ),
+                          if (_provider == ApiProvider.openai &&
+                              _includeEnableThinkingParam)
+                            _buildSwitch(
+                              label: '启用推理 (Thinking)',
+                              value: _enableThinking,
+                              onChanged: (v) =>
+                                  setState(() => _enableThinking = v),
+                              isDark: isDark,
+                            ),
                         ],
                       ),
                       const SizedBox(height: 20),
@@ -764,6 +784,21 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
     );
   }
 
+  Widget _buildHelperText({
+    required String text,
+    required bool isDark,
+  }) {
+    final textColor = isDark ? Colors.white70 : Colors.black54;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Text(
+        text,
+        style: TextStyle(color: textColor, fontSize: 13),
+      ),
+    );
+  }
+
   Future<void> _fetchModels() async {
     if (_apiKeyController.text.isEmpty) {
       _showError('请先输入 API Key');
@@ -919,6 +954,8 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
       baseUrl: _baseUrlController.text,
       apiKey: _apiKeyController.text,
       model: _modelController.text,
+      enableThinking: _enableThinking,
+      includeEnableThinkingParam: _includeEnableThinkingParam,
     );
 
     bool isCancelled = false;
@@ -995,6 +1032,7 @@ class _ApiPresetEditScreenState extends State<ApiPresetEditScreen> {
       topP: _topP,
       isStream: _isStream,
       enableThinking: _enableThinking,
+      includeEnableThinkingParam: _includeEnableThinkingParam,
     );
 
     try {

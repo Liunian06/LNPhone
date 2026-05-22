@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui';
 import 'dart:isolate';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_local_notifications/src/platform_specifics/android/icon.dart';
+import 'package:image/image.dart' as img;
 import '../database/database.dart';
 import '../models/api_preset.dart';
 import '../models/moments_model.dart';
@@ -510,6 +514,8 @@ class BackgroundService {
               title: role.name,
               message: notificationBody,
               id: notificationId,
+              avatarPath: role.avatarPath,
+              avatarData: role.avatarData,
             );
             _serviceInstance?.invoke('show_notification', {
               'title': role.name,
@@ -687,26 +693,26 @@ class BackgroundService {
 
       await _bgNotificationsPlugin!.initialize(initSettings);
 
-      // 创建通知频道（Android 8.0+ 必需）
+      // 创建AI消息通知频道（Android 8.0+ 必需）
       final androidImpl = _bgNotificationsPlugin!
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
 
       if (androidImpl != null) {
-        // Android 16+ 需要使用更高的 importance 和额外配置
-        const AndroidNotificationChannel channel = AndroidNotificationChannel(
-          NotificationService.aiReplyChannelId,
-          NotificationService.aiReplyChannelName,
-          description: NotificationService.aiReplyChannelDescription,
-          importance: Importance.high,
-          playSound: true,
-          enableVibration: true,
+        // 使用新的AI消息频道，低优先级
+        const AndroidNotificationChannel aiMessageChannel =
+            AndroidNotificationChannel(
+          NotificationService.aiMessageChannelId,
+          NotificationService.aiMessageChannelName,
+          description: NotificationService.aiMessageChannelDescription,
+          importance: Importance.low, // 低优先级，不弹窗但显示
+          playSound: false,
+          enableVibration: false,
           showBadge: true,
-          enableLights: true,
         );
 
-        await androidImpl.createNotificationChannel(channel);
-        debugPrint('[BG] ✓ 后台通知频道已创建');
+        await androidImpl.createNotificationChannel(aiMessageChannel);
+        debugPrint('[BG] ✓ AI消息通知频道已创建');
 
         // Android 13+ 请求通知权限
         final notificationGranted =
@@ -720,13 +726,17 @@ class BackgroundService {
     }
   }
 
-  /// 直接在后台 Isolate 中发送通知（不依赖 IPC）
+  /// 直接在后台 Isolate 中发送通知（消息风格）
   static Future<void> _showNotificationDirectly({
     required String title,
     required String message,
     required int id,
+    String? avatarPath,
+    Uint8List? avatarData,
   }) async {
     try {
+      debugPrint('[BG] 发送通知: title=$title, id=$id');
+
       if (_bgNotificationsPlugin == null) {
         debugPrint('[BG] 通知插件未初始化，尝试初始化...');
         await _initBackgroundNotifications();
@@ -737,31 +747,107 @@ class BackgroundService {
         return;
       }
 
-      // Android 16+ 需要额外的配置才能弹出通知
+      // 加载角色头像（简化处理）
+      AndroidIcon<Object>? personIcon;
+      try {
+        if (avatarData != null && avatarData.isNotEmpty) {
+          debugPrint('[BG] 使用内存头像数据，原始大小: ${avatarData.length} bytes');
+
+          // 检查是否需要压缩
+          Uint8List finalData = avatarData;
+          if (avatarData.length > 500 * 1024) {
+            debugPrint('[BG] 头像过大，开始压缩...');
+            final compressed = await _compressImage(avatarData);
+            if (compressed != null) {
+              finalData = compressed;
+              debugPrint('[BG] ✓ 压缩成功: ${finalData.length} bytes');
+            } else {
+              debugPrint('[BG] ❌ 压缩失败，跳过头像');
+              finalData = Uint8List(0);
+            }
+          }
+
+          if (finalData.isNotEmpty) {
+            personIcon = ByteArrayAndroidIcon(finalData);
+            debugPrint('[BG] ✓ 创建 ByteArrayAndroidIcon 成功（内存数据）');
+          }
+        } else if (avatarPath != null && avatarPath.isNotEmpty) {
+          final absolutePath = await StorageUtils.toAbsolutePath(avatarPath);
+          final file = File(absolutePath);
+          if (await file.exists()) {
+            final bytes = await file.readAsBytes();
+            debugPrint('[BG] 从文件读取头像成功，原始大小: ${bytes.length} bytes');
+
+            // 检查是否需要压缩
+            Uint8List finalData = bytes;
+            if (bytes.length > 500 * 1024) {
+              debugPrint('[BG] 文件头像过大，开始压缩...');
+              final compressed = await _compressImage(bytes);
+              if (compressed != null) {
+                finalData = compressed;
+                debugPrint('[BG] ✓ 压缩成功: ${finalData.length} bytes');
+              } else {
+                debugPrint('[BG] ❌ 压缩失败，跳过头像');
+                finalData = Uint8List(0);
+              }
+            }
+
+            if (finalData.isNotEmpty) {
+              personIcon = ByteArrayAndroidIcon(finalData);
+              debugPrint('[BG] ✓ 创建 ByteArrayAndroidIcon 成功（文件数据）');
+            }
+          } else {
+            debugPrint('[BG] 头像文件不存在: $absolutePath');
+          }
+        }
+      } catch (e) {
+        debugPrint('[BG] 加载头像失败: $e');
+        personIcon = null;
+      }
+
+      // 创建 Person 对象
+      final person = Person(
+        name: title,
+        icon: personIcon,
+        bot: true,
+        important: true,
+      );
+
+      // 使用 BigTextStyle（普通文本通知）
+      final BigTextStyleInformation bigTextStyle = BigTextStyleInformation(
+        message,
+        contentTitle: title,
+        summaryText: null,
+      );
+
+      // 创建 largeIcon（如果有 personIcon 数据）
+      AndroidBitmap<Object>? largeIcon;
+      if (personIcon != null && personIcon is ByteArrayAndroidIcon) {
+        final iconData = personIcon.data as Uint8List?;
+        if (iconData != null && iconData.isNotEmpty) {
+          largeIcon = ByteArrayAndroidBitmap(iconData);
+          debugPrint('[BG] ✓ 创建 largeIcon (ByteArrayAndroidBitmap)');
+        }
+      }
+
+      // 普通通知（低优先级，使用新的AI消息频道）
       final AndroidNotificationDetails androidDetails =
           AndroidNotificationDetails(
-        NotificationService.aiReplyChannelId,
-        NotificationService.aiReplyChannelName,
-        channelDescription: NotificationService.aiReplyChannelDescription,
-        importance: Importance.high,
-        priority: Priority.high,
+        NotificationService.aiMessageChannelId, // 使用新的AI消息频道
+        NotificationService.aiMessageChannelName,
+        channelDescription: NotificationService.aiMessageChannelDescription,
+        importance: Importance.low,
+        priority: Priority.low,
         showWhen: true,
-        enableVibration: true,
-        playSound: true,
-        styleInformation: BigTextStyleInformation(
-          message,
-          contentTitle: title,
-          htmlFormatContent: false,
-          htmlFormatContentTitle: false,
-        ),
+        enableVibration: false,
+        playSound: false,
+        styleInformation: bigTextStyle, // 使用 BigTextStyle
+        largeIcon: largeIcon, // 添加 largeIcon（右侧显示）
         category: AndroidNotificationCategory.message,
         visibility: NotificationVisibility.public,
         autoCancel: true,
-        ticker: '$title: $message',
         ongoing: false,
-        showProgress: false,
         channelShowBadge: true,
-        enableLights: true,
       );
 
       final NotificationDetails details = NotificationDetails(
@@ -769,7 +855,7 @@ class BackgroundService {
       );
 
       await _bgNotificationsPlugin!.show(id, title, message, details);
-      debugPrint('[BG] ✓ 通知已直接发送: id=$id, title=$title');
+      debugPrint('[BG] ✓ 消息风格通知已直接发送: id=$id, title=$title');
 
       // 记录通知发送成功
       await AppLogService.logNotificationSent(
@@ -787,6 +873,56 @@ class BackgroundService {
         notificationId: id,
         success: false,
       );
+    }
+  }
+
+  /// 压缩图片数据到指定大小以下（后台服务版本）
+  static Future<Uint8List?> _compressImage(
+    Uint8List imageData, {
+    int maxSizeBytes = 100 * 1024, // 100KB
+    int targetWidth = 256,
+  }) async {
+    try {
+      debugPrint('[BG] 开始压缩图片，原始大小: ${imageData.length} bytes');
+
+      // 解码图片
+      img.Image? image = img.decodeImage(imageData);
+      if (image == null) {
+        debugPrint('[BG] ❌ 无法解码图片');
+        return null;
+      }
+
+      debugPrint('[BG] 原始图片尺寸: ${image.width}x${image.height}');
+
+      // 如果图片宽度大于目标宽度，缩小图片
+      if (image.width > targetWidth) {
+        final targetHeight = (image.height * targetWidth / image.width).round();
+        image = img.copyResize(image, width: targetWidth, height: targetHeight);
+        debugPrint('[BG] 缩放后尺寸: ${image.width}x${image.height}');
+      }
+
+      // 尝试不同的质量级别进行压缩
+      for (int quality = 85; quality >= 50; quality -= 10) {
+        final compressed = img.encodeJpg(image, quality: quality);
+        debugPrint('[BG] 质量 $quality: ${compressed.length} bytes');
+
+        if (compressed.length <= maxSizeBytes) {
+          debugPrint('[BG] ✓ 压缩成功: ${compressed.length} bytes (质量: $quality)');
+          return Uint8List.fromList(compressed);
+        }
+      }
+
+      // 如果还是太大，进一步缩小尺寸
+      final smallerWidth = (targetWidth * 0.7).round();
+      final smallerHeight = (image.height * 0.7).round();
+      image = img.copyResize(image, width: smallerWidth, height: smallerHeight);
+      final compressed = img.encodeJpg(image, quality: 50);
+
+      debugPrint('[BG] ✓ 最终压缩: ${compressed.length} bytes (尺寸: ${image.width}x${image.height})');
+      return Uint8List.fromList(compressed);
+    } catch (e) {
+      debugPrint('[BG] ❌ 压缩图片失败: $e');
+      return null;
     }
   }
 

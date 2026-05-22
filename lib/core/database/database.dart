@@ -83,7 +83,7 @@ class AppDatabase extends _$AppDatabase {
   static bool get hasActiveConnection => _instance != null;
 
   @override
-  int get schemaVersion => 36;
+  int get schemaVersion => 37;
 
   // Migration Strategy
   @override
@@ -379,6 +379,17 @@ class AppDatabase extends _$AppDatabase {
                 apiPresets, apiPresets.audioChannel as GeneratedColumn<Object>);
           } catch (e) {
             print('[Migration] Error in version 36: $e');
+          }
+        }
+        if (from < 37) {
+          // 添加 ApiPresets.includeEnableThinkingParam 列
+          try {
+            await m.addColumn(
+              apiPresets,
+              apiPresets.includeEnableThinkingParam as GeneratedColumn<Object>,
+            );
+          } catch (e) {
+            print('[Migration] Error in version 37: $e');
           }
         }
       },
@@ -1569,6 +1580,7 @@ class AppDatabase extends _$AppDatabase {
             topP: e.topP,
             isStream: e.isStream,
             enableThinking: e.enableThinking,
+            includeEnableThinkingParam: e.includeEnableThinkingParam,
             timeout: e.timeout,
             voiceId: e.voiceId,
             audioChannel: e.audioChannel,
@@ -1592,6 +1604,7 @@ class AppDatabase extends _$AppDatabase {
         topP: Value(preset.topP),
         isStream: Value(preset.isStream),
         enableThinking: Value(preset.enableThinking),
+        includeEnableThinkingParam: Value(preset.includeEnableThinkingParam),
         timeout: Value(preset.timeout),
         voiceId: Value(preset.voiceId),
         audioChannel: Value(preset.audioChannel),
@@ -1622,6 +1635,7 @@ class AppDatabase extends _$AppDatabase {
       topP: e.topP,
       isStream: e.isStream,
       enableThinking: e.enableThinking,
+      includeEnableThinkingParam: e.includeEnableThinkingParam,
       timeout: e.timeout,
       voiceId: e.voiceId,
       audioChannel: e.audioChannel,

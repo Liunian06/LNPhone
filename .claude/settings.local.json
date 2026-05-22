@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze *)",
+      "Bash(flutter build *)",
+      "WebSearch",
+      "WebFetch(domain:pub.dev)",
+      "Bash(flutter pub *)",
+      "Bash(flutter clean *)",
+      "Bash(./gradlew clean *)"
+    ]
+  }
+}

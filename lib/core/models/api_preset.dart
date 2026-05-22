@@ -24,6 +24,7 @@ class ApiPreset {
   double topP;
   bool isStream;
   bool enableThinking;
+  bool includeEnableThinkingParam;
   int timeout; // 超时时间（秒）
   String? voiceId; // 语音 ID (Minimax)
   int? audioChannel; // 音频声道 (Minimax)
@@ -40,6 +41,7 @@ class ApiPreset {
     this.topP = 0.9,
     this.isStream = true,
     this.enableThinking = true,
+    this.includeEnableThinkingParam = true,
     this.timeout = 120,
     this.voiceId,
     this.audioChannel,
@@ -58,6 +60,7 @@ class ApiPreset {
       'topP': topP,
       'isStream': isStream,
       'enableThinking': enableThinking,
+      'includeEnableThinkingParam': includeEnableThinkingParam,
       'timeout': timeout,
       'voiceId': voiceId,
       'audioChannel': audioChannel,
@@ -77,6 +80,8 @@ class ApiPreset {
       topP: (json['topP'] ?? 0.9).toDouble(),
       isStream: json['isStream'] ?? true,
       enableThinking: json['enableThinking'] ?? true,
+      includeEnableThinkingParam:
+          json['includeEnableThinkingParam'] ?? true,
       timeout: json['timeout'] ?? 120,
       voiceId: json['voiceId'],
       audioChannel: json['audioChannel'],
@@ -95,6 +100,7 @@ class ApiPreset {
     double? topP,
     bool? isStream,
     bool? enableThinking,
+    bool? includeEnableThinkingParam,
     int? timeout,
     String? voiceId,
     int? audioChannel,
@@ -111,6 +117,8 @@ class ApiPreset {
       topP: topP ?? this.topP,
       isStream: isStream ?? this.isStream,
       enableThinking: enableThinking ?? this.enableThinking,
+      includeEnableThinkingParam:
+          includeEnableThinkingParam ?? this.includeEnableThinkingParam,
       timeout: timeout ?? this.timeout,
       voiceId: voiceId ?? this.voiceId,
       audioChannel: audioChannel ?? this.audioChannel,

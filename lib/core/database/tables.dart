@@ -407,6 +407,8 @@ class ApiPresets extends Table {
   BoolColumn get isStream => boolean().withDefault(const Constant(true))();
   BoolColumn get enableThinking =>
       boolean().withDefault(const Constant(true))();
+  BoolColumn get includeEnableThinkingParam =>
+      boolean().withDefault(const Constant(true))();
   IntColumn get timeout => integer().withDefault(const Constant(120))();
   TextColumn get voiceId => text().nullable()(); // 语音 ID (Minimax)
   IntColumn get audioChannel => integer().nullable()(); // 音频声道 (Minimax)

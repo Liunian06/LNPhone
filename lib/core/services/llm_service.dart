@@ -777,7 +777,8 @@ class LlmService {
       final requestBody = {
         'model': preset.model,
         'messages': openAIMessages,
-        if (!preset.enableThinking) 'enable_thinking': false,
+        if (preset.includeEnableThinkingParam)
+          'enable_thinking': preset.enableThinking,
       };
       print('[LLM-OpenAI] 发送 HTTP POST 请求...');
 
@@ -1083,7 +1084,8 @@ class LlmService {
       final requestBody = {
         'model': preset.model,
         'messages': openAIMessages,
-        if (!preset.enableThinking) 'enable_thinking': false,
+        if (preset.includeEnableThinkingParam)
+          'enable_thinking': preset.enableThinking,
       };
       print('[LLM-OpenAI] 发送 HTTP POST 请求...');
 

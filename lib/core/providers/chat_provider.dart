@@ -1141,6 +1141,23 @@ class ChatProvider extends ChangeNotifier {
           // 刷新聊天数据以获取最新状态
           await _refreshChats();
 
+          // 记录原始消息类型
+          debugPrint('[ChatProvider] ====== AI 消息分析 ======');
+          debugPrint('[ChatProvider] aiMessages 总数: ${aiMessages.length}');
+          for (var msg in aiMessages) {
+            debugPrint('[ChatProvider] - 消息类型: ${msg.type.name}, 内容长度: ${msg.content.length}');
+          }
+          await AppLogService.log(
+            'AI 消息列表',
+            category: 'ChatProvider',
+            level: LogLevel.info,
+            data: {
+              'step': 'ai_messages_received',
+              'totalCount': aiMessages.length,
+              'messageTypes': aiMessages.map((m) => m.type.name).toList(),
+            },
+          );
+
           // 过滤消息（排除红包/转账响应消息，它们只用于更新状态）
           final filteredMessages = aiMessages.where((msg) {
             if (msg.type == MessageType.state) return false;
@@ -1160,6 +1177,21 @@ class ChatProvider extends ChangeNotifier {
             }
             return true;
           }).toList();
+
+          debugPrint('[ChatProvider] filteredMessages 数量: ${filteredMessages.length}');
+          for (var msg in filteredMessages) {
+            debugPrint('[ChatProvider] - 过滤后消息类型: ${msg.type.name}');
+          }
+          await AppLogService.log(
+            '过滤后的消息列表',
+            category: 'ChatProvider',
+            level: LogLevel.info,
+            data: {
+              'step': 'filtered_messages',
+              'filteredCount': filteredMessages.length,
+              'messageTypes': filteredMessages.map((m) => m.type.name).toList(),
+            },
+          );
 
           if (filteredMessages.isNotEmpty) {
             for (final message in filteredMessages) {
@@ -1231,37 +1263,101 @@ class ChatProvider extends ChangeNotifier {
                 sender: role.name, // AI 消息使用角色名
               );
 
-              // 发送通知
+              // 发送通知（使用 currentRole 获取最新的头像数据）
+              // 先记录日志，确认是否进入通知逻辑
+              debugPrint('[ChatProvider] ====== 开始通知流程 ======');
+              debugPrint('[ChatProvider] 消息类型: ${message.type}');
+              debugPrint('[ChatProvider] 角色名称: ${currentRole.name}');
+              debugPrint('[ChatProvider] 角色头像路径: ${currentRole.avatarPath}');
+              debugPrint('[ChatProvider] 角色头像数据: ${currentRole.avatarData?.length ?? 0} bytes');
+
+              await AppLogService.log(
+                '准备发送前台通知',
+                category: 'ChatProvider',
+                level: LogLevel.info,
+                data: {
+                  'step': 'before_notification',
+                  'messageType': message.type.name,
+                  'roleName': currentRole.name,
+                  'avatarPath': currentRole.avatarPath ?? 'null',
+                  'avatarDataLength': currentRole.avatarData?.length ?? 0,
+                  'chatId': chatId,
+                },
+              );
+
               final notificationBody =
                   _buildAiNotificationBody(message.type, message.content);
+
+              debugPrint('[ChatProvider] notificationBody 结果: ${notificationBody ?? "null"}');
+
+              await AppLogService.log(
+                'notificationBody 结果',
+                category: 'ChatProvider',
+                level: LogLevel.info,
+                data: {
+                  'step': 'notification_body_check',
+                  'notificationBody': notificationBody ?? 'null',
+                  'messageType': message.type.name,
+                },
+              );
+
               if (notificationBody != null) {
                 try {
                   final notificationId = _nextNotificationId();
+
+                  await AppLogService.log(
+                    '调用 NotificationService.showAiReplyNotification',
+                    category: 'ChatProvider',
+                    level: LogLevel.info,
+                    data: {
+                      'step': 'call_notification_service',
+                      'notificationId': notificationId,
+                      'title': currentRole.name,
+                    },
+                  );
+
                   await NotificationService().showAiReplyNotification(
-                    title: role.name,
+                    title: currentRole.name,
                     message: notificationBody,
                     id: notificationId,
+                    avatarPath: currentRole.avatarPath,
+                    avatarData: currentRole.avatarData,
                   );
+                  debugPrint('[ChatProvider] ✓ 通知服务调用完成');
                   await AppLogService.log(
                     '前台 AI 消息已发送通知',
                     category: 'Notification',
+                    level: LogLevel.info,
                     data: {
                       'chatId': chatId,
                       'notificationId': notificationId,
                       'messageType': message.type.name,
+                      'success': true,
                     },
                   );
-                } catch (e) {
-                  debugPrint('发送通知失败: $e');
+                } catch (e, stackTrace) {
+                  debugPrint('[ChatProvider] ❌ 发送通知失败: $e');
+                  debugPrint('[ChatProvider] 堆栈: $stackTrace');
                   await AppLogService.error(
                     '前台 AI 消息发送通知失败',
                     category: 'Notification',
                     data: {
                       'chatId': chatId,
                       'error': e.toString(),
+                      'stackTrace': stackTrace.toString(),
                     },
                   );
                 }
+              } else {
+                debugPrint('[ChatProvider] notificationBody 为 null，不发送通知');
+                await AppLogService.warning(
+                  'notificationBody 为 null，跳过通知',
+                  category: 'ChatProvider',
+                  data: {
+                    'step': 'skip_notification',
+                    'messageType': message.type.name,
+                  },
+                );
               }
 
               _typingStates[chatId] = false;
@@ -1546,6 +1642,32 @@ class ChatProvider extends ChangeNotifier {
         return '[图片]';
       case MessageType.moment:
         return content.isEmpty ? '[朋友圈动态]' : '[朋友圈] $content';
+      case MessageType.action:
+        return '*$content*'; // 动作描述
+      case MessageType.thought:
+        return '(想法) $content'; // 内心想法
+      case MessageType.emoji:
+        return '[表情]'; // 表情包
+      case MessageType.location:
+        return '[位置]'; // 位置分享
+      case MessageType.redpacket:
+        return '[红包]'; // 红包
+      case MessageType.transfer:
+        return '[转账]'; // 转账
+      case MessageType.product:
+        return '[商品推荐]'; // 商品
+      case MessageType.link:
+        return '[链接]'; // 链接
+      case MessageType.note:
+        return '[备忘提醒]'; // 备忘
+      case MessageType.anniversary:
+        return '[纪念日]'; // 纪念日
+      case MessageType.scene:
+        return content.isEmpty ? '[场景]' : content; // 场景描述
+      case MessageType.narration:
+        return content; // 旁白
+      case MessageType.options:
+        return '[互动选项]'; // 互动选项
       default:
         return null;
     }

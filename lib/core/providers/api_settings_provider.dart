@@ -347,7 +347,8 @@ class ApiSettingsProvider extends ChangeNotifier {
           {'role': 'user', 'content': 'Hi'},
         ],
         'max_tokens': 5,
-        if (!preset.enableThinking) 'enable_thinking': false,
+        if (preset.includeEnableThinkingParam)
+          'enable_thinking': preset.enableThinking,
       }),
     );
 
